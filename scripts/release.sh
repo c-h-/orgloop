@@ -63,6 +63,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --dry-run) DRY_RUN=true; shift ;;
+    --) shift ;;
     -h|--help)
       echo "Usage: scripts/release.sh [--patch|--minor|--major|--version X.Y.Z] [--dry-run]"
       echo ""
