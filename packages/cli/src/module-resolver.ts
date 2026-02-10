@@ -29,10 +29,28 @@ export interface ResolvedModule {
 }
 
 /**
+ * Expand short module names to full package names.
+ *
+ * - `engineering` → `@orgloop/module-engineering`
+ * - `minimal`     → `@orgloop/module-minimal`
+ * - `@orgloop/module-foo` → unchanged
+ * - `./local/path` → unchanged
+ */
+export function expandModuleName(name: string): string {
+	// Already a path or scoped package — return as-is
+	if (name.startsWith('.') || name.startsWith('/') || name.startsWith('@')) {
+		return name;
+	}
+	// Bare name → expand to @orgloop/module-<name>
+	return `@orgloop/module-${name}`;
+}
+
+/**
  * Resolve a module package to a filesystem path.
  *
  * Supports:
- * - Workspace packages: `@orgloop/module-engineering` → resolved via require.resolve
+ * - Short names: `engineering` → `@orgloop/module-engineering` → resolved via Node
+ * - Scoped packages: `@orgloop/module-engineering` → resolved via Node
  * - Local paths: `./modules/engineering` → resolved relative to basePath
  */
 export function resolveModulePath(pkg: string, basePath: string): string {
@@ -41,9 +59,12 @@ export function resolveModulePath(pkg: string, basePath: string): string {
 		return isAbsolute(pkg) ? pkg : resolve(basePath, pkg);
 	}
 
+	// Expand short names (e.g. "engineering" → "@orgloop/module-engineering")
+	const fullPkg = expandModuleName(pkg);
+
 	// npm/workspace package — try to resolve via Node's module resolution
 	try {
-		const resolved = import.meta.resolve?.(`${pkg}/orgloop-module.yaml`);
+		const resolved = import.meta.resolve?.(`${fullPkg}/orgloop-module.yaml`);
 		if (resolved) {
 			// import.meta.resolve returns a file:// URL
 			const filePath = new URL(resolved).pathname;
@@ -55,8 +76,8 @@ export function resolveModulePath(pkg: string, basePath: string): string {
 
 	// Fallback: try common monorepo locations
 	const candidates = [
-		resolve(basePath, 'node_modules', pkg),
-		resolve(basePath, '..', 'modules', pkg.replace(/^@orgloop\/module-/, '')),
+		resolve(basePath, 'node_modules', fullPkg),
+		resolve(basePath, '..', 'modules', fullPkg.replace(/^@orgloop\/module-/, '')),
 	];
 
 	// Return first candidate (existence will be checked by caller)

@@ -343,7 +343,12 @@ step "Creating git commit and tag"
 
 git add -A
 git commit -m "chore: release v${NEW_VERSION}"
-git tag "v${NEW_VERSION}"
+
+if $DRY_RUN; then
+  info "Dry run — skipping git tag creation"
+else
+  git tag "v${NEW_VERSION}"
+fi
 
 ok "Committed and tagged v${NEW_VERSION}"
 
@@ -394,11 +399,10 @@ done
 if $DRY_RUN; then
   step "Dry run complete"
   echo ""
-  echo -e "  ${YELLOW}Skipped:${NC} git push and npm publish"
+  echo -e "  ${YELLOW}Skipped:${NC} git push, git tag, and npm publish"
   echo -e "  ${YELLOW}Note:${NC}    Version bumps were committed locally. To undo:"
   echo ""
   echo -e "    git reset --soft HEAD~1"
-  echo -e "    git tag -d v${NEW_VERSION}"
   echo -e "    git checkout -- ."
   echo ""
 else

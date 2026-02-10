@@ -20,7 +20,7 @@
 				"noThenProperty": "off"
 			},
 			"style": {
-				"noNonNullAssertion": "warn"
+				"noNonNullAssertion": "error"
 			}
 		}
 	},

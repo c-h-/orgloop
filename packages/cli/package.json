@@ -16,6 +16,8 @@
   },
   "dependencies": {
     "@orgloop/core": "workspace:*",
+    "@orgloop/module-engineering": "workspace:*",
+    "@orgloop/module-minimal": "workspace:*",
     "@orgloop/sdk": "workspace:*",
     "@types/js-yaml": "^4.0.9",
     "ajv": "^8.17.0",

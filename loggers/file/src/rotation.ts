@@ -65,7 +65,7 @@ export async function needsRotation(filePath: string, maxSize: number): Promise<
 export async function rotateFile(filePath: string, config: RotationConfig): Promise<void> {
 	const dir = dirname(filePath);
 	const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-	const baseName = filePath.split('/').pop()!;
+	const baseName = filePath.split('/').pop() ?? 'log';
 	const rotatedName = `${baseName}.${timestamp}`;
 	const rotatedPath = join(dir, rotatedName);
 

@@ -6,7 +6,8 @@
  */
 
 import { fork } from 'node:child_process';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { closeSync, openSync, unlinkSync } from 'node:fs';
+import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,6 +22,24 @@ import { scanEnvVars } from './env.js';
 const PID_DIR = join(homedir(), '.orgloop');
 const PID_FILE = join(PID_DIR, 'orgloop.pid');
 const STATE_FILE = join(PID_DIR, 'state.json');
+const LOG_DIR = join(PID_DIR, 'logs');
+
+function isProcessRunning(pid: number): boolean {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+async function cleanupPidFile(): Promise<void> {
+	try {
+		await unlink(PID_FILE);
+	} catch {
+		/* ignore */
+	}
+}
 
 // ─── State persistence ──────────────────────────────────────────────────────
 
@@ -150,12 +169,7 @@ async function runForeground(configPath?: string): Promise<void> {
 		const shutdown = async () => {
 			output.blank();
 			output.info('Shutting down...');
-			const { unlink } = await import('node:fs/promises');
-			try {
-				await unlink(PID_FILE);
-			} catch {
-				/* ignore */
-			}
+			await cleanupPidFile();
 			process.exit(0);
 		};
 
@@ -234,17 +248,21 @@ async function runForeground(configPath?: string): Promise<void> {
 		...(checkpointStore ? { checkpointStore } : {}),
 	});
 
+	// Ensure PID file is always cleaned up
+	process.on('exit', () => {
+		try {
+			unlinkSync(PID_FILE);
+		} catch {
+			/* ignore */
+		}
+	});
+
 	// Signal handling
 	const shutdown = async () => {
 		output.blank();
 		output.info('Shutting down...');
 		await engine.stop();
-		const { unlink } = await import('node:fs/promises');
-		try {
-			await unlink(PID_FILE);
-		} catch {
-			/* ignore */
-		}
+		await cleanupPidFile();
 		process.exit(0);
 	};
 
@@ -280,9 +298,14 @@ async function runForeground(configPath?: string): Promise<void> {
 		output.info(`OrgLoop is running. PID: ${process.pid}`);
 		output.info('Logs: orgloop logs | Status: orgloop status | Stop: orgloop stop');
 	} catch (err) {
+		await cleanupPidFile();
 		output.error(`Failed to start: ${err instanceof Error ? err.message : String(err)}`);
 		process.exitCode = 1;
+		return;
 	}
+
+	// Keep process alive (safety net — engine should already be running)
+	await new Promise(() => {});
 }
 
 // ─── Command registration ────────────────────────────────────────────────────
@@ -297,14 +320,35 @@ export function registerApplyCommand(program: Command): void {
 				const globalOpts = cmd.parent?.opts() ?? {};
 
 				if (opts.daemon) {
+					// WQ-69: Check for already-running instance
+					try {
+						const existingPid = Number.parseInt((await readFile(PID_FILE, 'utf-8')).trim(), 10);
+						if (!Number.isNaN(existingPid) && isProcessRunning(existingPid)) {
+							output.error(
+								`OrgLoop is already running (PID ${existingPid}). Run \`orgloop stop\` first.`,
+							);
+							process.exitCode = 1;
+							return;
+						}
+						// Stale PID file — clean it up
+						await cleanupPidFile();
+					} catch {
+						// No PID file — proceed
+					}
+
 					// Fork to background
-					const config = await loadCliConfig({ configPath: globalOpts.config });
+					await loadCliConfig({ configPath: globalOpts.config });
+
+					// WQ-67: Redirect daemon stdio to log files
+					await mkdir(LOG_DIR, { recursive: true });
+					const stdoutFd = openSync(join(LOG_DIR, 'daemon.stdout.log'), 'a');
+					const stderrFd = openSync(join(LOG_DIR, 'daemon.stderr.log'), 'a');
 
 					output.info('Starting OrgLoop daemon...');
 
 					const child = fork(fileURLToPath(import.meta.url), ['--foreground'], {
 						detached: true,
-						stdio: 'ignore',
+						stdio: ['ignore', stdoutFd, stderrFd, 'ipc'],
 						env: {
 							...process.env,
 							ORGLOOP_CONFIG: globalOpts.config ?? '',
@@ -313,12 +357,14 @@ export function registerApplyCommand(program: Command): void {
 					});
 
 					child.unref();
+					child.disconnect();
+					closeSync(stdoutFd);
+					closeSync(stderrFd);
 
+					// WQ-68: Child writes its own PID file after engine.start() — parent just reports
 					if (child.pid) {
-						await mkdir(PID_DIR, { recursive: true });
-						await writeFile(PID_FILE, String(child.pid), 'utf-8');
 						output.success(`OrgLoop daemon started. PID: ${child.pid}`);
-						output.info(`PID file: ${PID_FILE}`);
+						output.info(`Logs: ${LOG_DIR}`);
 					}
 				} else {
 					await runForeground(globalOpts.config);

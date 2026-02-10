@@ -36,7 +36,6 @@ function makeRoute(
 	const route: RouteDefinition = {
 		name,
 		when: { source, events },
-		// biome-ignore lint/suspicious/noThenProperty: RouteDefinition requires `then`
 		then: { actor },
 	};
 	if (transforms) {
