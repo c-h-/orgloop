@@ -1,15 +1,80 @@
 #!/usr/bin/env bash
 # Pre-push hook: runs the full CI gate locally before pushing.
 # Install: git config core.hooksPath scripts
-set -euo pipefail
+set -uo pipefail
 
-echo "🔒 Pre-push gate: build → test → typecheck → lint"
-echo ""
+TMPDIR_HOOK=$(mktemp -d)
+trap 'rm -rf "$TMPDIR_HOOK"' EXIT
 
-pnpm build
-pnpm test
-pnpm typecheck
-pnpm lint
+# Strip ANSI escape codes from a file
+strip_ansi() {
+  sed $'s/\x1b\\[[0-9;]*[a-zA-Z]//g; s/\x1b\\[?[0-9]*[a-zA-Z]//g' "$1"
+}
 
-echo ""
-echo "✅ All checks passed — pushing."
+run_gate() {
+  local name="$1"
+  shift
+  local out="$TMPDIR_HOOK/${name}.log"
+
+  if "$@" > "$out" 2>&1; then
+    local clean="$TMPDIR_HOOK/${name}.clean"
+    strip_ansi "$out" > "$clean"
+
+    local summary=""
+    case "$name" in
+      build)
+        local pkg_count
+        pkg_count=$(grep -oE 'Running build in [0-9]+ packages' "$clean" | grep -oE '[0-9]+' || true)
+        if [ -n "$pkg_count" ]; then
+          summary=" ($pkg_count packages)"
+        fi
+        ;;
+      test)
+        # Vitest streams progress, so each package has many "Tests" lines.
+        # The final line per package has total in parens: "Tests  N passed (N)"
+        # Use awk to keep only the last "Tests" line per turbo package prefix, then sum.
+        local total
+        total=$(awk '
+          /Tests.*passed/ {
+            # Extract package prefix (e.g., "@orgloop/sdk:test:")
+            match($0, /^@[^:]+:test:/)
+            pkg = substr($0, RSTART, RLENGTH)
+            # Extract the number in parentheses at end — the total test count
+            if (match($0, /\([0-9]+\)/)) {
+              n = substr($0, RSTART+1, RLENGTH-2)
+              last[pkg] = n
+            }
+          }
+          END {
+            total = 0
+            for (pkg in last) total += last[pkg]
+            print total
+          }
+        ' "$clean")
+        if [ "$total" -gt 0 ]; then
+          summary=" ($total passed)"
+        fi
+        ;;
+      lint)
+        local file_count
+        file_count=$(grep -oE 'Checked [0-9]+ files' "$clean" | grep -oE '[0-9]+' || true)
+        if [ -n "$file_count" ]; then
+          summary=" ($file_count files)"
+        fi
+        ;;
+    esac
+    printf '\033[32m✓\033[0m %s%s\n' "$name" "$summary"
+    return 0
+  else
+    printf '\033[31m✗\033[0m %s\n' "$name"
+    echo ""
+    echo "── $name output ──"
+    cat "$out"
+    return 1
+  fi
+}
+
+run_gate build pnpm build || exit 1
+run_gate test pnpm test || exit 1
+run_gate typecheck pnpm typecheck || exit 1
+run_gate lint pnpm lint || exit 1

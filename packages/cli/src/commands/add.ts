@@ -8,12 +8,7 @@ import { access, chmod, cp, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path';
 import type { Command } from 'commander';
 import yaml from 'js-yaml';
-import {
-	expandModuleName,
-	expandModuleRoutes,
-	loadModuleManifest,
-	resolveModulePath,
-} from '../module-resolver.js';
+import { expandModuleRoutes, loadModuleManifest, resolveModulePath } from '../module-resolver.js';
 import * as output from '../output.js';
 
 async function fileExists(path: string): Promise<boolean> {
@@ -264,9 +259,6 @@ export function registerAddCommand(program: Command): void {
 					return;
 				}
 
-				// Expand short names (e.g. "engineering" → "@orgloop/module-engineering")
-				const fullName = opts.path ? name : expandModuleName(name);
-
 				// Resolve module path
 				const modulePath = opts.path ? resolve(cwd, opts.path) : resolveModulePath(name, cwd);
 
@@ -371,12 +363,10 @@ export function registerAddCommand(program: Command): void {
 					params: Record<string, string | number | boolean>;
 				}>;
 
-				const packageRef = opts.path ?? fullName;
-				const existing = modules.find(
-					(m) => m.package === packageRef || m.package === name || m.package === fullName,
-				);
+				const packageRef = opts.path ?? name;
+				const existing = modules.find((m) => m.package === packageRef || m.package === name);
 				if (existing) {
-					output.warn(`Module "${fullName}" is already installed. Updating parameters.`);
+					output.warn(`Module "${name}" is already installed. Updating parameters.`);
 					existing.params = params;
 				} else {
 					modules.push({

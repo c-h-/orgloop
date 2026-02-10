@@ -7,6 +7,9 @@
   "files": [
     "orgloop-module.yaml",
     "templates",
+    "transforms",
+    "connectors",
+    "loggers",
     "sops"
   ],
   "keywords": [

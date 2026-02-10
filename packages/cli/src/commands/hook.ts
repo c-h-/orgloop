@@ -14,6 +14,29 @@ const DEFAULT_PORT = 4800;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
+export function isConnectionError(err: unknown): boolean {
+	if (!(err instanceof Error)) return false;
+	// Node fetch throws with code ECONNREFUSED or UND_ERR_CONNECT_TIMEOUT
+	if ('code' in err && typeof err.code === 'string') {
+		const code = err.code;
+		if (
+			code === 'ECONNREFUSED' ||
+			code === 'ECONNRESET' ||
+			code === 'ENOTFOUND' ||
+			code === 'UND_ERR_CONNECT_TIMEOUT'
+		) {
+			return true;
+		}
+	}
+	// Node's undici may throw "fetch failed" as the message wrapping a cause
+	if (err.message === 'fetch failed' && 'cause' in err) {
+		return isConnectionError(err.cause);
+	}
+	// Fallback: "fetch failed" without a cause — still a connection issue
+	if (err.message === 'fetch failed') return true;
+	return false;
+}
+
 function resolvePort(portFlag?: string): number {
 	if (portFlag) {
 		const n = Number.parseInt(portFlag, 10);
@@ -82,11 +105,14 @@ export function registerHookCommand(program: Command): void {
 					process.exitCode = 1;
 				}
 			} catch (err) {
-				const msg =
-					err instanceof Error && 'code' in err && err.code === 'ECONNREFUSED'
-						? 'OrgLoop engine is not running. Start it with: orgloop apply'
-						: `Failed to deliver hook event: ${err instanceof Error ? err.message : String(err)}`;
-				process.stderr.write(`orgloop hook: ${msg}\n`);
+				// Hook delivery is opportunistic — if the engine isn't running,
+				// degrade gracefully. The host tool should never feel broken.
+				if (isConnectionError(err)) {
+					// Engine not running — this is normal, exit 0 silently
+					return;
+				}
+				// Genuine error (malformed request, unexpected failure) — report it
+				process.stderr.write(`orgloop hook: ${err instanceof Error ? err.message : String(err)}\n`);
 				process.exitCode = 1;
 			}
 		});

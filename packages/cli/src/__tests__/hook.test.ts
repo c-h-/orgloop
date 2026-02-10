@@ -1,6 +1,6 @@
 import { type IncomingMessage, type Server, type ServerResponse, createServer } from 'node:http';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { postToWebhook } from '../commands/hook.js';
+import { isConnectionError, postToWebhook } from '../commands/hook.js';
 
 // ─── Test HTTP server ───────────────────────────────────────────────────────
 
@@ -110,6 +110,39 @@ describe('hook command', () => {
 		it('works with different source IDs', async () => {
 			await postToWebhook('github', '{"event":"push"}', serverPort);
 			expect(lastRequest?.url).toBe('/webhook/github');
+		});
+	});
+
+	describe('isConnectionError', () => {
+		it('returns true for ECONNREFUSED', () => {
+			const err = Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' });
+			expect(isConnectionError(err)).toBe(true);
+		});
+
+		it('returns true for ECONNRESET', () => {
+			const err = Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' });
+			expect(isConnectionError(err)).toBe(true);
+		});
+
+		it('returns true for "fetch failed" with connection cause', () => {
+			const cause = Object.assign(new Error('connect ECONNREFUSED'), {
+				code: 'ECONNREFUSED',
+			});
+			const err = Object.assign(new Error('fetch failed'), { cause });
+			expect(isConnectionError(err)).toBe(true);
+		});
+
+		it('returns true for bare "fetch failed" without cause', () => {
+			expect(isConnectionError(new Error('fetch failed'))).toBe(true);
+		});
+
+		it('returns false for non-connection errors', () => {
+			expect(isConnectionError(new Error('invalid JSON'))).toBe(false);
+		});
+
+		it('returns false for non-Error values', () => {
+			expect(isConnectionError('string error')).toBe(false);
+			expect(isConnectionError(null)).toBe(false);
 		});
 	});
 

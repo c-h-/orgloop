@@ -10,7 +10,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import yaml from 'js-yaml';
 import {
-	expandModuleName,
 	expandModuleRoutes,
 	loadModuleManifest,
 	resolveModulePath,
@@ -96,30 +95,6 @@ describe('loadModuleManifest', () => {
 	});
 });
 
-// ─── Short name expansion ────────────────────────────────────────────────────
-
-describe('expandModuleName', () => {
-	it('expands bare names to scoped packages', () => {
-		expect(expandModuleName('engineering')).toBe('@orgloop/module-engineering');
-		expect(expandModuleName('minimal')).toBe('@orgloop/module-minimal');
-		expect(expandModuleName('custom-module')).toBe('@orgloop/module-custom-module');
-	});
-
-	it('preserves scoped package names', () => {
-		expect(expandModuleName('@orgloop/module-engineering')).toBe('@orgloop/module-engineering');
-		expect(expandModuleName('@other/module')).toBe('@other/module');
-	});
-
-	it('preserves relative paths', () => {
-		expect(expandModuleName('./modules/engineering')).toBe('./modules/engineering');
-		expect(expandModuleName('../my-module')).toBe('../my-module');
-	});
-
-	it('preserves absolute paths', () => {
-		expect(expandModuleName('/opt/modules/custom')).toBe('/opt/modules/custom');
-	});
-});
-
 // ─── Module path resolution ──────────────────────────────────────────────────
 
 describe('resolveModulePath', () => {
@@ -139,10 +114,10 @@ describe('resolveModulePath', () => {
 		expect(result).toContain('node_modules');
 	});
 
-	it('expands short names and attempts npm resolution', () => {
-		// "engineering" → "@orgloop/module-engineering" → npm resolution
-		const result = resolveModulePath('engineering', '/home/user/project');
-		expect(result).toContain('@orgloop/module-engineering');
+	it('rejects bare names with a helpful error', () => {
+		expect(() => resolveModulePath('engineering', '/home/user/project')).toThrow(
+			'Unknown module "engineering". Use a fully qualified package name (e.g. @orgloop/module-engineering) or a local path (e.g. ./modules/engineering).',
+		);
 	});
 });
 
