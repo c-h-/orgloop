@@ -97,7 +97,8 @@ export class FilterTransform implements Transform {
 		return new Promise((resolve) => {
 			try {
 				const input = JSON.stringify(event);
-				const proc = spawn('jq', ['-e', this.config.jq!], {
+				const jqExpr = this.config.jq ?? '';
+				const proc = spawn('jq', ['-e', jqExpr], {
 					stdio: ['pipe', 'pipe', 'pipe'],
 					timeout: 5000,
 				});

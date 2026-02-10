@@ -38,7 +38,6 @@ function makeRoute(
 		name,
 		description: opts?.description,
 		when: { source, events, filter: opts?.filter },
-		// biome-ignore lint/suspicious/noThenProperty: RouteDefinition requires `then`
 		then: { actor },
 	};
 	if (opts?.transforms) {

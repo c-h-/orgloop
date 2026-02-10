@@ -21,9 +21,12 @@ sources:
         - pull_request.review_submitted
         - pull_request_review_comment
         - issue_comment
+        - pull_request.opened
         - pull_request.closed
         - pull_request.merged
+        - pull_request.ready_for_review
         - workflow_run.completed
+        - check_suite.completed
       authors:                         # optional — only include events by these users
         - alice
         - bob
@@ -51,9 +54,12 @@ All events are emitted as OrgLoop `resource.changed` type.
 | `pull_request.review_submitted` | PR reviews (approve, request changes, comment) | `resource.changed` |
 | `pull_request_review_comment` | Inline review comments on PRs | `resource.changed` |
 | `issue_comment` | Comments on issues and PRs | `resource.changed` |
+| `pull_request.opened` | Newly created PRs | `resource.changed` |
 | `pull_request.closed` | Closed PRs | `resource.changed` |
 | `pull_request.merged` | Merged PRs (polled via closed PRs) | `resource.changed` |
+| `pull_request.ready_for_review` | Draft PRs marked ready for review | `resource.changed` |
 | `workflow_run.completed` | Failed GitHub Actions workflow runs | `resource.changed` |
+| `check_suite.completed` | Completed check suites | `resource.changed` |
 
 ### Example event payload (PR review)
 

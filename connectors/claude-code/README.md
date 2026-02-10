@@ -14,12 +14,19 @@ npm install @orgloop/connector-claude-code
 sources:
   - id: claude-code
     connector: "@orgloop/connector-claude-code"
-    config: {}
+    config:
+      secret: "${CLAUDE_CODE_WEBHOOK_SECRET}"  # optional — HMAC-SHA256 validation
+      buffer_dir: "/tmp/orgloop-claude-code"   # optional — persist events to disk
     poll:
       interval: "30s"    # how often to drain received webhook events
 ```
 
-This connector has no required config fields. The `poll.interval` controls how frequently accumulated webhook events are drained into the event pipeline.
+### Config options
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `secret` | `string` | no | HMAC-SHA256 secret for validating incoming webhook signatures. Supports `${ENV_VAR}` syntax |
+| `buffer_dir` | `string` | no | Directory for buffering received events to disk (JSONL). If set, events survive engine restarts |
 
 ## Events emitted
 
@@ -107,9 +114,15 @@ routes:
   ```
   This registers a post-exit hook in Claude Code's settings that sends session data to OrgLoop.
 
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `CLAUDE_CODE_WEBHOOK_SECRET` | No | HMAC-SHA256 secret for validating incoming webhook signatures |
+
 ## Limitations / known issues
 
 - **Push-based, not polling** -- Unlike the GitHub and Linear connectors, this connector does not poll an external API. It waits for inbound webhook requests. If the hook is not installed or fails silently, no events will be generated.
-- **No HMAC validation** -- The webhook endpoint does not validate request signatures. Protect it behind a firewall or reverse proxy if exposed to untrusted networks.
-- **In-memory event buffer** -- Received webhook events are held in memory until the next `poll()` drains them. If the engine crashes between webhook receipt and poll, those events are lost.
+- **HMAC validation optional** -- If `secret` is configured, signatures are validated via `X-Hub-Signature-256` or `X-Signature` headers. Without it, any POST is accepted.
+- **Event buffer** -- By default, events are held in memory until the next `poll()` drains them. Configure `buffer_dir` to persist events to disk and survive engine restarts.
 - **Only POST accepted** -- Non-POST requests receive a 405 response.

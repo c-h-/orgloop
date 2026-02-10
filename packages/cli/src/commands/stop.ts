@@ -70,9 +70,7 @@ export function registerStopCommand(program: Command): void {
 					output.success('Force killed.');
 				} else {
 					process.kill(pid, 'SIGTERM');
-					output.success('Flushing loggers...');
-					output.success('Saving checkpoints...');
-					output.success('Shutting down sources...');
+					output.info('Sent SIGTERM, waiting for shutdown...');
 
 					const exited = await waitForExit(pid, SHUTDOWN_TIMEOUT_MS);
 					if (exited) {

@@ -177,7 +177,8 @@ Every plugin type (connector, transform, logger) must be wired through the **ful
 | Transform filter | `transforms/filter/src/__tests__/filter.test.ts` | — |
 | Dedup transform | `transforms/dedup/src/__tests__/dedup.test.ts` | — |
 | Module types + expansion | `packages/sdk/src/__tests__/module.test.ts` | 20 |
-| Module E2E (resolution, composition, namespacing) | `packages/cli/src/__tests__/module-e2e.test.ts` | 15 |
+| Module E2E (resolution, composition, namespacing) | `packages/cli/src/__tests__/module-e2e.test.ts` | 23 |
+| Daemon lifecycle (PID, signals, stop, logs, state) | `packages/cli/src/__tests__/daemon-lifecycle.test.ts` | 45 |
 
 When fixing a bug, add a regression test. When wiring a new plugin, add an engine-integration test.
 

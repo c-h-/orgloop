@@ -1085,7 +1085,8 @@ describe('connector registration', () => {
 	it('source class can be instantiated', async () => {
 		const mod = await import('../index.js');
 		const reg = mod.default();
-		const Source = reg.source!;
+		expect(reg.source).toBeDefined();
+		const Source = reg.source as NonNullable<typeof reg.source>;
 		const instance = new Source();
 		expect(instance.id).toBe('cron');
 	});
