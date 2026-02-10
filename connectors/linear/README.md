@@ -29,6 +29,7 @@ sources:
 | `team` | `string` | yes | Linear team key (e.g., `ENG`, `FRONT`) |
 | `project` | `string` | no | Filter to issues belonging to this project name |
 | `api_key` | `string` | yes | Linear API key. Supports `${ENV_VAR}` syntax |
+| `cache_dir` | `string` | no | Directory for persisting issue state cache (default: system tmpdir) |
 
 ## Events emitted
 
@@ -40,6 +41,9 @@ All events are emitted as OrgLoop `resource.changed` type.
 |---|---|---|
 | `issue.created` | New issue created since last poll | A new issue was added to the team |
 | `issue.state_changed` | Issue state transition detected | Issue moved between states (e.g., "Todo" to "In Progress") |
+| `issue.assignee_changed` | Assignee change detected | Issue was assigned or reassigned |
+| `issue.priority_changed` | Priority change detected | Issue priority level changed |
+| `issue.labels_changed` | Label change detected | Labels were added or removed from an issue |
 | `comment.created` | New comment since last poll | A comment was posted on an issue |
 
 ### Example event payload (issue state change)
@@ -118,7 +122,7 @@ routes:
 
 - **Polling only** -- this connector queries the Linear GraphQL API on a schedule. Events may be delayed up to one poll interval.
 - **State change detection** -- The connector maintains an in-memory cache of issue states. On first start (cold cache), it only emits `issue.created` events for recently created issues; state changes are only detected from the second poll onward.
-- **Cache is not persisted** -- The issue state cache lives in memory. Restarting the engine clears the cache, meaning the first poll after restart may miss state transitions that occurred during downtime.
+- **Cache persisted to disk** -- The issue state cache is saved to disk (in `cache_dir`) after every poll. On restart, the cache is reloaded so state transitions during downtime are not missed.
 - **Rate limits** -- Linear API rate limits apply. The connector backs off gracefully on 429 / `RATE_LIMITED` responses.
 - **Fetches up to 50 items** -- Each poll retrieves a maximum of 50 updated issues and 50 new comments.
 - **Author names** -- Linear events use display names (not usernames) as the `author` field.

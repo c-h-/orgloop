@@ -346,7 +346,7 @@ export function registerApplyCommand(program: Command): void {
 
 					output.info('Starting OrgLoop daemon...');
 
-					const child = fork(fileURLToPath(import.meta.url), ['--foreground'], {
+					const child = fork(fileURLToPath(import.meta.url), [], {
 						detached: true,
 						stdio: ['ignore', stdoutFd, stderrFd, 'ipc'],
 						env: {
