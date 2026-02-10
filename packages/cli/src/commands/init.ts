@@ -347,6 +347,18 @@ async function scaffoldProject(
 	await writeFile(sopPath, generateExampleSop(), 'utf-8');
 	created.push('sops/example.md');
 
+	// Generate package.json for module dependencies
+	const packageJsonPath = join(targetDir, 'package.json');
+	if (!(await dirExists(packageJsonPath))) {
+		const packageJson = {
+			private: true,
+			description: 'OrgLoop project dependencies',
+			dependencies: {} as Record<string, string>,
+		};
+		await writeFile(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`, 'utf-8');
+		created.push('package.json');
+	}
+
 	// Generate .env.example
 	const envVars = collectEnvVars(connectors);
 	if (envVars.size > 0) {

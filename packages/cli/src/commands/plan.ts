@@ -24,7 +24,19 @@ interface RunningState {
 }
 
 async function loadRunningState(): Promise<RunningState | null> {
-	const stateFile = join(homedir(), '.orgloop', 'state.json');
+	const pidDir = join(homedir(), '.orgloop');
+	const pidFile = join(pidDir, 'orgloop.pid');
+
+	// Only use saved state if the engine is actually running
+	try {
+		const pidContent = await readFile(pidFile, 'utf-8');
+		const pid = Number.parseInt(pidContent.trim(), 10);
+		process.kill(pid, 0); // Throws if process doesn't exist
+	} catch {
+		return null; // No running engine — everything is new
+	}
+
+	const stateFile = join(pidDir, 'state.json');
 	try {
 		const content = await readFile(stateFile, 'utf-8');
 		return JSON.parse(content) as RunningState;

@@ -15,10 +15,21 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@orgloop/connector-claude-code": "workspace:*",
+    "@orgloop/connector-cron": "workspace:*",
+    "@orgloop/connector-github": "workspace:*",
+    "@orgloop/connector-linear": "workspace:*",
+    "@orgloop/connector-openclaw": "workspace:*",
+    "@orgloop/connector-webhook": "workspace:*",
     "@orgloop/core": "workspace:*",
-    "@orgloop/module-engineering": "workspace:*",
-    "@orgloop/module-minimal": "workspace:*",
+    "@orgloop/logger-console": "workspace:*",
+    "@orgloop/logger-file": "workspace:*",
+    "@orgloop/logger-otel": "workspace:*",
+    "@orgloop/logger-syslog": "workspace:*",
     "@orgloop/sdk": "workspace:*",
+    "@orgloop/transform-dedup": "workspace:*",
+    "@orgloop/transform-enrich": "workspace:*",
+    "@orgloop/transform-filter": "workspace:*",
     "@types/js-yaml": "^4.0.9",
     "ajv": "^8.17.0",
     "chalk": "^5.4.0",
@@ -28,19 +39,6 @@
     "ora": "^8.1.0"
   },
   "devDependencies": {
-    "@orgloop/connector-claude-code": "workspace:*",
-    "@orgloop/connector-cron": "workspace:*",
-    "@orgloop/connector-github": "workspace:*",
-    "@orgloop/connector-linear": "workspace:*",
-    "@orgloop/connector-openclaw": "workspace:*",
-    "@orgloop/connector-webhook": "workspace:*",
-    "@orgloop/logger-console": "workspace:*",
-    "@orgloop/logger-file": "workspace:*",
-    "@orgloop/logger-otel": "workspace:*",
-    "@orgloop/logger-syslog": "workspace:*",
-    "@orgloop/transform-dedup": "workspace:*",
-    "@orgloop/transform-enrich": "workspace:*",
-    "@orgloop/transform-filter": "workspace:*",
     "@types/inquirer": "^9.0.7"
   },
   "files": [

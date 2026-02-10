@@ -506,6 +506,25 @@ describe('minimal module', () => {
 	});
 });
 
+// ─── npm-based module resolution ─────────────────────────────────────────
+
+describe('npm module resolution', () => {
+	it('resolves modules from project node_modules via fallback path', () => {
+		// When import.meta.resolve fails (module not in CLI's deps), the resolver
+		// falls back to basePath/node_modules/<package>
+		const result = resolveModulePath('@acme/orgloop-module-custom', '/home/user/project');
+		expect(result).toBe('/home/user/project/node_modules/@acme/orgloop-module-custom');
+	});
+
+	it('resolves @orgloop modules from project node_modules', () => {
+		// After removing module deps from CLI, @orgloop modules also fall back
+		// to project node_modules (unless they happen to be resolvable via import.meta.resolve)
+		const result = resolveModulePath('@orgloop/module-engineering', '/home/user/project');
+		// Either resolves via import.meta.resolve (in monorepo) or falls back
+		expect(result).toBeTruthy();
+	});
+});
+
 // ─── resolveModules ──────────────────────────────────────────────────────────
 
 describe('resolveModules', () => {

@@ -4,6 +4,7 @@
  * Subcommands: connector, transform, logger, route, module.
  */
 
+import { execSync } from 'node:child_process';
 import { access, chmod, cp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { Command } from 'commander';
@@ -260,7 +261,39 @@ export function registerAddCommand(program: Command): void {
 				}
 
 				// Resolve module path
-				const modulePath = opts.path ? resolve(cwd, opts.path) : resolveModulePath(name, cwd);
+				let modulePath: string;
+				if (opts.path) {
+					modulePath = resolve(cwd, opts.path);
+				} else if (name.startsWith('.') || name.startsWith('/')) {
+					modulePath = resolveModulePath(name, cwd);
+				} else {
+					// npm package — install it into the project
+					const packageJsonPath = join(cwd, 'package.json');
+					if (!(await fileExists(packageJsonPath))) {
+						await writeFile(
+							packageJsonPath,
+							`${JSON.stringify({ private: true, description: 'OrgLoop project dependencies', dependencies: {} }, null, 2)}\n`,
+							'utf-8',
+						);
+					}
+
+					output.info(`Installing ${name}...`);
+					try {
+						execSync(`npm install ${name}`, {
+							cwd,
+							stdio: 'pipe',
+							timeout: 60_000,
+						});
+					} catch (err) {
+						const msg =
+							err instanceof Error && 'stderr' in err
+								? (err as { stderr: string }).stderr
+								: String(err);
+						throw new Error(`Failed to install module "${name}": ${msg}`);
+					}
+
+					modulePath = resolveModulePath(name, cwd);
+				}
 
 				// Load manifest
 				const manifest = await loadModuleManifest(modulePath);

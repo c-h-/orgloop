@@ -114,18 +114,51 @@ importers:
 
   packages/cli:
     dependencies:
+      '@orgloop/connector-claude-code':
+        specifier: workspace:*
+        version: link:../../connectors/claude-code
+      '@orgloop/connector-cron':
+        specifier: workspace:*
+        version: link:../../connectors/cron
+      '@orgloop/connector-github':
+        specifier: workspace:*
+        version: link:../../connectors/github
+      '@orgloop/connector-linear':
+        specifier: workspace:*
+        version: link:../../connectors/linear
+      '@orgloop/connector-openclaw':
+        specifier: workspace:*
+        version: link:../../connectors/openclaw
+      '@orgloop/connector-webhook':
+        specifier: workspace:*
+        version: link:../../connectors/webhook
       '@orgloop/core':
         specifier: workspace:*
         version: link:../core
-      '@orgloop/module-engineering':
+      '@orgloop/logger-console':
         specifier: workspace:*
-        version: link:../../modules/engineering
-      '@orgloop/module-minimal':
+        version: link:../../loggers/console
+      '@orgloop/logger-file':
         specifier: workspace:*
-        version: link:../../modules/minimal
+        version: link:../../loggers/file
+      '@orgloop/logger-otel':
+        specifier: workspace:*
+        version: link:../../loggers/otel
+      '@orgloop/logger-syslog':
+        specifier: workspace:*
+        version: link:../../loggers/syslog
       '@orgloop/sdk':
         specifier: workspace:*
         version: link:../sdk
+      '@orgloop/transform-dedup':
+        specifier: workspace:*
+        version: link:../../transforms/dedup
+      '@orgloop/transform-enrich':
+        specifier: workspace:*
+        version: link:../../transforms/enrich
+      '@orgloop/transform-filter':
+        specifier: workspace:*
+        version: link:../../transforms/filter
       '@types/js-yaml':
         specifier: ^4.0.9
         version: 4.0.9
@@ -148,45 +181,6 @@ importers:
         specifier: ^8.1.0
         version: 8.2.0
     devDependencies:
-      '@orgloop/connector-claude-code':
-        specifier: workspace:*
-        version: link:../../connectors/claude-code
-      '@orgloop/connector-cron':
-        specifier: workspace:*
-        version: link:../../connectors/cron
-      '@orgloop/connector-github':
-        specifier: workspace:*
-        version: link:../../connectors/github
-      '@orgloop/connector-linear':
-        specifier: workspace:*
-        version: link:../../connectors/linear
-      '@orgloop/connector-openclaw':
-        specifier: workspace:*
-        version: link:../../connectors/openclaw
-      '@orgloop/connector-webhook':
-        specifier: workspace:*
-        version: link:../../connectors/webhook
-      '@orgloop/logger-console':
-        specifier: workspace:*
-        version: link:../../loggers/console
-      '@orgloop/logger-file':
-        specifier: workspace:*
-        version: link:../../loggers/file
-      '@orgloop/logger-otel':
-        specifier: workspace:*
-        version: link:../../loggers/otel
-      '@orgloop/logger-syslog':
-        specifier: workspace:*
-        version: link:../../loggers/syslog
-      '@orgloop/transform-dedup':
-        specifier: workspace:*
-        version: link:../../transforms/dedup
-      '@orgloop/transform-enrich':
-        specifier: workspace:*
-        version: link:../../transforms/enrich
-      '@orgloop/transform-filter':
-        specifier: workspace:*
-        version: link:../../transforms/filter
       '@types/inquirer':
         specifier: ^9.0.7
         version: 9.0.9

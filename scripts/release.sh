@@ -72,7 +72,7 @@ while [[ $# -gt 0 ]]; do
       echo "  --minor        Bump minor version (0.1.0 -> 0.2.0)"
       echo "  --major        Bump major version (0.1.0 -> 1.0.0)"
       echo "  --version X    Set explicit version"
-      echo "  --dry-run      Do everything except actual npm publish and git push"
+      echo "  --dry-run      Do everything except git commit/tag/push and npm publish"
       echo "  -h, --help     Show this help"
       exit 0
       ;;
@@ -341,16 +341,14 @@ fi
 
 step "Creating git commit and tag"
 
-git add -A
-git commit -m "chore: release v${NEW_VERSION}"
-
 if $DRY_RUN; then
-  info "Dry run — skipping git tag creation"
+  info "Dry run — skipping git commit and tag"
 else
+  git add -A
+  git commit -m "chore: release v${NEW_VERSION}"
   git tag "v${NEW_VERSION}"
+  ok "Committed and tagged v${NEW_VERSION}"
 fi
-
-ok "Committed and tagged v${NEW_VERSION}"
 
 # ============================================================================
 # STEP 9: Publish packages
@@ -399,10 +397,9 @@ done
 if $DRY_RUN; then
   step "Dry run complete"
   echo ""
-  echo -e "  ${YELLOW}Skipped:${NC} git push, git tag, and npm publish"
-  echo -e "  ${YELLOW}Note:${NC}    Version bumps were committed locally. To undo:"
+  echo -e "  ${YELLOW}Skipped:${NC} git commit, git tag, git push, and npm publish"
+  echo -e "  ${YELLOW}Note:${NC}    Version bumps are uncommitted in your working tree. To undo:"
   echo ""
-  echo -e "    git reset --soft HEAD~1"
   echo -e "    git checkout -- ."
   echo ""
 else
