@@ -45,6 +45,12 @@ importers:
         specifier: workspace:*
         version: link:../../packages/sdk
 
+  connectors/gog:
+    dependencies:
+      '@orgloop/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+
   connectors/linear:
     dependencies:
       '@linear/sdk':
@@ -123,6 +129,9 @@ importers:
       '@orgloop/connector-github':
         specifier: workspace:*
         version: link:../../connectors/github
+      '@orgloop/connector-gog':
+        specifier: workspace:*
+        version: link:../../connectors/gog
       '@orgloop/connector-linear':
         specifier: workspace:*
         version: link:../../connectors/linear

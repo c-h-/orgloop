@@ -18,6 +18,7 @@
     "@orgloop/connector-claude-code": "workspace:*",
     "@orgloop/connector-cron": "workspace:*",
     "@orgloop/connector-github": "workspace:*",
+    "@orgloop/connector-gog": "workspace:*",
     "@orgloop/connector-linear": "workspace:*",
     "@orgloop/connector-openclaw": "workspace:*",
     "@orgloop/connector-webhook": "workspace:*",

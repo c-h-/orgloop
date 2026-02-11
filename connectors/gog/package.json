@@ -1,0 +1,31 @@
+{
+  "name": "@orgloop/connector-gog",
+  "version": "0.1.4",
+  "description": "OrgLoop GOG (Gmail) connector — poll for new emails and label changes via gog CLI",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@orgloop/sdk": "workspace:*"
+  },
+  "orgloop": {
+    "type": "connector",
+    "provides": [
+      "source"
+    ],
+    "id": "gog"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "MIT"
+}
