@@ -216,3 +216,25 @@ $ orgloop upgrade
 ```
 
 The queue actor implements `ActorConnector`, storing events as JSONL in `~/.orgloop/queue/<actor-id>/`. When the real actor becomes available, queued events drain in order with original timestamps preserved.
+
+### Runtime Integration
+
+Modules are first-class runtime citizens. The `Runtime` class (`packages/core/src/runtime.ts`) manages module lifecycle directly:
+
+```typescript
+import { Runtime } from '@orgloop/core';
+
+const runtime = new Runtime();
+await runtime.start();
+
+// Load a module into the running runtime
+await runtime.loadModule(moduleConfig, { sources, actors });
+
+// Manage modules dynamically
+await runtime.unloadModule('engineering');
+await runtime.reloadModule('engineering', updatedConfig, { sources, actors });
+```
+
+Each module becomes a `ModuleInstance` with its own lifecycle states (`loading` -> `active` -> `unloading` -> `removed`), health tracking, and per-module resources (sources, actors, transforms, loggers). Shared infrastructure (event bus, scheduler, logger manager) is owned by the Runtime and shared across all loaded modules.
+
+The CLI exposes this via `orgloop module load|unload|reload|list|status` commands that communicate with the running Runtime through its HTTP control API. See [Runtime & Module Lifecycle](./runtime-lifecycle/) for the full architecture and [CLI Design](./cli-design/) for command reference.

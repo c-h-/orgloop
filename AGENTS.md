@@ -103,18 +103,21 @@ modules/
 ### Event flow
 
 ```
-Source.poll() → EventBus → matchRoutes() → executeTransformPipeline() → Actor.deliver()
-                                                                              |
-                                                                    actor.stopped → EventBus (loops back)
+Source.poll() → EventBus → ModuleInstance.processEvent() → matchRoutes() → executeTransformPipeline() → Actor.deliver()
+                                                                                                              |
+                                                                                                    actor.stopped → EventBus (loops back)
 ```
 
-Every event passes through: ingestion → routing → transforms → delivery → logging. The bus is the spine. Routes are explicit allow-lists (actors only see events their routes match).
+The `Runtime` owns the shared infrastructure (bus, scheduler, loggers, HTTP server). Each `ModuleInstance` owns its sources, actors, routes, and transforms. Events flow through module-scoped routing -- each module only matches against its own routes. The bus is the spine. Routes are explicit allow-lists (actors only see events their routes match).
 
 ### Key classes
 
 | Class | File | Role |
 |-------|------|------|
-| `OrgLoop` | `packages/core/src/engine.ts` | Main engine. EventEmitter. Manages full lifecycle. |
+| `Runtime` | `packages/core/src/runtime.ts` | Multi-module runtime. Owns bus, scheduler, registry, HTTP control server. |
+| `ModuleInstance` | `packages/core/src/module-instance.ts` | Per-module resource container. Sources, actors, transforms, lifecycle (loading/active/unloading/removed). |
+| `ModuleRegistry` | `packages/core/src/registry.ts` | Singleton module name registry. Prevents conflicts. |
+| `OrgLoop` | `packages/core/src/engine.ts` | Backward-compatible wrapper around Runtime. Single-module convenience API. |
 | `matchRoutes()` | `packages/core/src/router.ts` | Dot-path filtering, multi-route matching |
 | `executeTransformPipeline()` | `packages/core/src/transform.ts` | Sequential transforms, fail-open default |
 | `Scheduler` | `packages/core/src/scheduler.ts` | Poll intervals, graceful start/stop |
@@ -140,10 +143,10 @@ To build a new connector: implement `SourceConnector` (for sources) or `ActorCon
 Every plugin type (connector, transform, logger) must be wired through the **full chain**. Missing any link = silent failure at runtime.
 
 ```
-1. package.json dep  — @orgloop/cli must list the package as a dependency
-2. Dynamic import    — start.ts imports the package and calls register()
-3. Engine constructor — resolved instance passed via OrgLoopOptions
-4. Engine start()    — init() called with config from YAML
+1. package.json dep    — @orgloop/cli must list the package as a dependency
+2. Dynamic import      — start.ts imports the package and calls register()
+3. Runtime.loadModule() — resolved instance passed via module options
+4. ModuleInstance.initialize() — init() called with config from YAML
 ```
 
 **Past bugs from broken chains:**
@@ -179,6 +182,9 @@ Every plugin type (connector, transform, logger) must be wired through the **ful
 | Module types + expansion | `packages/sdk/src/__tests__/module.test.ts` | 20 |
 | Module E2E (resolution, composition, namespacing) | `packages/cli/src/__tests__/module-e2e.test.ts` | 23 |
 | Daemon lifecycle (PID, signals, stop, logs, state) | `packages/cli/src/__tests__/daemon-lifecycle.test.ts` | 45 |
+| Runtime lifecycle (multi-module, shared infra) | `packages/core/src/__tests__/runtime.test.ts` | 11 |
+| Module registry (name conflicts, lookup) | `packages/core/src/__tests__/registry.test.ts` | 8 |
+| Module instance (lifecycle states, resource ownership) | `packages/core/src/__tests__/module-instance.test.ts` | 17 |
 
 When fixing a bug, add a regression test. When wiring a new plugin, add an engine-integration test.
 

@@ -63,6 +63,14 @@ pnpm lint         # biome check
 pnpm typecheck    # tsc --noEmit across all packages
 ```
 
+## Runtime Architecture
+
+The `Runtime` class owns shared infrastructure: EventBus, Scheduler, LoggerManager, WebhookServer, and ModuleRegistry. Each `ModuleInstance` owns per-module resources (sources, actors, routes, transforms) and has an independent lifecycle: `loading` -> `active` -> `unloading` -> `removed`.
+
+The `OrgLoop` class is a backward-compatible wrapper that creates a single "default" module inside a Runtime, preserving the original single-module API.
+
+The CLI's `orgloop start` creates a `Runtime` and calls `loadModule()` for each configured module. The HTTP control API (`/control/module/*`) enables dynamic module management at runtime.
+
 ## How an Event Flows
 
 This is the end-to-end path of a single event through the system:
@@ -74,7 +82,7 @@ This is the end-to-end path of a single event through the system:
 2. Connector normalizes raw data into OrgLoopEvent (buildEvent)
        |
        v
-3. Engine receives PollResult.events
+3. ModuleInstance receives PollResult.events
        |
        v
 4. Each event is enriched with a trace_id
@@ -83,7 +91,7 @@ This is the end-to-end path of a single event through the system:
 5. Event published to EventBus (InMemoryBus or FileWalBus)
        |
        v
-6. Router matches event against all route definitions
+6. Module-scoped router matches event against the module's route definitions
    (source match + event type match + optional filter)
        |
        v
@@ -298,7 +306,10 @@ Start reading here to understand the system:
 | `packages/sdk/src/connector.ts` | `SourceConnector` and `ActorConnector` interfaces |
 | `packages/sdk/src/transform.ts` | `Transform` interface |
 | `packages/sdk/src/event.ts` | `buildEvent()` helper, event validation |
-| `packages/core/src/engine.ts` | `OrgLoop` class -- the main runtime engine |
+| `packages/core/src/runtime.ts` | `Runtime` class -- multi-module runtime, owns shared infrastructure |
+| `packages/core/src/module-instance.ts` | `ModuleInstance` class -- per-module resource container and lifecycle |
+| `packages/core/src/registry.ts` | `ModuleRegistry` -- singleton module name registry |
+| `packages/core/src/engine.ts` | `OrgLoop` class -- backward-compatible wrapper around Runtime |
 | `packages/core/src/router.ts` | Route matching logic |
 | `packages/core/src/transform.ts` | Transform pipeline executor (script + package) |
 | `packages/core/src/bus.ts` | Event bus (InMemoryBus, FileWalBus) |

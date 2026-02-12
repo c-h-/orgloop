@@ -30,6 +30,7 @@ COMMANDS:
 
   env               Check environment variable configuration
   doctor            Pre-flight environment validation
+  module            Manage modules in the running runtime
 
 FLAGS:
   --config, -c      Path to orgloop.yaml (default: ./orgloop.yaml)
@@ -177,7 +178,7 @@ Logs: orgloop logs | Status: orgloop status | Stop: orgloop stop
 
 `orgloop start` starts the runtime as a **long-running daemon process**. It manages all source polling internally — poll intervals are declared in the YAML spec, not in external schedulers. This single process replaces N separate pollers/LaunchAgents/cron jobs.
 
-Under the hood, `start` calls `resolveConnectors(config)` to dynamically import all referenced connector packages, instantiate source/actor instances, and pass them to `new OrgLoop(config, { sources, actors })`. If a connector package is missing, the CLI suggests `pnpm add <package>`.
+Under the hood, `start` creates a `Runtime` instance, starts the HTTP control API, then calls `runtime.loadModule()` with the resolved connectors. The CLI's `resolveConnectors()` dynamically imports all referenced connector packages and instantiates source/actor instances. If a connector package is missing, the CLI suggests `pnpm add <package>`. The `OrgLoop` class still works as a backward-compatible wrapper for library mode.
 
 ```bash
 # Foreground (development, debugging)
@@ -200,9 +201,48 @@ Stopping OrgLoop (PID 42891)...
   ✓ Stopped.
 ```
 
-Graceful shutdown: flush log buffers, persist current checkpoints, wait for in-flight deliveries (with timeout), then exit.
+Graceful shutdown: first attempts to shut down via the HTTP control API (`POST /control/shutdown`), falling back to SIGTERM if the control API is unreachable. Either path flushes log buffers, persists current checkpoints, waits for in-flight deliveries (with timeout), then exits.
+
+#### `orgloop module`
+
+Manages modules in a running runtime. Communicates with the runtime via its HTTP control API.
+
+```bash
+# List loaded modules
+$ orgloop module list
+
+NAME           STATUS   SOURCES  ROUTES  UPTIME
+engineering    active   2        4       2h 15m
+ops-alerts     active   1        2       45m
+
+# Detailed status for a module
+$ orgloop module status engineering
+
+Module: engineering
+  Status: active
+  Sources: github, claude-code
+  Routes: 4 active
+  Uptime: 2h 15m
+  Config: /home/alice/orgloop/orgloop.yaml
+
+# Load a new module into the running runtime
+$ orgloop module load ./personal
+Loaded module "personal" into runtime (PID 42891)
+
+# Unload a module (preserves state on disk)
+$ orgloop module unload personal
+Unloaded module "personal"
+
+# Reload a module (picks up config changes)
+$ orgloop module reload engineering
+Reloaded module "engineering"
+```
+
+All subcommands support `--json` for machine-readable output.
 
 #### `orgloop status`
+
+Queries the running runtime's HTTP control API (`GET /control/status`) for a `RuntimeStatus` snapshot. Displays per-module sections when multiple modules are loaded.
 
 ```bash
 $ orgloop status

@@ -23,7 +23,7 @@ Items are referenced from `local/WORK_QUEUE.md` by FE-XX ID.
 - Actor completion feeds back as `actor.stopped` with `tracking_id` in provenance
 - Engine can correlate delivery -> completion via tracking_id
 
-**Affects:** `packages/sdk/src/connector.ts`, `packages/core/src/engine.ts`, [Event Schema](./event-schema/)
+**Affects:** `packages/sdk/src/connector.ts`, `packages/core/src/runtime.ts` (core runtime logic; `engine.ts` is now a backward-compatible wrapper), [Event Schema](./event-schema/)
 
 ---
 
@@ -149,7 +149,7 @@ Implemented:
 - OpenTelemetry logger (traces + metrics export)
 - Alert conditions: delivery failure rate > threshold, source stalled, transform error spike
 
-**Affects:** `packages/core/src/engine.ts`, new logger packages
+**Affects:** `packages/core/src/runtime.ts` (core runtime logic; `engine.ts` is now a backward-compatible wrapper), new logger packages
 
 ---
 
@@ -162,7 +162,7 @@ Implemented:
 - `--from/--to` for time range replay
 - `--dry-run` mode shows what would happen without delivering
 
-**Affects:** `packages/cli/`, `packages/core/src/engine.ts`
+**Affects:** `packages/cli/`, `packages/core/src/runtime.ts` (`engine.ts` is now a backward-compatible wrapper)
 
 ---
 
@@ -269,7 +269,7 @@ Implemented as `orgloop routes` command. ASCII rendering shows sources -> routes
 - HTTP approach: actors POST to `http://localhost:<port>/emit` (similar to webhook source, but for outbound from actors)
 - Rate limiting and loop detection needed to prevent infinite emission chains
 
-**Affects:** `packages/core/src/engine.ts`, `packages/core/src/http.ts`, `packages/sdk/src/connector.ts`, possibly new MCP server package
+**Affects:** `packages/core/src/runtime.ts` (core runtime logic; `engine.ts` is now a backward-compatible wrapper), `packages/core/src/http.ts`, `packages/sdk/src/connector.ts`, possibly new MCP server package
 
 ---
 

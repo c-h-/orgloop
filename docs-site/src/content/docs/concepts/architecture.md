@@ -75,6 +75,8 @@ pnpm typecheck    # tsc --noEmit across all packages
 
 ## Event Flow
 
+The `Runtime` owns the shared infrastructure (bus, scheduler, loggers, HTTP server). Each `ModuleInstance` owns its sources, actors, routes, and transforms. Events flow through module-scoped routing -- each module only matches against its own routes.
+
 The end-to-end path of a single event through the system:
 
 ```
@@ -84,7 +86,7 @@ The end-to-end path of a single event through the system:
 2. Connector normalizes raw data into OrgLoopEvent
        |
        v
-3. Engine receives PollResult.events
+3. ModuleInstance receives PollResult.events
        |
        v
 4. Event enriched with trace_id (trc_ prefix)
@@ -119,7 +121,10 @@ The bus is the spine. Routes are explicit allow-lists -- actors only see events 
 
 | Class | File | Role |
 |-------|------|------|
-| `OrgLoop` | `packages/core/src/engine.ts` | Main engine. EventEmitter. Manages full lifecycle: init, start, stop, event processing. |
+| `Runtime` | `packages/core/src/runtime.ts` | Multi-module runtime. Owns bus, scheduler, registry, HTTP control server. |
+| `ModuleInstance` | `packages/core/src/module-instance.ts` | Per-module resource container. Sources, actors, transforms, lifecycle (loading/active/unloading/removed). |
+| `ModuleRegistry` | `packages/core/src/registry.ts` | Singleton module name registry. Prevents conflicts. |
+| `OrgLoop` | `packages/core/src/engine.ts` | Backward-compatible wrapper around Runtime. Single-module convenience API. |
 | `matchRoutes()` | `packages/core/src/router.ts` | Dot-path filtering, multi-route matching. Returns all routes an event matches. |
 | `executeTransformPipeline()` | `packages/core/src/transform.ts` | Runs transforms sequentially. Fail-open default. |
 | `Scheduler` | `packages/core/src/scheduler.ts` | Manages poll intervals for all sources. Graceful start/stop. |
@@ -168,17 +173,17 @@ interface LoggerRegistration {
 }
 ```
 
-The CLI dynamically imports packages and calls `register()` during `orgloop start`. The returned instances are passed to the `OrgLoop` engine constructor.
+The CLI dynamically imports packages and calls `register()` during `orgloop start`. The returned instances are passed to `Runtime.loadModule()`.
 
 ### Plugin Wiring Chain
 
 Every plugin must be wired through the full chain. Missing any step causes silent failure at runtime.
 
 ```
-1. package.json dep    -- CLI must list the package as a dependency
-2. Dynamic import      -- start.ts imports the package and calls register()
-3. Engine constructor  -- resolved instance passed via OrgLoopOptions
-4. Engine start()      -- init() called with config from YAML
+1. package.json dep        -- CLI must list the package as a dependency
+2. Dynamic import          -- start.ts imports the package and calls register()
+3. Runtime.loadModule()    -- resolved instance passed via module options
+4. ModuleInstance.initialize() -- init() called with config from YAML
 ```
 
 ## Config Loading Pipeline
@@ -211,10 +216,10 @@ OrgLoop supports three runtime modes:
 | Mode | Entry Point | Use Case |
 |------|-------------|----------|
 | **CLI** | `orgloop start` | Primary. Interactive and daemon operation. |
-| **Library** | `import { OrgLoop } from '@orgloop/core'` | Programmatic embedding in other applications. |
+| **Library** | `import { Runtime } from '@orgloop/core'` | Programmatic embedding. Multi-module capable. |
 | **Server** | `orgloop serve` / `@orgloop/server` | HTTP API for remote control (placeholder). |
 
-The CLI is the primary interface. The library mode exposes the same `OrgLoop` engine class for programmatic use. The server mode wraps the engine with an HTTP API.
+The CLI is the primary interface. The library mode exposes the `Runtime` class (or the backward-compatible `OrgLoop` wrapper) for programmatic use. The server mode wraps the runtime with an HTTP API. The built-in HTTP control API (`/control/*`) enables dynamic module management at runtime.
 
 ## Further Reading
 

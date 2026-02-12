@@ -188,11 +188,13 @@ POST   /api/v1/webhooks/:source    Receive webhook from a source platform
 │  └──────────┘  └──────────┘  └────────┘  └───────────────────┘ │
 │                                                                  │
 │  Public API:                                                     │
-│    new OrgLoop(config)                                           │
-│    loop.start() / loop.stop()                                    │
-│    loop.inject(event)                                            │
-│    loop.on('event' | 'delivery' | 'error', handler)              │
-│    loop.status()                                                 │
+│    new Runtime() — multi-module runtime                          │
+│    runtime.start() / runtime.stop()                              │
+│    runtime.loadModule(config, connectors)                        │
+│    runtime.unloadModule(name) / runtime.reloadModule(name)       │
+│                                                                  │
+│    new OrgLoop(config) — backward-compatible single-module       │
+│    loop.start() / loop.stop() / loop.inject(event)               │
 └───────────┬──────────────────────┬───────────────────┬──────────┘
             │                      │                   │
    ┌────────▼────────┐   ┌────────▼────────┐  ┌───────▼────────┐

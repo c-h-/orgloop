@@ -138,6 +138,12 @@ orgloop start
 
 OrgLoop now polls your GitHub repo every 5 minutes. When a PR review comes in or CI fails, you'll see it in the console. Events from GitHub flow through the same routing system as the webhook — sources are interchangeable.
 
+Check what's running:
+
+```bash
+orgloop module list
+```
+
 **You now have a real integration.** GitHub events are being polled, routed, and logged. Ready for the full autonomous engineering org? One more tier.
 
 ---
@@ -251,19 +257,23 @@ orgloop status
 ```
 
 ```
-OrgLoop — my-org (running, PID 42831)
+OrgLoop Runtime
+  Status: running (PID 42831)
+  Uptime: 2m 14s
+  Control API: http://127.0.0.1:9801
+  Modules: 1
 
-  NAME            TYPE    INTERVAL
-  github          poll    5m
-  linear          poll    5m
-  claude-code     hook    —
+Module: my-org
+  State: running | Uptime: 2m 14s
+  Sources: 3 | Actors: 1 | Routes: 4
 
-  NAME                         SOURCE         ACTOR
-  github-pr-review             github         openclaw-engineering-agent
-  github-ci-failure            github         openclaw-engineering-agent
-  linear-to-engineering        linear         openclaw-engineering-agent
-  claude-code-to-supervisor    claude-code    openclaw-engineering-agent
+  SOURCE           TYPE      HEALTH
+  github           poll      healthy
+  linear           poll      healthy
+  claude-code      hook      —
 ```
+
+Use `orgloop module list` to see all loaded modules, or `orgloop module status my-org` for a detailed view with per-source health.
 
 ---
 
@@ -272,5 +282,6 @@ OrgLoop — my-org (running, PID 42831)
 - [User Guide](/start/user-guide/) -- day-to-day operations: logs, testing, customization, modules
 - [What is OrgLoop?](/start/what-is-orgloop/) -- deeper introduction to Organization as Code
 - [Five Primitives](/concepts/five-primitives/) -- understand Sources, Actors, Routes, Transforms, Loggers
+- [Modules](/concepts/modules/) -- composable workflow modules, hot-loading, runtime management
 - [Engineering Org example](/examples/engineering-org/) -- full production setup walkthrough
 - [CLI Command Reference](/cli/command-reference/) -- all available commands

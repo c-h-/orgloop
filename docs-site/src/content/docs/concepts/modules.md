@@ -260,7 +260,7 @@ modules:
       agent_actor: engineering
 ```
 
-Modules are **config-time only**. The engine never sees modules directly -- it sees the expanded routes, transforms, and connectors that modules produce. Run `orgloop plan` to see the expanded result.
+Modules are **config-time only** for route template expansion -- the engine sees expanded routes, not raw templates. Run `orgloop plan` to see the expanded result.
 
 ## Building Your Own
 
@@ -278,3 +278,28 @@ my-module/
 ```
 
 For a step-by-step guide, see [Building Modules](/guides/module-authoring/).
+
+## Runtime Integration
+
+At runtime, modules are dynamically loaded via `Runtime.loadModule()` and managed as `ModuleInstance` objects with independent lifecycles:
+
+| State | Meaning |
+|-------|---------|
+| `loading` | Module is initializing sources, actors, and transforms |
+| `active` | Module is running and processing events |
+| `unloading` | Module is shutting down its resources |
+| `removed` | Module has been fully unloaded |
+
+Each `ModuleInstance` owns its sources, actors, routes, and transforms. The `Runtime` owns shared infrastructure (EventBus, Scheduler, LoggerManager, HTTP server). This separation allows modules to be loaded, unloaded, and reloaded independently without affecting each other.
+
+The CLI provides module management commands:
+
+```bash
+orgloop module list          # List all loaded modules
+orgloop module status <name> # Show module state and resources
+orgloop module load <name>   # Load a module at runtime
+orgloop module unload <name> # Unload a module at runtime
+orgloop module reload <name> # Reload a module (unload + load)
+```
+
+These commands communicate with the running daemon via the HTTP control API (`/control/module/*`).

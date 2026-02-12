@@ -22,6 +22,7 @@ npm install -g @orgloop/cli
 | [`orgloop routes`](#routes) | Visualize the routing topology |
 | [`orgloop start`](#start) | Start the runtime |
 | [`orgloop status`](#status) | Show runtime status and recent events |
+| [`orgloop module`](#module) | Manage runtime modules (list, status, load, unload, reload) |
 | [`orgloop logs`](#logs) | Tail or query the event log |
 | [`orgloop test`](#test) | Inject a test event and trace its path |
 | [`orgloop stop`](#stop) | Stop the runtime gracefully |
@@ -421,6 +422,8 @@ Shows sources, routes with filter criteria and transform chains, and target acto
 
 Start the runtime. Events begin flowing.
 
+Internally, `start` creates a Runtime instance, loads your config as a module, and starts an HTTP control API. The control API port is written to `~/.orgloop/runtime.port` so that other commands (`status`, `stop`, `module`) can communicate with the running runtime.
+
 ```
 orgloop start [options]
 ```
@@ -428,13 +431,12 @@ orgloop start [options]
 | Flag | Description |
 |------|-------------|
 | `--daemon` | Run as background daemon |
+| `--force` | Skip doctor pre-flight checks |
 
 ### Foreground (development)
 
 ```bash
 $ orgloop start
-
-Applying plan...
 
   ✓ Source github — polling started (every 5m)
   ✓ Source linear — polling started (every 5m)
@@ -443,8 +445,8 @@ Applying plan...
   ✓ Route github-pr-review — active
   ✓ Route linear-to-engineering — active
   ✓ Route claude-code-to-supervisor — active
-  ✓ Logger file-log — writing to ~/.orgloop/logs/orgloop.log
-  ✓ Logger console-log — streaming to stdout
+  ✓ Logger file-log — configured
+  ✓ Logger console-log — configured
 
 OrgLoop is running. PID: 42891
 Logs: orgloop logs | Status: orgloop status | Stop: orgloop stop
@@ -457,9 +459,12 @@ Press Ctrl+C to stop in foreground mode.
 ```bash
 orgloop start --daemon
 # PID written to ~/.orgloop/orgloop.pid
+# Control API port written to ~/.orgloop/runtime.port
 ```
 
 One long-running process manages all source polling internally. Poll intervals are declared in YAML -- no external schedulers, no separate LaunchAgents, no cron jobs.
+
+Once the runtime is running, use `orgloop module list` to see loaded modules and `orgloop module load` to hot-load additional modules without restarting.
 
 ### Pre-flight validation
 
@@ -480,7 +485,7 @@ Environment Variables:
 
 ## status
 
-Show runtime status and recent events.
+Show runtime status and recent events. Queries the running runtime's control API (`GET /control/status`) for module-aware status. Falls back to PID-based status if the control API is not reachable.
 
 ```
 orgloop status [options]
@@ -493,25 +498,20 @@ orgloop status [options]
 ```bash
 $ orgloop status
 
-OrgLoop — my-org
-  Status: running (PID 42891, uptime 3h 22m)
-  Workspace: default
+OrgLoop Runtime
+  Status: running (PID 42891)
+  Uptime: 3h 22m
+  Control API: http://127.0.0.1:9801
+  Modules: 1
 
-Sources:
-  NAME          TYPE     INTERVAL  LAST POLL           EVENTS (24h)
-  github        poll     5m        2 min ago           47
-  linear        poll     5m        3 min ago           12
-  claude-code   hook     —         18 min ago          3
+Module: my-org
+  State: running | Uptime: 3h 22m
+  Sources: 3 | Actors: 1 | Routes: 4
 
-Actors:
-  NAME            STATUS    DELIVERIES (24h)  ERRORS
-  engineering     healthy   62                0
-
-Routes:
-  NAME                        MATCHED (24h)  DROPPED  ERRORS
-  github-pr-review            45             2        0
-  linear-to-engineering       12             0        0
-  claude-code-to-supervisor   3              0        0
+  SOURCE           TYPE      HEALTH
+  github           poll      healthy
+  linear           poll      healthy
+  claude-code      hook      —
 
 Recent Events (last 5):
   TIME          SOURCE    TYPE              ROUTE                      STATUS
@@ -520,6 +520,105 @@ Recent Events (last 5):
   20:42:08      linear    resource.changed  linear-to-engineering      delivered
   20:18:33      cc        actor.stopped     claude-code-to-supervisor  delivered
   20:15:01      github    resource.changed  github-pr-review           delivered
+```
+
+When multiple modules are loaded, each module is displayed as its own section with independent health tables. Use `orgloop module status <name>` for a detailed view of a single module.
+
+---
+
+## module
+
+Manage modules in a running runtime. All subcommands communicate with the runtime via its HTTP control API (port read from `~/.orgloop/runtime.port`). The runtime must be running (`orgloop start`) before using these commands.
+
+### module list
+
+List all loaded modules.
+
+```
+orgloop module list
+```
+
+```bash
+$ orgloop module list
+
+Modules
+  NAME                      STATE         SOURCES     ROUTES      ACTORS      UPTIME
+  my-org                    running       3           4           1           3h 22m
+  monitoring                running       1           2           1           1h 05m
+```
+
+### module status
+
+Show detailed status for a loaded module, including per-source health.
+
+```
+orgloop module status <name>
+```
+
+```bash
+$ orgloop module status my-org
+
+Module: my-org
+  State:  running
+  Uptime: 3h 22m
+
+  SOURCE                    TYPE      HEALTH
+  github                    poll      healthy
+  linear                    poll      healthy
+  claude-code               hook      —
+
+  Routes: 4
+```
+
+### module load
+
+Load a module into the running runtime. The module is resolved, validated, and started without restarting the runtime.
+
+```
+orgloop module load <path> [options]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--params <json>` | Module parameters as JSON string |
+| `--params-file <path>` | Path to JSON file with module parameters |
+
+```bash
+# Load a local module
+orgloop module load ./modules/monitoring
+
+# Load with parameters
+orgloop module load ./modules/engineering \
+  --params '{"github_source":"github","agent_actor":"engineering"}'
+
+# Load with parameters from a file
+orgloop module load ./modules/engineering --params-file params.json
+```
+
+### module unload
+
+Unload a module from the running runtime. Stops all sources, routes, and actors owned by the module.
+
+```
+orgloop module unload <name>
+```
+
+```bash
+$ orgloop module unload monitoring
+  ✓ Module monitoring unloaded.
+```
+
+### module reload
+
+Reload a module (unload + load). Useful after changing module configuration or code.
+
+```
+orgloop module reload <name>
+```
+
+```bash
+$ orgloop module reload my-org
+  ✓ Module my-org reloaded.
 ```
 
 ---
@@ -638,23 +737,25 @@ echo '{"type":"resource.changed","source":"github","payload":{}}' | orgloop test
 
 ## stop
 
-Stop the runtime gracefully.
+Stop the runtime gracefully. Tries the control API first (`POST /control/shutdown`) for a clean shutdown of all modules and the HTTP server. Falls back to `SIGTERM` via PID file if the control API is not reachable.
 
 ```
-orgloop stop
+orgloop stop [options]
 ```
+
+| Flag | Description |
+|------|-------------|
+| `--force` | Force kill with SIGKILL |
 
 ```bash
 $ orgloop stop
 
 Stopping OrgLoop (PID 42891)...
-  ✓ Flushing loggers...
-  ✓ Saving checkpoints...
-  ✓ Shutting down sources...
+Requesting graceful shutdown via control API...
   ✓ Stopped.
 ```
 
-Graceful shutdown: flushes log buffers, persists source checkpoints, waits for in-flight deliveries (with timeout), then exits.
+Graceful shutdown: flushes log buffers, persists source checkpoints, waits for in-flight deliveries (with timeout), then exits. If the process does not exit within 10 seconds, it is force-killed with `SIGKILL`.
 
 ---
 

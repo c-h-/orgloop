@@ -30,14 +30,17 @@ orgloop/
 ├── packages/
 │   ├── core/                    # @orgloop/core — runtime engine
 │   │   └── src/
-│   │       ├── engine.ts        # Main event loop + pipeline orchestrator
+│   │       ├── runtime.ts       # Runtime: long-lived host process (bus, scheduler, loggers, registry)
+│   │       ├── module-instance.ts # ModuleInstance: per-module resources and lifecycle
+│   │       ├── registry.ts      # ModuleRegistry: name → instance mapping, singleton enforcement
+│   │       ├── engine.ts        # OrgLoop: backward-compatible wrapper around Runtime
 │   │       ├── router.ts        # Route matching + dispatch
 │   │       ├── transform.ts     # Transform pipeline executor
 │   │       ├── logger.ts        # Logger fan-out manager
 │   │       ├── bus.ts           # EventBus (InMemoryBus, FileWalBus)
 │   │       ├── store.ts         # Checkpoint + event store
 │   │       ├── scheduler.ts     # Poll scheduling + cron
-│   │       ├── http.ts          # Webhook HTTP server (localhost:4800)
+│   │       ├── http.ts          # Webhook HTTP server (localhost:4800) + control API
 │   │       ├── schema.ts        # YAML schema validation (JSON Schema / AJV)
 │   │       └── errors.ts        # Error taxonomy
 │   │
@@ -58,6 +61,7 @@ orgloop/
 │   │       │   ├── doctor.ts
 │   │       │   ├── routes.ts
 │   │       │   ├── hook.ts
+│   │       │   ├── module.ts
 │   │       │   ├── inspect.ts
 │   │       │   ├── install-service.ts
 │   │       │   ├── service.ts
