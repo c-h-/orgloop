@@ -1,6 +1,6 @@
 # @orgloop/core
 
-OrgLoop runtime engine -- library-first event routing for autonomous AI organizations. Load a config, wire up sources/actors/transforms/loggers, and run the event loop.
+OrgLoop runtime engine -- library-first event routing for autonomous AI organizations. Multi-module runtime with independent module lifecycle, shared infrastructure, and backward-compatible single-module API.
 
 ## Install
 
@@ -10,33 +10,66 @@ npm install @orgloop/core
 
 ## Usage
 
+### Multi-module (Runtime)
+
 ```typescript
-import { OrgLoop, loadConfig, InMemoryBus } from '@orgloop/core';
+import { Runtime, InMemoryBus } from '@orgloop/core';
 
-// Load and validate an orgloop.yaml
+const runtime = new Runtime({ bus: new InMemoryBus() });
+await runtime.start();
+
+// Load modules dynamically
+await runtime.loadModule(
+  { name: 'engineering', sources: [...], actors: [...], routes: [...], transforms: [], loggers: [] },
+  { sources: mySourcesMap, actors: myActorsMap }
+);
+
+// Load more modules without restarting
+await runtime.loadModule(anotherModuleConfig, anotherConnectors);
+
+// Manage modules at runtime
+await runtime.reloadModule('engineering');
+await runtime.unloadModule('engineering');
+
+await runtime.stop();
+```
+
+### Single-module (OrgLoop wrapper)
+
+```typescript
+import { OrgLoop, loadConfig } from '@orgloop/core';
+
+// Backward-compatible API -- creates a Runtime with one "default" module
 const config = await loadConfig('./orgloop.yaml');
-
-// Create and start the engine
-const engine = new OrgLoop({
-  config,
-  bus: new InMemoryBus(),
-  sources: { github: myGitHubSource },
-  actors: { reviewer: myReviewerActor },
+const loop = new OrgLoop(config, {
+  sources: mySourcesMap,
+  actors: myActorsMap,
 });
 
-await engine.start();
-
-// Later...
-await engine.stop();
+await loop.start();
+await loop.stop();
 ```
 
 ## API
 
-### Engine
+### Runtime (multi-module)
 
-- `OrgLoop` -- main engine class (extends EventEmitter)
+- `Runtime` -- multi-module runtime class (extends EventEmitter)
+- `RuntimeOptions` -- runtime constructor options (bus, httpPort, circuitBreaker, dataDir)
+- `LoadModuleOptions` -- options for loadModule() (sources, actors, transforms, loggers, checkpointStore)
+
+### Engine (single-module wrapper)
+
+- `OrgLoop` -- backward-compatible wrapper around Runtime (extends EventEmitter)
 - `OrgLoopOptions` -- engine constructor options
 - `EngineStatus` -- runtime status type
+
+### Module lifecycle
+
+- `ModuleInstance` -- per-module resource container with lifecycle (loading/active/unloading/removed)
+- `ModuleRegistry` -- singleton module name registry
+- `ModuleConfig` -- module configuration type
+- `ModuleContext` -- module-scoped context
 
 ### Config
 
@@ -62,11 +95,12 @@ await engine.stop();
 
 - `Scheduler` -- manages poll intervals with graceful start/stop
 - `LoggerManager` -- fan-out to multiple loggers, error-isolated
-- `WebhookServer` -- HTTP server for webhook-based sources
+- `WebhookServer` -- HTTP server for webhook sources and control API
 
 ### Errors
 
 - `OrgLoopError`, `ConfigError`, `ConnectorError`, `TransformError`, `DeliveryError`, `SchemaError`
+- `ModuleConflictError`, `ModuleNotFoundError`, `RuntimeError`
 
 ## Documentation
 
