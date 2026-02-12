@@ -58,6 +58,13 @@ const PHASE_SEVERITY: Record<LogPhase, number> = {
 	'source.circuit_open': 4, // Warning
 	'source.circuit_retry': 6, // Informational
 	'source.circuit_close': 6, // Informational
+	'module.loading': 6, // Informational
+	'module.active': 6, // Informational
+	'module.unloading': 6, // Informational
+	'module.removed': 6, // Informational
+	'module.error': 3, // Error
+	'runtime.start': 6, // Informational
+	'runtime.stop': 6, // Informational
 };
 
 /** Get severity for a phase, with optional fatal upgrade */

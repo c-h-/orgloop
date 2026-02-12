@@ -43,6 +43,8 @@ export interface OrgLoopEvent {
 	payload: Record<string, unknown>;
 	/** Trace ID grouping all pipeline entries for this event */
 	trace_id?: string;
+	/** Module that emitted this event (set by runtime) */
+	module?: string;
 }
 
 // ─── Configuration Types ──────────────────────────────────────────────────────
@@ -212,7 +214,14 @@ export type LogPhase =
 	| 'deliver.retry'
 	| 'system.start'
 	| 'system.stop'
-	| 'system.error';
+	| 'system.error'
+	| 'module.loading'
+	| 'module.active'
+	| 'module.unloading'
+	| 'module.removed'
+	| 'module.error'
+	| 'runtime.start'
+	| 'runtime.stop';
 
 /** Universal log entry — every logger receives this */
 export interface LogEntry {
@@ -250,6 +259,8 @@ export interface LogEntry {
 	hostname?: string;
 	/** Active workspace name */
 	workspace?: string;
+	/** Module name that generated this log entry */
+	module?: string;
 }
 
 // ─── Project Configuration ────────────────────────────────────────────────────
@@ -385,6 +396,54 @@ export interface Subscription {
 
 /** Duration string (e.g., "5m", "30s", "1h", "7d") */
 export type DurationString = string;
+
+// ─── Module Runtime Types ─────────────────────────────────────────────────────
+
+/** Module lifecycle states */
+export type ModuleState = 'loading' | 'active' | 'unloading' | 'removed';
+
+/** Module status information */
+export interface ModuleStatus {
+	name: string;
+	state: ModuleState;
+	sources: number;
+	routes: number;
+	actors: number;
+	uptime_ms: number;
+	health: SourceHealthState[];
+}
+
+/** Runtime status information */
+export interface RuntimeStatus {
+	running: boolean;
+	pid: number;
+	uptime_ms: number;
+	httpPort?: number;
+	modules: ModuleStatus[];
+}
+
+/** Boot manifest module entry */
+export interface BootModuleEntry {
+	/** npm package name or local path */
+	package: string;
+	/** Parameter values for template expansion */
+	params: Record<string, string | number | boolean>;
+}
+
+/** Boot manifest (orgloop.yaml for multi-module mode) */
+export interface RuntimeConfig {
+	/** Modules to load at boot */
+	modules: BootModuleEntry[];
+	/** Shared runtime defaults */
+	defaults?: {
+		poll_interval?: string;
+		log_level?: string;
+	};
+	/** Runtime-level loggers (shared across all modules) */
+	loggers?: LoggerDefinition[];
+}
+
+// ─── Utilities ────────────────────────────────────────────────────────────────
 
 /** Parse a duration string to milliseconds */
 export function parseDuration(duration: DurationString): number {

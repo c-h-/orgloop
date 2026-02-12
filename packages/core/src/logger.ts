@@ -8,11 +8,27 @@
 import type { LogEntry } from '@orgloop/sdk';
 import type { Logger } from '@orgloop/sdk';
 
-export class LoggerManager {
-	private readonly loggers: Logger[] = [];
+interface TaggedLogger {
+	logger: Logger;
+	tag?: string;
+}
 
-	addLogger(logger: Logger): void {
-		this.loggers.push(logger);
+export class LoggerManager {
+	private readonly loggers: TaggedLogger[] = [];
+
+	addLogger(logger: Logger, tag?: string): void {
+		this.loggers.push({ logger, tag });
+	}
+
+	/**
+	 * Remove all loggers with the given tag.
+	 */
+	removeLoggersByTag(tag: string): void {
+		for (let i = this.loggers.length - 1; i >= 0; i--) {
+			if (this.loggers[i].tag === tag) {
+				this.loggers.splice(i, 1);
+			}
+		}
 	}
 
 	/**
@@ -21,7 +37,7 @@ export class LoggerManager {
 	 */
 	async log(entry: LogEntry): Promise<void> {
 		await Promise.allSettled(
-			this.loggers.map(async (logger) => {
+			this.loggers.map(async ({ logger }) => {
 				try {
 					await logger.log(entry);
 				} catch {
@@ -34,7 +50,7 @@ export class LoggerManager {
 	/** Flush all loggers */
 	async flush(): Promise<void> {
 		await Promise.allSettled(
-			this.loggers.map(async (logger) => {
+			this.loggers.map(async ({ logger }) => {
 				try {
 					await logger.flush();
 				} catch {
@@ -47,7 +63,7 @@ export class LoggerManager {
 	/** Shutdown all loggers */
 	async shutdown(): Promise<void> {
 		await Promise.allSettled(
-			this.loggers.map(async (logger) => {
+			this.loggers.map(async ({ logger }) => {
 				try {
 					await logger.shutdown();
 				} catch {

@@ -63,3 +63,30 @@ export class SchemaError extends OrgLoopError {
 		this.validationErrors = validationErrors;
 	}
 }
+
+export class ModuleConflictError extends OrgLoopError {
+	readonly moduleName: string;
+
+	constructor(moduleName: string, message?: string, options?: ErrorOptions) {
+		super('MODULE_CONFLICT', message ?? `Module conflict: ${moduleName}`, options);
+		this.name = 'ModuleConflictError';
+		this.moduleName = moduleName;
+	}
+}
+
+export class ModuleNotFoundError extends OrgLoopError {
+	readonly moduleName: string;
+
+	constructor(moduleName: string, message?: string, options?: ErrorOptions) {
+		super('MODULE_NOT_FOUND', message ?? `Module not found: ${moduleName}`, options);
+		this.name = 'ModuleNotFoundError';
+		this.moduleName = moduleName;
+	}
+}
+
+export class RuntimeError extends OrgLoopError {
+	constructor(message: string, options?: ErrorOptions) {
+		super('RUNTIME_ERROR', message, options);
+		this.name = 'RuntimeError';
+	}
+}

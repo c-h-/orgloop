@@ -46,7 +46,7 @@ function randomPort(): number {
 
 describe('WebhookServer', () => {
 	it('starts and stops cleanly', async () => {
-		const server = new WebhookServer(new Map(), async () => {});
+		const server = new WebhookServer(async () => {}, new Map());
 		const port = randomPort();
 		await server.start(port);
 		await server.stop();
@@ -63,9 +63,9 @@ describe('WebhookServer', () => {
 		};
 
 		const handlers = new Map([['hook-source', handler]]);
-		const server = new WebhookServer(handlers, async (event) => {
+		const server = new WebhookServer(async (event) => {
 			receivedEvents.push(event);
-		});
+		}, handlers);
 
 		const port = randomPort();
 		await server.start(port);
@@ -89,7 +89,7 @@ describe('WebhookServer', () => {
 		};
 
 		const handlers = new Map([['known-source', handler]]);
-		const server = new WebhookServer(handlers, async () => {});
+		const server = new WebhookServer(async () => {}, handlers);
 
 		const port = randomPort();
 		await server.start(port);
@@ -111,7 +111,7 @@ describe('WebhookServer', () => {
 		};
 
 		const handlers = new Map([['known-source', handler]]);
-		const server = new WebhookServer(handlers, async () => {});
+		const server = new WebhookServer(async () => {}, handlers);
 
 		const port = randomPort();
 		await server.start(port);
@@ -126,7 +126,7 @@ describe('WebhookServer', () => {
 	});
 
 	it('returns 404 for paths outside /webhook/:sourceId', async () => {
-		const server = new WebhookServer(new Map(), async () => {});
+		const server = new WebhookServer(async () => {}, new Map());
 
 		const port = randomPort();
 		await server.start(port);

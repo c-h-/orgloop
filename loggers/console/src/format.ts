@@ -41,6 +41,13 @@ const PHASE_STYLES: Record<LogPhase, PhaseStyle> = {
 	'source.circuit_open': { icon: '\u26a0', color: YELLOW }, // ⚠
 	'source.circuit_retry': { icon: '\u21bb', color: CYAN }, // ↻
 	'source.circuit_close': { icon: '\u2713', color: GREEN }, // ✓
+	'module.loading': { icon: '\u25cf', color: CYAN }, // ●
+	'module.active': { icon: '\u2713', color: GREEN }, // ✓
+	'module.unloading': { icon: '\u25cf', color: YELLOW }, // ●
+	'module.removed': { icon: '\u25cf', color: DIM }, // ●
+	'module.error': { icon: '\u26a0', color: RED }, // ⚠
+	'runtime.start': { icon: '\u25cf', color: MAGENTA }, // ●
+	'runtime.stop': { icon: '\u25cf', color: MAGENTA }, // ●
 };
 
 /**
@@ -139,6 +146,13 @@ const PHASE_LEVELS: Record<LogPhase, number> = {
 	'source.circuit_open': 2, // warn
 	'source.circuit_retry': 1, // info
 	'source.circuit_close': 1, // info
+	'module.loading': 1, // info
+	'module.active': 1, // info
+	'module.unloading': 1, // info
+	'module.removed': 1, // info
+	'module.error': 3, // error
+	'runtime.start': 1, // info
+	'runtime.stop': 1, // info
 };
 
 const LEVEL_VALUES: Record<string, number> = {

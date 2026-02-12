@@ -1,7 +1,8 @@
 /**
  * orgloop stop — Stop the running runtime.
  *
- * Reads PID from ~/.orgloop/orgloop.pid, sends SIGTERM, waits for exit.
+ * Tries graceful shutdown via control API first (POST /control/shutdown),
+ * falls back to SIGTERM via PID file.
  */
 
 import { readFile, unlink } from 'node:fs/promises';
@@ -10,7 +11,9 @@ import { join } from 'node:path';
 import type { Command } from 'commander';
 import * as output from '../output.js';
 
-const PID_FILE = join(homedir(), '.orgloop', 'orgloop.pid');
+const PID_DIR = join(homedir(), '.orgloop');
+const PID_FILE = join(PID_DIR, 'orgloop.pid');
+const PORT_FILE = join(PID_DIR, 'runtime.port');
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
 function isProcessRunning(pid: number): boolean {
@@ -29,6 +32,29 @@ async function waitForExit(pid: number, timeoutMs: number): Promise<boolean> {
 		await new Promise((resolve) => setTimeout(resolve, 200));
 	}
 	return false;
+}
+
+async function cleanupFiles(): Promise<void> {
+	for (const file of [PID_FILE, PORT_FILE]) {
+		try {
+			await unlink(file);
+		} catch {
+			/* ignore */
+		}
+	}
+}
+
+async function tryControlApiShutdown(port: number): Promise<boolean> {
+	try {
+		const res = await fetch(`http://127.0.0.1:${port}/control/shutdown`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			signal: AbortSignal.timeout(5_000),
+		});
+		return res.ok;
+	} catch {
+		return false;
+	}
 }
 
 export function registerStopCommand(program: Command): void {
@@ -55,11 +81,7 @@ export function registerStopCommand(program: Command): void {
 
 				if (!isProcessRunning(pid)) {
 					output.info('OrgLoop is not running (stale PID file).');
-					try {
-						await unlink(PID_FILE);
-					} catch {
-						/* ignore */
-					}
+					await cleanupFiles();
 					return;
 				}
 
@@ -68,9 +90,26 @@ export function registerStopCommand(program: Command): void {
 				if (opts.force) {
 					process.kill(pid, 'SIGKILL');
 					output.success('Force killed.');
+					await cleanupFiles();
 				} else {
-					process.kill(pid, 'SIGTERM');
-					output.info('Sent SIGTERM, waiting for shutdown...');
+					// Try graceful shutdown via control API first
+					let apiShutdown = false;
+					try {
+						const portStr = await readFile(PORT_FILE, 'utf-8');
+						const port = Number.parseInt(portStr.trim(), 10);
+						if (!Number.isNaN(port)) {
+							output.info('Requesting graceful shutdown via control API...');
+							apiShutdown = await tryControlApiShutdown(port);
+						}
+					} catch {
+						// No port file — fall through to SIGTERM
+					}
+
+					if (!apiShutdown) {
+						// Fallback to SIGTERM
+						process.kill(pid, 'SIGTERM');
+						output.info('Sent SIGTERM, waiting for shutdown...');
+					}
 
 					const exited = await waitForExit(pid, SHUTDOWN_TIMEOUT_MS);
 					if (exited) {
@@ -86,12 +125,8 @@ export function registerStopCommand(program: Command): void {
 						}
 						output.success('Force killed.');
 					}
-				}
 
-				try {
-					await unlink(PID_FILE);
-				} catch {
-					/* ignore */
+					await cleanupFiles();
 				}
 
 				if (output.isJsonMode()) {

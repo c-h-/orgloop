@@ -1,9 +1,7 @@
 /**
  * orgloop start — Start the runtime with current config.
  *
- * `orgloop apply` is a deprecated alias for `orgloop start`.
- *
- * Loads config, creates OrgLoop engine instance, starts it.
+ * Loads config, creates Runtime instance, starts it with control API.
  * Foreground by default; --daemon forks to background.
  */
 
@@ -21,6 +19,7 @@ import { printDoctorResult, runDoctor } from './doctor.js';
 
 const PID_DIR = join(homedir(), '.orgloop');
 const PID_FILE = join(PID_DIR, 'orgloop.pid');
+const PORT_FILE = join(PID_DIR, 'runtime.port');
 const STATE_FILE = join(PID_DIR, 'state.json');
 const LOG_DIR = join(PID_DIR, 'logs');
 
@@ -36,6 +35,11 @@ function isProcessRunning(pid: number): boolean {
 async function cleanupPidFile(): Promise<void> {
 	try {
 		await unlink(PID_FILE);
+	} catch {
+		/* ignore */
+	}
+	try {
+		await unlink(PORT_FILE);
 	} catch {
 		/* ignore */
 	}
@@ -97,27 +101,12 @@ async function runForeground(configPath?: string, force?: boolean): Promise<void
 	output.info('Starting...');
 	output.blank();
 
-	// Import OrgLoop from core — this may fail if core isn't built yet
-	let OrgLoop: new (
-		config: import('@orgloop/sdk').OrgLoopConfig,
-		options?: Record<string, unknown>,
-	) => {
-		start(): Promise<void>;
-		stop(): Promise<void>;
-		status(): {
-			running: boolean;
-			sources: string[];
-			actors: string[];
-			routes: number;
-			uptime_ms: number;
-			httpPort?: number;
-			health?: unknown;
-		};
-	};
+	// Import Runtime from core — this may fail if core isn't built yet
+	let RuntimeClass: typeof import('@orgloop/core').Runtime;
 
 	try {
 		const core = await import('@orgloop/core');
-		OrgLoop = core.OrgLoop;
+		RuntimeClass = core.Runtime;
 	} catch {
 		// Core not available yet — run in stub mode
 		output.warn('OrgLoop core not available — running in config-only mode');
@@ -187,7 +176,7 @@ async function runForeground(configPath?: string, force?: boolean): Promise<void
 		const { FileCheckpointStore } = await import('@orgloop/core');
 		checkpointStore = new FileCheckpointStore();
 	} catch {
-		// Fall through — engine will use InMemoryCheckpointStore
+		// Fall through — runtime will use InMemoryCheckpointStore
 	}
 
 	// Resolve package transforms from config, with config schema validation
@@ -248,16 +237,10 @@ async function runForeground(configPath?: string, force?: boolean): Promise<void
 		}
 	}
 
-	// Core is available — start the engine
-	const engine = new OrgLoop(config, {
-		sources: resolvedSources,
-		actors: resolvedActors,
-		transforms: resolvedTransforms,
-		loggers: resolvedLoggers,
-		...(checkpointStore ? { checkpointStore } : {}),
-	});
+	// Create Runtime instance and start
+	const runtime = new RuntimeClass();
 
-	// Ensure PID file is always cleaned up
+	// Ensure PID/port files are always cleaned up
 	process.on('exit', () => {
 		try {
 			unlinkSync(PID_FILE);
@@ -270,7 +253,7 @@ async function runForeground(configPath?: string, force?: boolean): Promise<void
 	const shutdown = async () => {
 		output.blank();
 		output.info('Shutting down...');
-		await engine.stop();
+		await runtime.stop();
 		await cleanupPidFile();
 		process.exit(0);
 	};
@@ -279,7 +262,32 @@ async function runForeground(configPath?: string, force?: boolean): Promise<void
 	process.on('SIGINT', shutdown);
 
 	try {
-		// Display progress as components initialize
+		// Start the runtime (scheduler, shared infra)
+		await runtime.start();
+
+		// Start HTTP server for control API and webhooks
+		await runtime.startHttpServer();
+
+		// Convert config to ModuleConfig and load as a module
+		const moduleConfig: import('@orgloop/core').ModuleConfig = {
+			name: config.project.name ?? 'default',
+			sources: config.sources,
+			actors: config.actors,
+			routes: config.routes,
+			transforms: config.transforms,
+			loggers: config.loggers,
+			defaults: config.defaults,
+		};
+
+		await runtime.loadModule(moduleConfig, {
+			sources: resolvedSources,
+			actors: resolvedActors,
+			transforms: resolvedTransforms,
+			loggers: resolvedLoggers,
+			...(checkpointStore ? { checkpointStore } : {}),
+		});
+
+		// Display progress
 		for (const s of config.sources) {
 			const interval = s.poll?.interval
 				? `polling started (every ${s.poll.interval})`
@@ -296,19 +304,23 @@ async function runForeground(configPath?: string, force?: boolean): Promise<void
 			output.success(`Logger ${l.name} — configured`);
 		}
 
-		await engine.start();
 		await saveState(config);
 
-		// Write PID file
+		// Write PID file and port file
 		await mkdir(PID_DIR, { recursive: true });
 		await writeFile(PID_FILE, String(process.pid), 'utf-8');
+
+		const runtimeStatus = runtime.status();
+		if (runtimeStatus.httpPort) {
+			await writeFile(PORT_FILE, String(runtimeStatus.httpPort), 'utf-8');
+		}
 
 		// Periodically write health state to state file
 		const healthInterval = setInterval(async () => {
 			try {
-				const status = engine.status() as Record<string, unknown>;
+				const status = runtime.status();
 				const state = JSON.parse(await readFile(STATE_FILE, 'utf-8').catch(() => '{}'));
-				state.health = status.health;
+				state.modules = status.modules;
 				state.uptime_ms = status.uptime_ms;
 				await writeFile(STATE_FILE, JSON.stringify(state, null, 2), 'utf-8');
 			} catch {
@@ -326,7 +338,7 @@ async function runForeground(configPath?: string, force?: boolean): Promise<void
 		return;
 	}
 
-	// Keep process alive (safety net — engine should already be running)
+	// Keep process alive (safety net — runtime should already be running)
 	await new Promise(() => {});
 }
 
@@ -426,17 +438,6 @@ export function registerStartCommand(program: Command): void {
 		.option('--daemon', 'Run as background daemon')
 		.option('--force', 'Skip doctor pre-flight checks')
 		.action(startAction);
-
-	// Deprecated alias: `orgloop apply` still works but warns
-	program
-		.command('apply')
-		.description('Start the runtime (deprecated — use `start` instead)')
-		.option('--daemon', 'Run as background daemon')
-		.option('--force', 'Skip doctor pre-flight checks')
-		.action(async (opts, cmd) => {
-			output.warn("'apply' is deprecated, use 'start' instead.");
-			await startAction(opts, cmd);
-		});
 }
 
 // Handle being run as a forked daemon child — skip doctor (parent already checked)

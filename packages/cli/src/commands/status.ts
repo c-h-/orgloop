@@ -1,13 +1,14 @@
 /**
  * orgloop status — Show runtime status.
  *
- * Displays uptime, sources, actors, routes, per-source health, and recent events.
+ * Tries control API first (GET /control/status) for module-aware display,
+ * falls back to PID-based status if control API is not available.
  */
 
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import type { SourceHealthState } from '@orgloop/sdk';
+import type { ModuleStatus, RuntimeStatus, SourceHealthState } from '@orgloop/sdk';
 import chalk from 'chalk';
 import type { Command } from 'commander';
 import { loadCliConfig } from '../config.js';
@@ -15,6 +16,7 @@ import * as output from '../output.js';
 
 const PID_DIR = join(homedir(), '.orgloop');
 const PID_FILE = join(PID_DIR, 'orgloop.pid');
+const PORT_FILE = join(PID_DIR, 'runtime.port');
 const STATE_FILE = join(PID_DIR, 'state.json');
 const LOG_FILE = join(PID_DIR, 'logs', 'orgloop.log');
 
@@ -47,19 +49,6 @@ interface LogEntry {
 	event_type?: string;
 	route?: string;
 	result?: string;
-}
-
-async function getHealthState(): Promise<SourceHealthState[]> {
-	try {
-		const content = await readFile(STATE_FILE, 'utf-8');
-		const state = JSON.parse(content);
-		if (Array.isArray(state.health)) {
-			return state.health as SourceHealthState[];
-		}
-	} catch {
-		// State file not available or no health data
-	}
-	return [];
 }
 
 function healthStatusColor(status: string): string {
@@ -114,6 +103,81 @@ async function getRecentEvents(count: number): Promise<LogEntry[]> {
 	}
 }
 
+async function tryControlApiStatus(port: number): Promise<RuntimeStatus | null> {
+	try {
+		const res = await fetch(`http://127.0.0.1:${port}/control/status`, {
+			signal: AbortSignal.timeout(3_000),
+		});
+		if (res.ok) {
+			return (await res.json()) as RuntimeStatus;
+		}
+	} catch {
+		// Control API not reachable
+	}
+	return null;
+}
+
+function displayModuleHealth(mod: ModuleStatus): void {
+	const unhealthy = mod.health.filter((h) => h.status !== 'healthy');
+	if (unhealthy.length > 0) {
+		output.blank();
+		for (const h of unhealthy) {
+			if (h.circuitOpen) {
+				output.warn(
+					`${h.sourceId}: polling paused after ${h.consecutiveErrors} consecutive failures`,
+				);
+			} else {
+				output.warn(
+					`${h.sourceId}: ${h.consecutiveErrors} consecutive error${h.consecutiveErrors !== 1 ? 's' : ''}`,
+				);
+			}
+			if (h.lastError) {
+				output.info(`    Last error: ${h.lastError}`);
+			}
+		}
+	}
+}
+
+function displayRuntimeStatus(runtimeStatus: RuntimeStatus): void {
+	output.blank();
+	output.heading('OrgLoop Runtime');
+	output.info(`  Status: ${chalk.green('running')} (PID ${runtimeStatus.pid})`);
+	output.info(`  Uptime: ${formatUptime(runtimeStatus.uptime_ms)}`);
+	if (runtimeStatus.httpPort) {
+		output.info(`  Control API: http://127.0.0.1:${runtimeStatus.httpPort}`);
+	}
+	output.info(`  Modules: ${runtimeStatus.modules.length}`);
+
+	for (const mod of runtimeStatus.modules) {
+		output.blank();
+		output.heading(`Module: ${mod.name}`);
+		output.info(`  State: ${mod.state} | Uptime: ${formatUptime(mod.uptime_ms)}`);
+		output.info(`  Sources: ${mod.sources} | Actors: ${mod.actors} | Routes: ${mod.routes}`);
+
+		// Source health table
+		if (mod.health.length > 0) {
+			output.table(
+				[
+					{ header: 'SOURCE', key: 'name', width: 16 },
+					{ header: 'HEALTH', key: 'health', width: 12 },
+					{ header: 'LAST POLL', key: 'lastPoll', width: 12 },
+					{ header: 'ERRORS', key: 'errors', width: 8 },
+					{ header: 'EVENTS', key: 'events', width: 8 },
+				],
+				mod.health.map((h) => ({
+					name: h.sourceId,
+					health: healthStatusColor(h.status),
+					lastPoll: formatTimeAgo(h.lastSuccessfulPoll),
+					errors: String(h.consecutiveErrors),
+					events: String(h.totalEventsEmitted),
+				})),
+			);
+		}
+
+		displayModuleHealth(mod);
+	}
+}
+
 export function registerStatusCommand(program: Command): void {
 	program
 		.command('status')
@@ -144,7 +208,59 @@ export function registerStatusCommand(program: Command): void {
 					return;
 				}
 
-				// Load config for display
+				// Try to get status from control API first
+				let runtimeStatus: RuntimeStatus | null = null;
+				try {
+					const portStr = await readFile(PORT_FILE, 'utf-8');
+					const port = Number.parseInt(portStr.trim(), 10);
+					if (!Number.isNaN(port)) {
+						runtimeStatus = await tryControlApiStatus(port);
+					}
+				} catch {
+					// No port file — fall through to PID-based status
+				}
+
+				if (runtimeStatus) {
+					if (output.isJsonMode()) {
+						output.json(runtimeStatus);
+						return;
+					}
+
+					displayRuntimeStatus(runtimeStatus);
+
+					// Recent events
+					const recentEvents = await getRecentEvents(5);
+					if (recentEvents.length > 0) {
+						output.blank();
+						output.heading('Recent Events (last 5):');
+						output.table(
+							[
+								{ header: 'TIME', key: 'time', width: 14 },
+								{ header: 'SOURCE', key: 'source', width: 12 },
+								{ header: 'TYPE', key: 'type', width: 20 },
+								{ header: 'ROUTE', key: 'route', width: 30 },
+								{ header: 'STATUS', key: 'status', width: 16 },
+							],
+							recentEvents.map((e) => {
+								const time = new Date(e.timestamp).toLocaleTimeString('en-US', {
+									hour12: false,
+								});
+								return {
+									time,
+									source: e.source ?? '—',
+									type: e.event_type ?? '—',
+									route: e.route ?? '—',
+									status: e.result ?? e.phase.split('.')[1] ?? '—',
+								};
+							}),
+						);
+					}
+
+					output.blank();
+					return;
+				}
+
+				// Fallback: PID-based status (no control API available)
 				let config: import('@orgloop/sdk').OrgLoopConfig | null = null;
 				try {
 					config = await loadCliConfig({ configPath: globalOpts.config });
@@ -152,7 +268,23 @@ export function registerStatusCommand(program: Command): void {
 					/* ignore — config not loadable */
 				}
 
-				const healthData = await getHealthState();
+				// Try to read health from state file
+				let healthData: SourceHealthState[] = [];
+				try {
+					const content = await readFile(STATE_FILE, 'utf-8');
+					const state = JSON.parse(content);
+					if (state.modules && Array.isArray(state.modules)) {
+						// New format: aggregate health from all modules
+						for (const mod of state.modules as ModuleStatus[]) {
+							healthData.push(...mod.health);
+						}
+					} else if (Array.isArray(state.health)) {
+						// Legacy format
+						healthData = state.health as SourceHealthState[];
+					}
+				} catch {
+					// No state file
+				}
 
 				if (output.isJsonMode()) {
 					output.json({
@@ -170,7 +302,7 @@ export function registerStatusCommand(program: Command): void {
 				output.blank();
 				output.heading(`OrgLoop — ${config?.project.name ?? 'unknown'}`);
 				output.info(`  Status: running (PID ${pid})`);
-				output.info('  Workspace: default');
+				output.info('  Control API: not available');
 
 				// Sources table with health
 				if (config && config.sources.length > 0) {
@@ -265,7 +397,9 @@ export function registerStatusCommand(program: Command): void {
 							{ header: 'STATUS', key: 'status', width: 16 },
 						],
 						recentEvents.map((e) => {
-							const time = new Date(e.timestamp).toLocaleTimeString('en-US', { hour12: false });
+							const time = new Date(e.timestamp).toLocaleTimeString('en-US', {
+								hour12: false,
+							});
 							return {
 								time,
 								source: e.source ?? '—',

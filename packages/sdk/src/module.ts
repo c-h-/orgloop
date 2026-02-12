@@ -8,6 +8,27 @@
 
 // ─── Module Manifest ──────────────────────────────────────────────────────────
 
+/** Inline source connector definition in a module manifest */
+export interface ModuleSourceDefinition {
+	id: string;
+	connector: string;
+	config: Record<string, unknown>;
+	poll?: { interval: string };
+}
+
+/** Inline actor connector definition in a module manifest */
+export interface ModuleActorDefinition {
+	id: string;
+	connector: string;
+	config: Record<string, unknown>;
+}
+
+/** Inline connector definitions for a self-contained module */
+export interface ModuleConnectors {
+	sources?: ModuleSourceDefinition[];
+	actors?: ModuleActorDefinition[];
+}
+
 /** Root module manifest (orgloop-module.yaml) */
 export interface ModuleManifest {
 	apiVersion: string;
@@ -16,6 +37,8 @@ export interface ModuleManifest {
 	requires?: ModuleRequirements;
 	parameters?: ModuleParameter[];
 	provides?: ModuleProvides;
+	/** Inline connector definitions (for self-contained modules) */
+	connectors?: ModuleConnectors;
 }
 
 /** Module metadata */
@@ -225,6 +248,41 @@ export const moduleManifestSchema = {
 				routes: { type: 'number' },
 				transforms: { type: 'number' },
 				sops: { type: 'number' },
+			},
+		},
+		connectors: {
+			type: 'object',
+			properties: {
+				sources: {
+					type: 'array',
+					items: {
+						type: 'object',
+						required: ['id', 'connector', 'config'],
+						properties: {
+							id: { type: 'string' },
+							connector: { type: 'string' },
+							config: { type: 'object' },
+							poll: {
+								type: 'object',
+								properties: {
+									interval: { type: 'string' },
+								},
+							},
+						},
+					},
+				},
+				actors: {
+					type: 'array',
+					items: {
+						type: 'object',
+						required: ['id', 'connector', 'config'],
+						properties: {
+							id: { type: 'string' },
+							connector: { type: 'string' },
+							config: { type: 'object' },
+						},
+					},
+				},
 			},
 		},
 	},

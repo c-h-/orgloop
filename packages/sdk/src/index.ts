@@ -38,6 +38,11 @@ export type {
 	DurationString,
 	SourceHealthStatus,
 	SourceHealthState,
+	ModuleState,
+	ModuleStatus,
+	RuntimeStatus,
+	BootModuleEntry,
+	RuntimeConfig,
 } from './types.js';
 
 export { parseDuration } from './types.js';
@@ -93,6 +98,9 @@ export type {
 	ModuleProvides,
 	InstalledModule,
 	ModuleExpansionContext,
+	ModuleConnectors,
+	ModuleSourceDefinition,
+	ModuleActorDefinition,
 } from './module.js';
 
 export { expandTemplate, expandTemplateDeep, moduleManifestSchema } from './module.js';
