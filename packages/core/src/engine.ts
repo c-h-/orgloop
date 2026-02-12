@@ -507,17 +507,23 @@ export class OrgLoop extends EventEmitter {
 					routeName: route.name,
 				};
 
-				const result = await executeTransformPipeline(
-					event,
-					context,
-					route.transforms,
-					pipelineOptions,
-				);
+				try {
+					const result = await executeTransformPipeline(
+						event,
+						context,
+						route.transforms,
+						pipelineOptions,
+					);
 
-				if (result.dropped || !result.event) {
-					continue; // Skip delivery for this route
+					if (result.dropped || !result.event) {
+						continue; // Skip delivery for this route
+					}
+					transformedEvent = result.event;
+				} catch (err) {
+					// halt policy throws TransformError — emit error and skip delivery
+					this.emit('error', err as Error);
+					continue;
 				}
-				transformedEvent = result.event;
 			}
 
 			// Deliver to actor

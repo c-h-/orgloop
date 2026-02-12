@@ -224,4 +224,4 @@ loggers:
       format: jsonl
 ```
 
-See the [Event Taxonomy](/concepts/event-taxonomy/) for details on the three event types, or the [Command Reference](/cli/command-reference/) for how to validate, plan, and apply this config.
+See the [Event Taxonomy](/concepts/event-taxonomy/) for details on the three event types, or the [Command Reference](/cli/command-reference/) for how to validate, plan, and start this config.

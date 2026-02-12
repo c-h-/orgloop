@@ -23,7 +23,7 @@ The Homebrew formula bundles Node.js via Single Executable Application (SEA) —
 
 **Tertiary: Docker**
 ```bash
-docker run -v $(pwd):/config ghcr.io/c-h-/orgloop apply
+docker run -v $(pwd):/config ghcr.io/c-h-/orgloop start
 ```
 
 For server deployments where OrgLoop runs as a daemon.
@@ -69,7 +69,7 @@ No approval needed. If it implements the interface, it works. See [Zero Bottlene
 
 **Runtime plugin loading** (not compile-time).
 
-When `orgloop apply` starts:
+When `orgloop start` starts:
 1. Read `orgloop.yaml` -> get list of connector YAML files (file paths, not package names)
 2. Load each ConnectorGroup YAML -> collect source/actor definitions with their `connector` package refs
 3. The CLI's `resolveConnectors()` function collects unique connector package names, `await import()`s each, and calls its default export (the registration function):

@@ -5,7 +5,7 @@ description: "Unresolved design decisions and their current status — config ho
 
 These items need resolution during implementation:
 
-1. **Config hot-reload.** Should `orgloop apply` on a running daemon cause a hot-reload of config, or require a restart? Recommendation: restart for MVP, hot-reload for v1.1.
+1. **Config hot-reload.** Should `orgloop start` on a running daemon cause a hot-reload of config, or require a restart? Recommendation: restart for MVP, hot-reload for v1.1.
 
 2. ~~**Event ID generation.** `evt_` prefix + what?~~ **Resolved (MVP).** UUID v4 with `evt_` prefix (`evt_` + 16 hex chars). Trace IDs use `trc_` prefix. Implemented in `@orgloop/sdk` `event.ts`.
 

@@ -2,7 +2,7 @@
  * Shared environment variable metadata for DX surfaces.
  *
  * Provides per-variable descriptions and help URLs so that CLI commands
- * (env, apply, validate) can show actionable guidance for missing vars.
+ * (env, start, validate) can show actionable guidance for missing vars.
  */
 
 export interface EnvVarMeta {

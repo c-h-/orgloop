@@ -15,8 +15,8 @@ orgloop init              Scaffold a new orgloop.yaml (interactive)
 orgloop validate          Validate config syntax and connector schemas
 orgloop env               Check environment variables (shows missing with setup help)
 orgloop doctor            System health check (connectors, services, credentials)
-orgloop plan              Preview what apply will do (sources, actors, routes)
-orgloop apply             Start the event loop
+orgloop plan              Preview what start will do (sources, actors, routes)
+orgloop start             Start the event loop
 orgloop stop              Stop a running instance
 orgloop status            Show runtime status
 orgloop logs              View event logs
@@ -56,7 +56,7 @@ orgloop validate
 orgloop plan
 
 # Start routing events
-orgloop apply
+orgloop start
 ```
 
 ## Documentation

@@ -19,7 +19,7 @@ OrgLoop's security architecture is designed around several core principles:
 - **Transforms for injection defense** -- inspect and sanitize payloads before they reach actors
 - **Least-privilege routing** -- actors only see events their routes explicitly match
 - **Audit by default** -- loggers are first-class primitives, not optional add-ons
-- **Plan before apply** -- `orgloop plan` shows changes before execution
+- **Plan before start** -- `orgloop plan` shows changes before execution
 
 For the full security architecture, see the [Security guide](https://orgloop.ai/guides/security/).
 

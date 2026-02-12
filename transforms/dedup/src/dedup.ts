@@ -3,6 +3,9 @@
  *
  * Builds a hash from specified key fields and drops events that have
  * been seen within the configured window.
+ *
+ * Config accepts both `key` and `fields` for the dedup key paths.
+ * Using `fields` is equivalent to `key` — if both are provided, `key` wins.
  */
 
 import { createHash } from 'node:crypto';
@@ -14,6 +17,17 @@ interface DedupConfig {
 	window: string;
 	store?: 'memory';
 }
+
+/** Config as it may arrive from YAML — supports both `key` and `fields` */
+interface DedupRawConfig {
+	key?: string[];
+	fields?: string[];
+	window?: string;
+	store?: 'memory';
+}
+
+/** Known config properties for validation */
+const KNOWN_CONFIG_KEYS = new Set(['key', 'fields', 'window', 'store']);
 
 /**
  * Get a value from a nested object using a dot-separated path.
@@ -38,9 +52,22 @@ export class DedupTransform implements Transform {
 	private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
 	async init(config: Record<string, unknown>): Promise<void> {
-		const c = config as unknown as Partial<DedupConfig>;
+		// Validate config keys — warn on unknown properties to catch typos early
+		const unknownKeys = Object.keys(config).filter((k) => !KNOWN_CONFIG_KEYS.has(k));
+		if (unknownKeys.length > 0) {
+			throw new Error(
+				`Dedup transform: unknown config keys: ${unknownKeys.join(', ')}. ` +
+					`Valid keys are: ${[...KNOWN_CONFIG_KEYS].join(', ')}`,
+			);
+		}
+
+		const c = config as unknown as DedupRawConfig;
+
+		// Accept both `key` and `fields` — `key` takes precedence for backward compat
+		const keyPaths = c.key ?? c.fields ?? ['source', 'type', 'id'];
+
 		this.config = {
-			key: c.key ?? ['source', 'type', 'id'],
+			key: keyPaths,
 			window: c.window ?? '5m',
 		};
 		this.windowMs = parseDuration(this.config.window);

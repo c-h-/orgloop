@@ -148,9 +148,9 @@ connectors:
 	});
 });
 
-// ─── WQ-39: Apply pre-flight shows all missing vars ──────────────────────────
+// ─── WQ-39: Start pre-flight shows all missing vars ──────────────────────────
 
-describe('apply env var pre-flight', () => {
+describe('start env var pre-flight', () => {
 	let tempDir: string;
 
 	beforeEach(async () => {

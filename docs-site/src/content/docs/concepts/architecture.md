@@ -168,7 +168,7 @@ interface LoggerRegistration {
 }
 ```
 
-The CLI dynamically imports packages and calls `register()` during `orgloop apply`. The returned instances are passed to the `OrgLoop` engine constructor.
+The CLI dynamically imports packages and calls `register()` during `orgloop start`. The returned instances are passed to the `OrgLoop` engine constructor.
 
 ### Plugin Wiring Chain
 
@@ -176,7 +176,7 @@ Every plugin must be wired through the full chain. Missing any step causes silen
 
 ```
 1. package.json dep    -- CLI must list the package as a dependency
-2. Dynamic import      -- apply.ts imports the package and calls register()
+2. Dynamic import      -- start.ts imports the package and calls register()
 3. Engine constructor  -- resolved instance passed via OrgLoopOptions
 4. Engine start()      -- init() called with config from YAML
 ```
@@ -210,7 +210,7 @@ OrgLoop supports three runtime modes:
 
 | Mode | Entry Point | Use Case |
 |------|-------------|----------|
-| **CLI** | `orgloop apply` | Primary. Interactive and daemon operation. |
+| **CLI** | `orgloop start` | Primary. Interactive and daemon operation. |
 | **Library** | `import { OrgLoop } from '@orgloop/core'` | Programmatic embedding in other applications. |
 | **Server** | `orgloop serve` / `@orgloop/server` | HTTP API for remote control (placeholder). |
 

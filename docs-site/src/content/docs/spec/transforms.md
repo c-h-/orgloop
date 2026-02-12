@@ -38,7 +38,56 @@ Script transforms are the default. Package transforms are an optimization path.
 └────────────────────────────────────────────────────────────┘
 ```
 
-**Important design decision:** Exit code >= 2 means a transform *error*, not a filter. This prevents a buggy transform from silently dropping events. If the injection scanner crashes, the event should continue (fail-open for availability) and the error should be loudly logged.
+**Important design decision:** Exit code >= 2 means a transform *error*, not a filter. This prevents a buggy transform from silently dropping events. The default behavior (fail-open) passes the event through on error. For security transforms, use `on_error: drop` or `on_error: halt` to override this (see section 10.4).
+
+### 10.4 Transform Error Policy (`on_error`)
+
+By default, transforms fail-open: if a transform throws or exits with code >= 2, the event passes through unmodified. This is safe for data transforms (enrichment, dedup) but dangerous for **security transforms** (injection scanning, payload validation) where a failing scanner silently passing malicious content defeats its purpose.
+
+The `on_error` field controls what happens when a transform errors:
+
+| Policy | Behavior | Use Case |
+|--------|----------|----------|
+| `pass` | Event passes through unmodified (default, backwards-compatible) | Data enrichment, metadata, timestamps |
+| `drop` | Event is silently dropped | Security scanning, injection detection |
+| `halt` | Pipeline halts, error is emitted to the engine | Critical validation, compliance gates |
+
+**Definition-level** (applies to all routes using this transform):
+
+```yaml
+transforms:
+  - name: injection-scanner
+    type: package
+    package: "@orgloop/transform-injection-scanner"
+    on_error: drop    # If scanner fails, don't deliver the event
+```
+
+**Route-level override** (applies only to this route, overrides definition-level):
+
+```yaml
+routes:
+  - name: secure-delivery
+    when:
+      source: github-prs
+      events: [resource.changed]
+    transforms:
+      - ref: injection-scanner
+        on_error: halt    # Override: halt pipeline instead of just dropping
+    then:
+      actor: openclaw-agent
+```
+
+Route-level `on_error` takes precedence over definition-level. If neither is set, the default is `pass`.
+
+**Log phases for error policies:**
+
+| Phase | Policy | Severity |
+|-------|--------|----------|
+| `transform.error` | `pass` | warn |
+| `transform.error_drop` | `drop` | warn |
+| `transform.error_halt` | `halt` | error |
+
+All three policies log the error. The difference is what happens to the event afterward.
 
 ### 10.3 Built-in Transforms
 

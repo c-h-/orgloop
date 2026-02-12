@@ -55,7 +55,7 @@ This registers a post-exit hook so Claude Code sessions emit `actor.stopped` eve
 ```bash
 orgloop validate
 orgloop plan        # preview what will happen
-orgloop apply       # start the engine
+orgloop start       # start the engine
 ```
 
 ## Files

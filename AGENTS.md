@@ -16,7 +16,7 @@ OrgLoop's developer experience follows a principle of **progressive delight** �
 
 **The progression pattern (env vars as example):**
 
-1. **Level 0 — Silent failure.** User runs `apply`, gets a cryptic crash. *Never ship this.*
+1. **Level 0 — Silent failure.** User runs `start`, gets a cryptic crash. *Never ship this.*
 2. **Level 1 — Tell them what they need.** List required env vars after scaffolding. *Minimum viable.*
 3. **Level 2 — Tell them what they have.** Show ✓/✗ status per var with colors. *Awareness.*
 4. **Level 3 — Tell them how to fix it.** Connector-provided helper text: description, URL, one-liner command. *Actionable guidance.*
@@ -28,8 +28,8 @@ OrgLoop's developer experience follows a principle of **progressive delight** �
 
 - **Error messages:** Never just say what failed. Say what to do about it. Include the URL, the command, the config field name.
 - **Connector setup metadata:** Every connector SHOULD populate `ConnectorSetup` with `env_vars` (including per-var `description` and `help_url`). This is how the CLI knows what guidance to show.
-- **Pre-flight over post-mortem.** Validate env vars in `validate` and `plan`, not just `apply`. Never let the user get to a late stage before discovering an early problem.
-- **Actionable defaults.** If a command can suggest a next step, it should. `orgloop init` → "run `orgloop env` to check your variables." `orgloop env` shows missing vars with setup instructions. `orgloop validate` → "all clear, run `orgloop apply`."
+- **Pre-flight over post-mortem.** Validate env vars in `validate` and `plan`, not just `start`. Never let the user get to a late stage before discovering an early problem.
+- **Actionable defaults.** If a command can suggest a next step, it should. `orgloop init` → "run `orgloop env` to check your variables." `orgloop env` shows missing vars with setup instructions. `orgloop validate` → "all clear, run `orgloop start`."
 - **Machine-readable alongside human-readable.** Every status/check command should support `--json` for automation, CI, and tool integration.
 
 This philosophy is what made OpenClaw successful. Delight compounds. Every friction point removed makes the next one more noticeable — and more worth fixing.
@@ -69,7 +69,7 @@ pnpm workspaces + Turborepo. Five workspace roots:
 packages/
   sdk/          — Interfaces, types, test harness (MockSource, MockActor, etc.)
   core/         — Engine, router, bus, scheduler, schema validation, transform pipeline
-  cli/          — Commander-based CLI (init, validate, plan, apply, status, logs, test, etc.)
+  cli/          — Commander-based CLI (init, validate, plan, start, status, logs, test, etc.)
   server/       — HTTP API server (placeholder)
 
 connectors/
@@ -141,7 +141,7 @@ Every plugin type (connector, transform, logger) must be wired through the **ful
 
 ```
 1. package.json dep  — @orgloop/cli must list the package as a dependency
-2. Dynamic import    — apply.ts imports the package and calls register()
+2. Dynamic import    — start.ts imports the package and calls register()
 3. Engine constructor — resolved instance passed via OrgLoopOptions
 4. Engine start()    — init() called with config from YAML
 ```
@@ -270,7 +270,7 @@ Script-based (stdin/stdout, any language) or package-based (TypeScript, implemen
 - **Env var substitution** — secrets never live in YAML (`${GITHUB_TOKEN}`)
 - **Least-privilege routing** — actors only see events their routes match
 - **Audit by default** — loggers are first-class primitives, not optional
-- **Plan before apply** — `orgloop plan` shows changes before execution
+- **Plan before start** — `orgloop plan` shows changes before execution
 
 See the [Security guide](https://orgloop.ai/guides/security/) for the full security architecture.
 

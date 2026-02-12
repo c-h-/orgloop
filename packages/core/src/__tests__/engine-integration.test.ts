@@ -1,5 +1,5 @@
 import { MockActor, MockLogger, MockSource, MockTransform, createTestEvent } from '@orgloop/sdk';
-import type { OrgLoopConfig } from '@orgloop/sdk';
+import type { OrgLoopConfig, OrgLoopEvent, Transform, TransformContext } from '@orgloop/sdk';
 import { describe, expect, it } from 'vitest';
 import { OrgLoop } from '../engine.js';
 
@@ -213,6 +213,120 @@ describe('OrgLoop engine integration', () => {
 		expect(transform.processed).toHaveLength(1);
 		// Actor should still receive it (transform passes through)
 		expect(actor.delivered).toHaveLength(1);
+
+		await engine.stop();
+	});
+
+	// ─── Dedup integration (WQ-85 regression) ────────────────────────────────
+
+	it('dedup transform drops duplicate events in the pipeline (WQ-85)', async () => {
+		const source = new MockSource('test-source');
+		const actor = new MockActor('test-actor');
+
+		// Build a simple dedup transform that tracks seen events by source+type
+		// This tests the full pipeline path: source -> transform -> actor
+		const seenHashes = new Map<string, number>();
+
+		const dedupTransform: Transform = {
+			id: 'test-dedup',
+			async init(_config: Record<string, unknown>): Promise<void> {
+				// no-op
+			},
+			async execute(event: OrgLoopEvent, _context: TransformContext): Promise<OrgLoopEvent | null> {
+				const key = `${event.source}:${event.type}:${(event.payload as Record<string, unknown>).message_id ?? ''}`;
+				const now = Date.now();
+				const lastSeen = seenHashes.get(key);
+				if (lastSeen !== undefined && now - lastSeen < 300_000) {
+					return null; // Drop duplicate
+				}
+				seenHashes.set(key, now);
+				return event;
+			},
+			async shutdown(): Promise<void> {
+				seenHashes.clear();
+			},
+		};
+
+		const config = makeConfig({
+			transforms: [{ name: 'test-dedup', type: 'package' }],
+			routes: [
+				{
+					name: 'dedup-route',
+					when: { source: 'test-source', events: ['resource.changed'] },
+					transforms: [{ ref: 'test-dedup' }],
+					then: { actor: 'test-actor' },
+				},
+			],
+		});
+
+		const engine = new OrgLoop(config, {
+			sources: new Map([['test-source', source]]),
+			actors: new Map([['test-actor', actor]]),
+			transforms: new Map([['test-dedup', dedupTransform]]),
+		});
+
+		await engine.start();
+
+		// Inject the same "email" event 4 times (simulating duplicate poll emissions)
+		for (let i = 0; i < 4; i++) {
+			const event = createTestEvent({
+				source: 'test-source',
+				type: 'resource.changed',
+				payload: { message_id: 'msg_abc123', subject: 'Nathan Ellis' },
+			});
+			await engine.inject(event);
+		}
+
+		// Only the first event should have been delivered
+		expect(actor.delivered).toHaveLength(1);
+		expect(actor.delivered[0].event.payload.message_id).toBe('msg_abc123');
+
+		// A different message_id should still be delivered
+		const differentEvent = createTestEvent({
+			source: 'test-source',
+			type: 'resource.changed',
+			payload: { message_id: 'msg_def456', subject: 'Different Email' },
+		});
+		await engine.inject(differentEvent);
+		expect(actor.delivered).toHaveLength(2);
+
+		await engine.stop();
+	});
+
+	it('dedup transform that drops all events prevents delivery', async () => {
+		const source = new MockSource('test-source');
+		const actor = new MockActor('test-actor');
+		const transform = new MockTransform('drop-all');
+		transform.setDrop(true);
+
+		const config = makeConfig({
+			transforms: [{ name: 'drop-all', type: 'package' }],
+			routes: [
+				{
+					name: 'drop-route',
+					when: { source: 'test-source', events: ['resource.changed'] },
+					transforms: [{ ref: 'drop-all' }],
+					then: { actor: 'test-actor' },
+				},
+			],
+		});
+
+		const engine = new OrgLoop(config, {
+			sources: new Map([['test-source', source]]),
+			actors: new Map([['test-actor', actor]]),
+			transforms: new Map([['drop-all', transform]]),
+		});
+
+		await engine.start();
+
+		const event = createTestEvent({
+			source: 'test-source',
+			type: 'resource.changed',
+		});
+		await engine.inject(event);
+
+		// Transform dropped it — actor should not receive anything
+		expect(actor.delivered).toHaveLength(0);
 
 		await engine.stop();
 	});

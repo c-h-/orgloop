@@ -15,6 +15,8 @@ const PHASE_SEVERITY: Record<LogPhase, { text: string; number: number }> = {
 	'transform.pass': { text: 'INFO', number: 9 },
 	'transform.drop': { text: 'INFO', number: 9 },
 	'transform.error': { text: 'WARN', number: 13 },
+	'transform.error_drop': { text: 'WARN', number: 13 },
+	'transform.error_halt': { text: 'ERROR', number: 17 },
 	'route.match': { text: 'INFO', number: 9 },
 	'route.no_match': { text: 'DEBUG', number: 5 },
 	'deliver.attempt': { text: 'INFO', number: 9 },

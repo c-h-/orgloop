@@ -74,7 +74,7 @@ This registers a post-exit hook so Claude Code emits `actor.stopped` events when
 ```bash
 cd examples/multi-agent-supervisor
 orgloop validate
-orgloop apply
+orgloop start
 ```
 
 ## The config

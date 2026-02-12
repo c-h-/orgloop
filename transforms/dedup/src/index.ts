@@ -17,6 +17,11 @@ export function register(): TransformRegistration {
 					items: { type: 'string' },
 					description: 'Event field paths to use as dedup key.',
 				},
+				fields: {
+					type: 'array',
+					items: { type: 'string' },
+					description: 'Alias for "key" — event field paths to use as dedup key.',
+				},
 				window: {
 					type: 'string',
 					description: 'Duration window for deduplication (e.g., "5m").',
@@ -29,7 +34,7 @@ export function register(): TransformRegistration {
 					default: 'memory',
 				},
 			},
-			required: ['key', 'window'],
+			required: ['window'],
 			additionalProperties: false,
 		},
 	};

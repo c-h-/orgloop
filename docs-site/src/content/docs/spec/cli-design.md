@@ -15,7 +15,7 @@ COMMANDS:
   init              Scaffold a new OrgLoop project
   validate          Validate configuration files
   plan              Show what would change (dry run)
-  apply             Start/update the runtime with current config
+  start             Start the runtime with current config
   stop              Stop the running runtime
   status            Show runtime status, sources, actors, recent events
   logs              Tail or query the event log
@@ -151,13 +151,13 @@ OrgLoop Plan — my-org
 
 Plan: 5 to add, 1 to change, 0 to remove.
 
-Run `orgloop apply` to execute this plan.
+Run `orgloop start` to execute this plan.
 ```
 
-#### `orgloop apply`
+#### `orgloop start`
 
 ```bash
-$ orgloop apply
+$ orgloop start
 
 Applying plan...
 
@@ -175,16 +175,16 @@ OrgLoop is running. PID: 42891
 Logs: orgloop logs | Status: orgloop status | Stop: orgloop stop
 ```
 
-`orgloop apply` starts the runtime as a **long-running daemon process**. It manages all source polling internally — poll intervals are declared in the YAML spec, not in external schedulers. This single process replaces N separate pollers/LaunchAgents/cron jobs.
+`orgloop start` starts the runtime as a **long-running daemon process**. It manages all source polling internally — poll intervals are declared in the YAML spec, not in external schedulers. This single process replaces N separate pollers/LaunchAgents/cron jobs.
 
-Under the hood, `apply` calls `resolveConnectors(config)` to dynamically import all referenced connector packages, instantiate source/actor instances, and pass them to `new OrgLoop(config, { sources, actors })`. If a connector package is missing, the CLI suggests `pnpm add <package>`.
+Under the hood, `start` calls `resolveConnectors(config)` to dynamically import all referenced connector packages, instantiate source/actor instances, and pass them to `new OrgLoop(config, { sources, actors })`. If a connector package is missing, the CLI suggests `pnpm add <package>`.
 
 ```bash
 # Foreground (development, debugging)
-orgloop apply
+orgloop start
 
 # Daemon mode (production)
-orgloop apply --daemon
+orgloop start --daemon
 # PID written to ~/.orgloop/orgloop.pid
 ```
 

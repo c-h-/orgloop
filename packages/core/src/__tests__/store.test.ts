@@ -1,6 +1,9 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { createTestEvent } from '@orgloop/sdk';
-import { beforeEach, describe, expect, it } from 'vitest';
-import { InMemoryCheckpointStore, InMemoryEventStore } from '../store.js';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { FileCheckpointStore, InMemoryCheckpointStore, InMemoryEventStore } from '../store.js';
 
 describe('InMemoryCheckpointStore', () => {
 	let store: InMemoryCheckpointStore;
@@ -29,6 +32,71 @@ describe('InMemoryCheckpointStore', () => {
 		await store.set('linear', 'l-checkpoint');
 		expect(await store.get('github')).toBe('g-checkpoint');
 		expect(await store.get('linear')).toBe('l-checkpoint');
+	});
+});
+
+describe('FileCheckpointStore', () => {
+	let tempDir: string;
+	let store: FileCheckpointStore;
+
+	beforeEach(async () => {
+		tempDir = await mkdtemp(join(tmpdir(), 'orgloop-test-checkpoint-'));
+		store = new FileCheckpointStore(tempDir);
+	});
+
+	afterEach(async () => {
+		try {
+			await rm(tempDir, { recursive: true, force: true });
+		} catch {
+			// cleanup best-effort
+		}
+	});
+
+	it('returns null for unknown source', async () => {
+		expect(await store.get('unknown')).toBeNull();
+	});
+
+	it('stores and retrieves checkpoint', async () => {
+		await store.set('gog-gmail', 'historyId:12345');
+		expect(await store.get('gog-gmail')).toBe('historyId:12345');
+	});
+
+	it('overwrites existing checkpoint', async () => {
+		await store.set('gog-gmail', 'v1');
+		await store.set('gog-gmail', 'v2');
+		expect(await store.get('gog-gmail')).toBe('v2');
+	});
+
+	it('persists checkpoints across store instances (simulates daemon restart)', async () => {
+		// First "daemon lifecycle" — write checkpoint
+		const store1 = new FileCheckpointStore(tempDir);
+		await store1.set('gog-gmail', 'historyId:99999');
+
+		// Second "daemon lifecycle" — new instance, same directory
+		const store2 = new FileCheckpointStore(tempDir);
+		const checkpoint = await store2.get('gog-gmail');
+
+		// Checkpoint must survive the "restart"
+		expect(checkpoint).toBe('historyId:99999');
+	});
+
+	it('handles multiple sources independently with persistence', async () => {
+		await store.set('gog-gmail', 'gmail-cp');
+		await store.set('github', 'github-cp');
+
+		// New instance — both should survive
+		const fresh = new FileCheckpointStore(tempDir);
+		expect(await fresh.get('gog-gmail')).toBe('gmail-cp');
+		expect(await fresh.get('github')).toBe('github-cp');
+	});
+
+	it('creates checkpoint directory if it does not exist', async () => {
+		const nonExistentDir = join(tempDir, 'nested', 'deep', 'dir');
+		const deepStore = new FileCheckpointStore(nonExistentDir);
+
+		// Should not throw — mkdir { recursive: true } in set()
+		await deepStore.set('test-source', 'cp-value');
+		expect(await deepStore.get('test-source')).toBe('cp-value');
 	});
 });
 

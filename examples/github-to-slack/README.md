@@ -34,7 +34,7 @@ export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/T.../B.../..."
 ```bash
 cd examples/github-to-slack
 orgloop validate
-orgloop apply
+orgloop start
 ```
 
 That's it. PR reviews on your repo now show up in Slack.

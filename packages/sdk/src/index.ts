@@ -21,6 +21,7 @@ export type {
 	RouteWith,
 	RouteDeliveryConfig,
 	TransformDefinition,
+	TransformErrorPolicy,
 	LoggerDefinition,
 	DeliveryConfig,
 	RetryConfig,

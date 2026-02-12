@@ -22,7 +22,7 @@ orgloop init    # select "webhook" when prompted for connectors
 cd my-project
 orgloop add module minimal
 orgloop validate
-orgloop apply
+orgloop start
 ```
 
 Or copy this directory and run directly:
@@ -31,7 +31,7 @@ Or copy this directory and run directly:
 cp -r examples/minimal my-project
 cd my-project
 orgloop validate
-orgloop apply
+orgloop start
 ```
 
 ## Files

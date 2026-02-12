@@ -24,7 +24,7 @@ function generateLaunchdPlist(configPath: string): string {
   <key>ProgramArguments</key>
   <array>
     <string>${orgloopBin}</string>
-    <string>apply</string>
+    <string>start</string>
     <string>--config</string>
     <string>${configPath}</string>
   </array>
@@ -54,7 +54,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=orgloop apply --config ${configPath}
+ExecStart=orgloop start --config ${configPath}
 WorkingDirectory=${join(homedir(), '.orgloop')}
 Restart=on-failure
 RestartSec=5
@@ -77,7 +77,7 @@ RUN npm install -g orgloop
 COPY . /app/config/
 
 # Run OrgLoop
-CMD ["orgloop", "apply", "--config", "/app/config/orgloop.yaml"]`;
+CMD ["orgloop", "start", "--config", "/app/config/orgloop.yaml"]`;
 }
 
 function generateDockerCompose(): string {

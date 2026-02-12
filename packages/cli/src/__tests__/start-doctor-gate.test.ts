@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { runDoctor } from '../commands/doctor.js';
 
-describe('apply doctor gate', () => {
+describe('start doctor gate', () => {
 	let tempDir: string;
 
 	beforeEach(async () => {
@@ -92,7 +92,7 @@ kind: Wrong
 
 		const result = await runDoctor(join(tempDir, 'orgloop.yaml'));
 		expect(result.status).toBe('error');
-		// With --force, this error would be skipped and apply would proceed
+		// With --force, this error would be skipped and start would proceed
 	});
 
 	it('printDoctorResult is exported and callable', async () => {

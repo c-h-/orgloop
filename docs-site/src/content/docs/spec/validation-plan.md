@@ -18,7 +18,7 @@ description: "Migration map, MVP scope, testing strategy, and success criteria f
 
 **In scope:**
 - Core runtime: event bus (in-memory + file WAL), router, transform pipeline, logger fan-out
-- CLI: `init`, `validate`, `plan`, `apply`, `stop`, `status`, `logs`, `test`, `env`, `doctor`, `routes`, `hook`, `add`, `inspect`, `install-service`, `service`, `version`
+- CLI: `init`, `validate`, `plan`, `start`, `stop`, `status`, `logs`, `test`, `env`, `doctor`, `routes`, `hook`, `add`, `inspect`, `install-service`, `service`, `version`
 - Connectors: `github`, `linear`, `claude-code`, `openclaw`, `webhook`
 - Transforms: `filter` (jq-based), `dedup`, shell script executor
 - Loggers: `file` (JSONL), `console`
@@ -62,13 +62,13 @@ orgloop test test-event.json
 # → Shows: source.emit → transform.pass → route.match → deliver.success
 
 # Run the connector in poll mode against the real API (read-only, safe)
-orgloop apply --dry-run --source github
+orgloop start --dry-run --source github
 # → Shows events that would be routed, without delivering
 ```
 
 **Step 3: Hard cut over.**
 - Disable the old LaunchAgent plist / cron job
-- Enable the OrgLoop connector via `orgloop apply`
+- Enable the OrgLoop connector via `orgloop start`
 - Monitor `orgloop status` and `orgloop logs` for the first hour
 
 **Step 4: Clean up.**
@@ -95,7 +95,7 @@ After 1 week of stable operation, remove the old script files and LaunchAgent pl
 | **Latency** | Events are delivered to OpenClaw within 30s of poll interval (comparable to current) |
 | **Reliability** | Zero dropped events over a 7-day run (verified by WAL + delivery logs) |
 | **Recovery** | After a process crash, OrgLoop resumes from checkpoint and replays undelivered events |
-| **Developer experience** | A new contributor can `orgloop init`, add a connector, and run `orgloop apply` in under 15 minutes |
+| **Developer experience** | A new contributor can `orgloop init`, add a connector, and run `orgloop start` in under 15 minutes |
 
 ### 6.5 Testing Strategy
 

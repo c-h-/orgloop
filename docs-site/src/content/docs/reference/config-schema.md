@@ -466,7 +466,7 @@ config:
 
 Rules:
 - The `${...}` syntax works in any string value in any config block.
-- Variables are resolved when config is loaded (during `validate`, `plan`, and `apply`).
+- Variables are resolved when config is loaded (during `validate`, `plan`, and `start`).
 - Missing variables cause a clear error with the variable name and which config field references it.
 - Secrets should always use env var substitution. Never put credentials directly in YAML.
 - Use `orgloop env` to check which variables are set and which are missing.

@@ -1,5 +1,7 @@
 /**
- * orgloop apply — Start/update the runtime with current config.
+ * orgloop start — Start the runtime with current config.
+ *
+ * `orgloop apply` is a deprecated alias for `orgloop start`.
  *
  * Loads config, creates OrgLoop engine instance, starts it.
  * Foreground by default; --daemon forks to background.
@@ -92,7 +94,7 @@ async function runForeground(configPath?: string, force?: boolean): Promise<void
 	const config = await loadCliConfig({ configPath });
 
 	output.blank();
-	output.info('Applying plan...');
+	output.info('Starting...');
 	output.blank();
 
 	// Import OrgLoop from core — this may fail if core isn't built yet
@@ -188,14 +190,38 @@ async function runForeground(configPath?: string, force?: boolean): Promise<void
 		// Fall through — engine will use InMemoryCheckpointStore
 	}
 
-	// Resolve package transforms from config
+	// Resolve package transforms from config, with config schema validation
 	const resolvedTransforms = new Map<string, import('@orgloop/sdk').Transform>();
 	for (const tDef of config.transforms) {
 		if (tDef.type === 'package' && tDef.package) {
 			try {
 				const mod = await import(tDef.package);
 				if (typeof mod.register === 'function') {
-					const reg = mod.register();
+					const reg = mod.register() as import('@orgloop/sdk').TransformRegistration;
+
+					// Validate transform config against schema if available
+					if (reg.configSchema && tDef.config) {
+						try {
+							const AjvMod = await import('ajv');
+							const AjvClass = AjvMod.default?.default ?? AjvMod.default ?? AjvMod;
+							const ajv = new AjvClass({ allErrors: true });
+							const validate = ajv.compile(reg.configSchema);
+							if (!validate(tDef.config)) {
+								const errors = (validate.errors ?? [])
+									.map(
+										(e: { instancePath?: string; message?: string }) =>
+											`${e.instancePath || '/'}: ${e.message}`,
+									)
+									.join('; ');
+								output.warn(
+									`Transform "${tDef.name}" config validation failed: ${errors}. Check your transform YAML config matches the expected schema.`,
+								);
+							}
+						} catch {
+							// Schema validation is best-effort — don't block startup
+						}
+					}
+
 					resolvedTransforms.set(tDef.name, new reg.transform());
 				}
 			} catch (err) {
@@ -304,94 +330,112 @@ async function runForeground(configPath?: string, force?: boolean): Promise<void
 	await new Promise(() => {});
 }
 
-// ─── Command registration ────────────────────────────────────────────────────
+// ─── Shared action handler ───────────────────────────────────────────────────────────────
 
-export function registerApplyCommand(program: Command): void {
+async function startAction(
+	opts: { daemon?: boolean; force?: boolean },
+	cmd: { parent?: { opts(): Record<string, unknown> } },
+): Promise<void> {
+	try {
+		const globalOpts = cmd.parent?.opts() ?? {};
+
+		if (opts.daemon) {
+			// WQ-69: Check for already-running instance
+			try {
+				const existingPid = Number.parseInt((await readFile(PID_FILE, 'utf-8')).trim(), 10);
+				if (!Number.isNaN(existingPid) && isProcessRunning(existingPid)) {
+					output.error(
+						`OrgLoop is already running (PID ${existingPid}). Run \`orgloop stop\` first.`,
+					);
+					process.exitCode = 1;
+					return;
+				}
+				// Stale PID file — clean it up
+				await cleanupPidFile();
+			} catch {
+				// No PID file — proceed
+			}
+
+			// Pre-flight doctor check before forking
+			if (!opts.force) {
+				try {
+					const configForDoctor = resolveConfigPath(globalOpts.config as string | undefined);
+					const doctorResult = await runDoctor(configForDoctor);
+					if (doctorResult.status === 'error') {
+						printDoctorResult(doctorResult);
+						output.blank();
+						output.error('Doctor check failed. Fix errors above or use --force to bypass.');
+						process.exitCode = 1;
+						return;
+					}
+					if (doctorResult.status === 'degraded') {
+						printDoctorResult(doctorResult);
+						output.blank();
+						output.warn('Proceeding in degraded mode.');
+					}
+				} catch {
+					// Pre-flight is best-effort
+				}
+			}
+
+			// Fork to background
+			await loadCliConfig({ configPath: globalOpts.config as string | undefined });
+
+			// WQ-67: Redirect daemon stdio to log files
+			await mkdir(LOG_DIR, { recursive: true });
+			const stdoutFd = openSync(join(LOG_DIR, 'daemon.stdout.log'), 'a');
+			const stderrFd = openSync(join(LOG_DIR, 'daemon.stderr.log'), 'a');
+
+			output.info('Starting OrgLoop daemon...');
+
+			const child = fork(fileURLToPath(import.meta.url), [], {
+				detached: true,
+				stdio: ['ignore', stdoutFd, stderrFd, 'ipc'],
+				env: {
+					...process.env,
+					ORGLOOP_CONFIG: (globalOpts.config as string) ?? '',
+					ORGLOOP_DAEMON: '1',
+				},
+			});
+
+			child.unref();
+			child.disconnect();
+			closeSync(stdoutFd);
+			closeSync(stderrFd);
+
+			// WQ-68: Child writes its own PID file after engine.start() — parent just reports
+			if (child.pid) {
+				output.success(`OrgLoop daemon started. PID: ${child.pid}`);
+				output.info(`Logs: ${LOG_DIR}`);
+			}
+		} else {
+			await runForeground(globalOpts.config as string | undefined, opts.force);
+		}
+	} catch (err) {
+		output.error(`Start failed: ${err instanceof Error ? err.message : String(err)}`);
+		process.exitCode = 1;
+	}
+}
+
+// ─── Command registration ──────────────────────────────────────────────────────────────────────
+
+export function registerStartCommand(program: Command): void {
+	program
+		.command('start')
+		.description('Start the runtime with current config')
+		.option('--daemon', 'Run as background daemon')
+		.option('--force', 'Skip doctor pre-flight checks')
+		.action(startAction);
+
+	// Deprecated alias: `orgloop apply` still works but warns
 	program
 		.command('apply')
-		.description('Start/update the runtime with current config')
+		.description('Start the runtime (deprecated — use `start` instead)')
 		.option('--daemon', 'Run as background daemon')
 		.option('--force', 'Skip doctor pre-flight checks')
 		.action(async (opts, cmd) => {
-			try {
-				const globalOpts = cmd.parent?.opts() ?? {};
-
-				if (opts.daemon) {
-					// WQ-69: Check for already-running instance
-					try {
-						const existingPid = Number.parseInt((await readFile(PID_FILE, 'utf-8')).trim(), 10);
-						if (!Number.isNaN(existingPid) && isProcessRunning(existingPid)) {
-							output.error(
-								`OrgLoop is already running (PID ${existingPid}). Run \`orgloop stop\` first.`,
-							);
-							process.exitCode = 1;
-							return;
-						}
-						// Stale PID file — clean it up
-						await cleanupPidFile();
-					} catch {
-						// No PID file — proceed
-					}
-
-					// Pre-flight doctor check before forking
-					if (!opts.force) {
-						try {
-							const configForDoctor = resolveConfigPath(globalOpts.config);
-							const doctorResult = await runDoctor(configForDoctor);
-							if (doctorResult.status === 'error') {
-								printDoctorResult(doctorResult);
-								output.blank();
-								output.error('Doctor check failed. Fix errors above or use --force to bypass.');
-								process.exitCode = 1;
-								return;
-							}
-							if (doctorResult.status === 'degraded') {
-								printDoctorResult(doctorResult);
-								output.blank();
-								output.warn('Proceeding in degraded mode.');
-							}
-						} catch {
-							// Pre-flight is best-effort
-						}
-					}
-
-					// Fork to background
-					await loadCliConfig({ configPath: globalOpts.config });
-
-					// WQ-67: Redirect daemon stdio to log files
-					await mkdir(LOG_DIR, { recursive: true });
-					const stdoutFd = openSync(join(LOG_DIR, 'daemon.stdout.log'), 'a');
-					const stderrFd = openSync(join(LOG_DIR, 'daemon.stderr.log'), 'a');
-
-					output.info('Starting OrgLoop daemon...');
-
-					const child = fork(fileURLToPath(import.meta.url), [], {
-						detached: true,
-						stdio: ['ignore', stdoutFd, stderrFd, 'ipc'],
-						env: {
-							...process.env,
-							ORGLOOP_CONFIG: globalOpts.config ?? '',
-							ORGLOOP_DAEMON: '1',
-						},
-					});
-
-					child.unref();
-					child.disconnect();
-					closeSync(stdoutFd);
-					closeSync(stderrFd);
-
-					// WQ-68: Child writes its own PID file after engine.start() — parent just reports
-					if (child.pid) {
-						output.success(`OrgLoop daemon started. PID: ${child.pid}`);
-						output.info(`Logs: ${LOG_DIR}`);
-					}
-				} else {
-					await runForeground(globalOpts.config, opts.force);
-				}
-			} catch (err) {
-				output.error(`Apply failed: ${err instanceof Error ? err.message : String(err)}`);
-				process.exitCode = 1;
-			}
+			output.warn("'apply' is deprecated, use 'start' instead.");
+			await startAction(opts, cmd);
 		});
 }
 

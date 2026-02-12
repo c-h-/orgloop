@@ -107,6 +107,8 @@ export interface RouteTransformRef {
 	ref: string;
 	/** Optional transform-specific config override */
 	config?: Record<string, unknown>;
+	/** Error policy override: what to do when this transform fails (overrides definition-level on_error) */
+	on_error?: TransformErrorPolicy;
 }
 
 /** Route delivery target */
@@ -157,6 +159,9 @@ export interface RouteDeliveryConfig {
 	launch_prompt_file?: string;
 }
 
+/** Error policy for transforms — controls behavior when a transform throws */
+export type TransformErrorPolicy = 'pass' | 'drop' | 'halt';
+
 /** Transform definition (YAML) */
 export interface TransformDefinition {
 	/** Transform name */
@@ -171,6 +176,8 @@ export interface TransformDefinition {
 	config?: Record<string, unknown>;
 	/** Timeout in milliseconds (default: 30000) */
 	timeout_ms?: number;
+	/** Error policy: pass (fail-open, default), drop (fail-closed), halt (stop pipeline) */
+	on_error?: TransformErrorPolicy;
 }
 
 /** Logger definition (YAML) */
@@ -195,6 +202,8 @@ export type LogPhase =
 	| 'transform.pass'
 	| 'transform.drop'
 	| 'transform.error'
+	| 'transform.error_drop'
+	| 'transform.error_halt'
 	| 'route.match'
 	| 'route.no_match'
 	| 'deliver.attempt'

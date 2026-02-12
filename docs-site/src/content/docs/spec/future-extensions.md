@@ -96,10 +96,10 @@ Implemented:
 - `ConnectorSetup.env_vars` supports `EnvVarDefinition` with per-variable `description` and `help_url`
 - `orgloop env` shows set/unset status with `description` and `help_url` per variable
 - `orgloop init` shows indicators with connector-provided guidance for missing vars
-- `orgloop apply` runs a pre-flight env var check before config loading
+- `orgloop start` runs a pre-flight env var check before config loading
 - `orgloop doctor` reports credential status with descriptions and help URLs
 - `env-metadata.ts` provides hardcoded metadata as a fallback for known env vars
-- Remaining: `.env` file loading in `orgloop apply` (dotenv or similar)
+- Remaining: `.env` file loading in `orgloop start` (dotenv or similar)
 
 ---
 
@@ -273,22 +273,14 @@ Implemented as `orgloop routes` command. ASCII rendering shows sources -> routes
 
 ---
 
-### FE-21: Transform Failure Policy (Fail-Open vs Fail-Closed)
+### ~~FE-21: Transform Failure Policy (Fail-Open vs Fail-Closed)~~ **Resolved**
 
-**Gap:** Transforms currently default to fail-open: if a transform errors, the event passes through unchanged. This is a pragmatic availability decision for data transforms (enrichment, dedup), but dangerous for **security transforms** (injection scanning, payload validation). A failing security scanner silently passing malicious content defeats its purpose.
+Implemented per-transform `on_error` policy with three modes:
+- `pass` (fail-open, default) — event passes through unmodified on error (backwards-compatible)
+- `drop` (fail-closed) — event is silently dropped on error
+- `halt` — pipeline halts with error, engine emits error event
 
-**Solution direction:**
-- Per-transform `on_error` policy: `pass` (fail-open, current default), `drop` (fail-closed), `halt` (stop pipeline, log error)
-- Security transforms should default to `drop` — if the scanner can't run, don't deliver the event
-- Explicit logging/alerting when any transform errors, regardless of policy
-- Route-level override: `on_transform_error: drop` to make all transforms in a route fail-closed
-
-**Design considerations:**
-- Backwards-compatible: existing configs without `on_error` keep current fail-open behavior
-- The distinction between "data transforms" (enrichment) and "security transforms" (scanning) could be formalized in the transform registration, or left to the user via config
-- Circuit breaker integration: if a transform errors N times in a row, escalate regardless of policy
-
-**Affects:** `packages/core/src/transform.ts`, `packages/sdk/src/transform.ts`, `packages/core/src/schema.ts` (config validation)
+Configurable at both the transform definition level (global default) and the route transform reference level (per-route override). Route-level takes precedence. Dedicated log phases: `transform.error_drop` and `transform.error_halt`. See [Built-in Transforms spec, section 10.4](./transforms/) for full documentation.
 
 ---
 

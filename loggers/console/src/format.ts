@@ -27,6 +27,8 @@ const PHASE_STYLES: Record<LogPhase, PhaseStyle> = {
 	'transform.pass': { icon: '\u25c6', color: GREEN }, // ◆
 	'transform.drop': { icon: '\u2717', color: RED }, // ✗
 	'transform.error': { icon: '\u26a0', color: YELLOW }, // ⚠
+	'transform.error_drop': { icon: '\u2717', color: YELLOW }, // ✗
+	'transform.error_halt': { icon: '\u26d4', color: RED }, // ⛔
 	'route.match': { icon: '\u25ba', color: CYAN }, // ►
 	'route.no_match': { icon: '\u25ba', color: DIM }, // ►
 	'deliver.attempt': { icon: '\u25b7', color: CYAN }, // ▷
@@ -123,6 +125,8 @@ const PHASE_LEVELS: Record<LogPhase, number> = {
 	'transform.pass': 1, // info
 	'transform.drop': 1, // info
 	'transform.error': 2, // warn
+	'transform.error_drop': 2, // warn
+	'transform.error_halt': 3, // error
 	'route.match': 1, // info
 	'route.no_match': 0, // debug
 	'deliver.attempt': 0, // debug

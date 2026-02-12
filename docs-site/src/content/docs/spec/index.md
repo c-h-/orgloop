@@ -25,6 +25,7 @@ description: "OrgLoop engineering specification — the complete design document
 11. [Modules](./modules/)
 12. [Maturity Roadmap](./roadmap/)
 13. [Scope Boundaries & DX Vision](./scope-boundaries/)
+14. [Runtime & Module Lifecycle](./runtime-lifecycle/)
 
 ### Appendices
 

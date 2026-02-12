@@ -348,6 +348,98 @@ describe('DedupTransform', () => {
 		expect(await dedup.execute(createTestEvent({ source: 'github' }), ctx)).not.toBeNull();
 	});
 
+	// ─── "fields" alias for "key" (WQ-85 regression) ─────────────────────────
+
+	it('accepts "fields" as alias for "key" config', async () => {
+		await dedup.init({
+			fields: ['source', 'type'],
+			window: '5m',
+		} as Record<string, unknown>);
+
+		const ctx = createTestContext();
+		const e1 = createTestEvent({ source: 'github', type: 'resource.changed' });
+		const e2 = createTestEvent({ source: 'github', type: 'resource.changed' });
+
+		expect(await dedup.execute(e1, ctx)).not.toBeNull();
+		expect(await dedup.execute(e2, ctx)).toBeNull(); // Dedup should work with "fields"
+	});
+
+	it('"key" takes precedence over "fields" when both are provided', async () => {
+		await dedup.init({
+			key: ['source'],
+			fields: ['type'],
+			window: '5m',
+		} as Record<string, unknown>);
+
+		const ctx = createTestContext();
+		const e1 = createTestEvent({ source: 'github', type: 'resource.changed' });
+		const e2 = createTestEvent({ source: 'linear', type: 'resource.changed' });
+
+		// Key is ['source'], so different sources = both pass
+		expect(await dedup.execute(e1, ctx)).not.toBeNull();
+		expect(await dedup.execute(e2, ctx)).not.toBeNull();
+	});
+
+	it('dedup with "fields" on payload.message_id drops duplicate emails (WQ-85)', async () => {
+		await dedup.init({
+			fields: ['type', 'source', 'payload.message_id'],
+			window: '10m',
+		} as Record<string, unknown>);
+
+		const ctx = createTestContext();
+
+		// Simulate the GOG connector scenario: same email emitted multiple times
+		const email1 = createTestEvent({
+			source: 'gog-gmail',
+			type: 'resource.changed',
+			payload: { message_id: 'msg_abc123', subject: 'Nathan Ellis - Proposal' },
+		});
+		const email1Dup = createTestEvent({
+			source: 'gog-gmail',
+			type: 'resource.changed',
+			payload: { message_id: 'msg_abc123', subject: 'Nathan Ellis - Proposal' },
+		});
+		const email2 = createTestEvent({
+			source: 'gog-gmail',
+			type: 'resource.changed',
+			payload: { message_id: 'msg_def456', subject: 'Different Email' },
+		});
+
+		expect(await dedup.execute(email1, ctx)).not.toBeNull();
+		expect(await dedup.execute(email1Dup, ctx)).toBeNull(); // Same message_id = dropped
+		expect(await dedup.execute(email2, ctx)).not.toBeNull(); // Different message_id = passed
+	});
+
+	// ─── Unknown config key validation (WQ-85 regression) ─────────────────────
+
+	it('throws on unknown config keys to catch field name mismatches', async () => {
+		await expect(
+			dedup.init({
+				typo_key: ['source', 'type'],
+				window: '5m',
+			}),
+		).rejects.toThrow(/unknown config keys.*typo_key/i);
+	});
+
+	it('does not throw on valid config keys', async () => {
+		await expect(
+			dedup.init({
+				key: ['source'],
+				window: '5m',
+				store: 'memory',
+			}),
+		).resolves.not.toThrow();
+	});
+
+	it('does not throw when using "fields" config key', async () => {
+		await expect(
+			dedup.init({
+				fields: ['source'],
+				window: '5m',
+			}),
+		).resolves.not.toThrow();
+	});
+
 	// ─── Registration ──────────────────────────────────────────────────────────
 
 	it('register() returns valid TransformRegistration', async () => {
@@ -358,5 +450,26 @@ describe('DedupTransform', () => {
 		expect(reg.transform).toBe(DedupTransform);
 		expect(reg.configSchema).toBeDefined();
 		expect(reg.configSchema?.type).toBe('object');
+	});
+
+	it('register() configSchema accepts both "key" and "fields"', async () => {
+		const { register } = await import('../index.js');
+		const reg = register();
+		const schema = reg.configSchema as Record<string, unknown>;
+		const props = schema.properties as Record<string, unknown>;
+
+		expect(props.key).toBeDefined();
+		expect(props.fields).toBeDefined();
+	});
+
+	it('register() configSchema does not require "key" (since "fields" is an alias)', async () => {
+		const { register } = await import('../index.js');
+		const reg = register();
+		const schema = reg.configSchema as Record<string, unknown>;
+		const required = schema.required as string[];
+
+		// "key" should not be required since "fields" is an acceptable alternative
+		expect(required).not.toContain('key');
+		expect(required).toContain('window');
 	});
 });

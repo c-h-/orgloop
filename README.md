@@ -29,7 +29,7 @@ npm install -g @orgloop/cli
 orgloop init    # select "webhook" when prompted for connectors
 cd my-org
 orgloop add module minimal
-orgloop apply
+orgloop start
 ```
 
 In another terminal, send an event:
@@ -53,7 +53,7 @@ orgloop init    # select github, linear, claude-code, openclaw
 orgloop add module engineering
 orgloop doctor        # Check deps + credentials
 orgloop plan          # Preview what will run
-orgloop apply         # Start the runtime
+orgloop start         # Start the runtime
 orgloop status        # See everything flowing
 ```
 
@@ -143,7 +143,7 @@ loggers:
 - **Transforms for security** -- injection scanning, bot noise filtering, rate limiting
 - **Full observability** -- every event, transform, delivery logged and traceable
 - **One process replaces N pollers** -- no more scattered LaunchAgents and cron jobs
-- **`plan` before `apply`** -- see exactly what will change (Terraform-style)
+- **`plan` before `start`** -- see exactly what will change (Terraform-style)
 
 ---
 
@@ -172,7 +172,7 @@ orgloop logs --source github --since 2h
 |---------|-------------|
 | `@orgloop/sdk` | Interfaces, types, test harness |
 | `@orgloop/core` | Engine, router, bus, scheduler, schema validation |
-| `@orgloop/cli` | CLI (`init`, `plan`, `apply`, `status`, `doctor`, ...) |
+| `@orgloop/cli` | CLI (`init`, `plan`, `start`, `status`, `doctor`, ...) |
 | `@orgloop/server` | HTTP API server |
 | `@orgloop/connector-github` | Poll-based: PRs, reviews, CI, comments |
 | `@orgloop/connector-linear` | Poll-based: issues, comments, state changes |
