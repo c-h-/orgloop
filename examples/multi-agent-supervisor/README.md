@@ -61,7 +61,7 @@ orgloop hook claude-code-stop
 ```bash
 cd examples/multi-agent-supervisor
 orgloop validate
-orgloop apply
+orgloop start
 ```
 
 ## Files

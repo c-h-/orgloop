@@ -157,6 +157,9 @@ export interface RouteDeliveryConfig {
 	launch_prompt_file?: string;
 }
 
+/** Error policy for transforms — controls behavior when a transform throws */
+export type TransformErrorPolicy = 'pass' | 'drop' | 'halt';
+
 /** Transform definition (YAML) */
 export interface TransformDefinition {
 	/** Transform name */
@@ -171,6 +174,8 @@ export interface TransformDefinition {
 	config?: Record<string, unknown>;
 	/** Timeout in milliseconds (default: 30000) */
 	timeout_ms?: number;
+	/** Error policy: pass (fail-open, default), drop (fail-closed), halt (stop pipeline) */
+	on_error?: TransformErrorPolicy;
 }
 
 /** Logger definition (YAML) */
@@ -195,6 +200,8 @@ export type LogPhase =
 	| 'transform.pass'
 	| 'transform.drop'
 	| 'transform.error'
+	| 'transform.error_drop'
+	| 'transform.error_halt'
 	| 'route.match'
 	| 'route.no_match'
 	| 'deliver.attempt'

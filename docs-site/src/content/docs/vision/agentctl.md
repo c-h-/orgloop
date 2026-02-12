@@ -194,7 +194,7 @@ agentctl handles locking, lifecycle hooks, and output capture. The connector sta
 orgctl bootstrap @orgloop/module-engineering --github-repo my-org/my-repo
 
 # Start the routing layer
-orgloop apply
+orgloop start
 
 # Events route. Agents wake via agentctl.
 # Worktrees are locked. Resources spin up and tear down.

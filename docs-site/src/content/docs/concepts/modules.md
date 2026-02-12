@@ -134,7 +134,7 @@ The `services`, `credentials`, and `hooks` sections are informational for OrgLoo
 
 ## Parameterized Templates
 
-Route templates use `{{ }}` substitution, expanded at plan/apply time:
+Route templates use `{{ }}` substitution, expanded at plan/start time:
 
 ```yaml
 # templates/routes.yaml
@@ -233,7 +233,7 @@ $ orgloop add module engineering
 
   Module "engineering" installed (degraded).
     Actor "openclaw-engineering-agent" in queue mode.
-    When ready: orgloop doctor && orgloop apply
+    When ready: orgloop doctor && orgloop start
 ```
 
 The system runs in degraded mode, queueing events until the missing dependency is available. When it comes online, queued events drain in order.

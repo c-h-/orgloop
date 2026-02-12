@@ -206,7 +206,7 @@ Same five primitives. Different connectors. The engineering org is the proof cas
 
 **Composability.** Connectors, transforms, and loggers are independently publishable packages. Anyone can build and share a connector for their platform. No approval needed, no registry gatekeeping. The ecosystem grows without bottlenecks.
 
-**Installable Autonomous Organizations.** This is where it gets interesting. Think about what a module actually is: it's an entire operational workflow, packaged as code. My engineering org -- the sources, routes, transforms, SOPs, and a manifest declaring every dependency down to the API tokens and external services -- is a module you can install. The module doesn't just give you YAML files. It declares the full truth about what it needs, and OrgLoop tells you exactly what's missing and how to get it. Install the module, follow the guidance, apply. You just cloned a functioning autonomous engineering department.
+**Installable Autonomous Organizations.** This is where it gets interesting. Think about what a module actually is: it's an entire operational workflow, packaged as code. My engineering org -- the sources, routes, transforms, SOPs, and a manifest declaring every dependency down to the API tokens and external services -- is a module you can install. The module doesn't just give you YAML files. It declares the full truth about what it needs, and OrgLoop tells you exactly what's missing and how to get it. Install the module, follow the guidance, start. You just cloned a functioning autonomous engineering department.
 
 Now scale that idea. Someone builds a killer customer support flow: Zendesk + Intercom + a triage agent + escalation routes + resolution SOPs. They publish it. You install it. Someone else packages an entire DevOps org: PagerDuty + Datadog + runbook agents + incident response routes. Install, configure, run.
 
@@ -246,7 +246,7 @@ npm install -g @orgloop/cli
 npm install @orgloop/module-engineering
 orgloop add module engineering
 # orgloop doctor tells you what's needed and how to get it
-orgloop apply
+orgloop start
 ```
 
 You just installed my engineering organization. The routes are running. Events are flowing. Your actors are waking with focused SOPs. The org loops. 🧬

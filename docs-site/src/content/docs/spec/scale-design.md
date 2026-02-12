@@ -78,11 +78,11 @@ Borrowed directly from Terraform:
                     └────┬─────┘      2 transforms removed"
                          │
                     ┌────▼─────┐
-                    │  apply   ├──── start/update runtime
+                    │  start   ├──── start/update runtime
                     └──────────┘
 ```
 
-`orgloop plan` computes a diff between the current running state and the desired state from YAML files. `orgloop apply` reconciles. This gives operators visibility and control over changes.
+`orgloop plan` computes a diff between the current running state and the desired state from YAML files. `orgloop start` reconciles. This gives operators visibility and control over changes.
 
 ### 5.2 Runtime Scale
 

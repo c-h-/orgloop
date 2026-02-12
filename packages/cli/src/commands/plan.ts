@@ -246,7 +246,7 @@ export function registerPlanCommand(program: Command): void {
 				output.blank();
 
 				if (plan.summary.add > 0 || plan.summary.change > 0 || plan.summary.remove > 0) {
-					output.info('Run `orgloop apply` to execute this plan.');
+					output.info('Run `orgloop start` to execute this plan.');
 				}
 			} catch (err) {
 				output.error(`Plan failed: ${err instanceof Error ? err.message : String(err)}`);

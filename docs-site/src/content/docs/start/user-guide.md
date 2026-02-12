@@ -201,7 +201,7 @@ OrgLoop Doctor — my-org
     (no warnings)
 
 All checks passed.
-Next: run `orgloop apply` to start.
+Next: run `orgloop start` to start.
 ```
 
 Doctor goes beyond `env` -- it validates credentials against live APIs (when connectors provide validators), detects running services, validates config syntax, and checks route graph integrity.
@@ -271,7 +271,7 @@ OrgLoop Plan — my-org
 
 Plan: 12 to add, 0 to change, 0 to remove.
 
-Run `orgloop apply` to execute this plan.
+Run `orgloop start` to execute this plan.
 ```
 
 Plan compares your YAML config against the last running state (stored in `~/.orgloop/state.json`). On first run, everything shows as `+ new`. After changes, you see `~ changed` and `- removed`.
@@ -309,7 +309,7 @@ For machine-readable output: `orgloop routes --json`.
 ## 9. Start the engine
 
 ```bash
-orgloop apply
+orgloop start
 ```
 
 ```
@@ -329,7 +329,7 @@ OrgLoop is running. PID: 42831
 Logs: orgloop logs | Status: orgloop status | Stop: orgloop stop
 ```
 
-What happens when apply starts:
+What happens when start runs:
 
 1. Loads and validates config (including module expansion)
 2. Checks all environment variables (fails fast if any are missing)
@@ -343,14 +343,14 @@ What happens when apply starts:
 ### Background mode
 
 ```bash
-orgloop apply --daemon
+orgloop start --daemon
 ```
 
 Forks to background and writes PID to `~/.orgloop/orgloop.pid`.
 
 ### Pre-flight failures
 
-If env vars are missing, apply shows which ones and exits before starting anything:
+If env vars are missing, start shows which ones and exits before starting anything:
 
 ```
 Environment Variables:
@@ -398,7 +398,7 @@ If OrgLoop is not running:
 
 ```
 OrgLoop is not running.
-Run `orgloop apply` to start.
+Run `orgloop start` to start.
 ```
 
 ### View logs
@@ -487,7 +487,7 @@ When OrgLoop stops (Ctrl+C, `orgloop stop`, process killed):
 To restart:
 
 ```bash
-orgloop apply
+orgloop start
 ```
 
 Plan will show `= unchanged` for existing components and pick up where it left off (sources resume from their last checkpoint).
@@ -678,8 +678,8 @@ For a deeper guide, see [Building Modules](/guides/module-authoring/).
 | `orgloop validate` | Validate config files |
 | `orgloop plan` | Show what would change (dry run) |
 | `orgloop routes` | Visualize routing topology |
-| `orgloop apply` | Start the runtime |
-| `orgloop apply --daemon` | Start as background daemon |
+| `orgloop start` | Start the runtime |
+| `orgloop start --daemon` | Start as background daemon |
 | `orgloop status` | Show runtime status |
 | `orgloop logs` | Tail the event log |
 | `orgloop test [file]` | Inject a test event |

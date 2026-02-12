@@ -139,7 +139,7 @@ export function registerStatusCommand(program: Command): void {
 						output.json({ running: false });
 					} else {
 						output.info('OrgLoop is not running.');
-						output.info('Run `orgloop apply` to start.');
+						output.info('Run `orgloop start` to start.');
 					}
 					return;
 				}

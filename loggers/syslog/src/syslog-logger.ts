@@ -42,6 +42,8 @@ const PHASE_SEVERITY: Record<LogPhase, number> = {
 	'system.error': 3, // Error (may be upgraded to Critical via metadata)
 	'deliver.failure': 3, // Error
 	'transform.error': 4, // Warning
+	'transform.error_drop': 4, // Warning
+	'transform.error_halt': 3, // Error
 	'deliver.retry': 4, // Warning
 	'deliver.success': 6, // Informational
 	'deliver.attempt': 6, // Informational

@@ -96,10 +96,10 @@ Implemented:
 - `ConnectorSetup.env_vars` supports `EnvVarDefinition` with per-variable `description` and `help_url`
 - `orgloop env` shows set/unset status with `description` and `help_url` per variable
 - `orgloop init` shows indicators with connector-provided guidance for missing vars
-- `orgloop apply` runs a pre-flight env var check before config loading
+- `orgloop start` runs a pre-flight env var check before config loading
 - `orgloop doctor` reports credential status with descriptions and help URLs
 - `env-metadata.ts` provides hardcoded metadata as a fallback for known env vars
-- Remaining: `.env` file loading in `orgloop apply` (dotenv or similar)
+- Remaining: `.env` file loading in `orgloop start` (dotenv or similar)
 
 ---
 

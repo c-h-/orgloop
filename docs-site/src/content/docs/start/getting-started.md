@@ -57,7 +57,7 @@ This adds a webhook source, a console logger, and a single route.
 
 ```bash
 orgloop validate
-orgloop apply
+orgloop start
 ```
 
 OrgLoop is now running. The webhook source is listening on `http://localhost:3000/webhook`.
@@ -133,7 +133,7 @@ Environment Variables:
 
 ```bash
 orgloop validate
-orgloop apply
+orgloop start
 ```
 
 OrgLoop now polls your GitHub repo every 5 minutes. When a PR review comes in or CI fails, you'll see it in the console. Events from GitHub flow through the same routing system as the webhook — sources are interchangeable.
@@ -239,7 +239,7 @@ Plan: 8 to add, 0 to change, 0 to remove.
 ### Apply
 
 ```bash
-orgloop apply
+orgloop start
 ```
 
 Events are now flowing. Sources poll on their configured intervals, routes match incoming events, transforms filter noise, and actors receive focused work with situational launch prompts.

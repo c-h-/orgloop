@@ -11,7 +11,13 @@
  */
 
 import { execFile } from 'node:child_process';
-import type { LogEntry, OrgLoopEvent, RouteTransformRef, TransformDefinition } from '@orgloop/sdk';
+import type {
+	LogEntry,
+	OrgLoopEvent,
+	RouteTransformRef,
+	TransformDefinition,
+	TransformErrorPolicy,
+} from '@orgloop/sdk';
 import type { Transform, TransformContext } from '@orgloop/sdk';
 import { TransformError } from './errors.js';
 
@@ -105,6 +111,57 @@ export interface TransformPipelineResult {
 }
 
 /**
+ * Apply the on_error policy when a transform fails.
+ * Returns a pipeline result to short-circuit the pipeline, or undefined to continue.
+ */
+function applyErrorPolicy(
+	policy: TransformErrorPolicy,
+	transformName: string,
+	error: Error,
+	event: OrgLoopEvent,
+	durationMs: number,
+	options: TransformPipelineOptions,
+): TransformPipelineResult | undefined {
+	if (policy === 'drop') {
+		options.onLog?.({
+			phase: 'transform.error_drop',
+			transform: transformName,
+			event_id: event.id,
+			trace_id: event.trace_id,
+			error: error.message,
+			duration_ms: durationMs,
+		});
+		return { event: null, dropped: true, dropTransform: transformName, error };
+	}
+
+	if (policy === 'halt') {
+		options.onLog?.({
+			phase: 'transform.error_halt',
+			transform: transformName,
+			event_id: event.id,
+			trace_id: event.trace_id,
+			error: error.message,
+			duration_ms: durationMs,
+		});
+		throw new TransformError(
+			transformName,
+			`Transform "${transformName}" failed with halt policy: ${error.message}`,
+		);
+	}
+
+	// policy === 'pass' (default): fail-open, continue with current event
+	options.onLog?.({
+		phase: 'transform.error',
+		transform: transformName,
+		event_id: event.id,
+		trace_id: event.trace_id,
+		error: error.message,
+		duration_ms: durationMs,
+	});
+	return undefined;
+}
+
+/**
  * Execute a transform pipeline for a route.
  */
 export async function executeTransformPipeline(
@@ -130,6 +187,8 @@ export async function executeTransformPipeline(
 			trace_id: current.trace_id,
 		});
 
+		const policy: TransformErrorPolicy = def.on_error ?? 'pass';
+
 		if (def.type === 'script' && def.script) {
 			const result = await runScript(
 				def.script,
@@ -152,15 +211,15 @@ export async function executeTransformPipeline(
 			}
 
 			if (result.error) {
-				options.onLog?.({
-					phase: 'transform.error',
-					transform: def.name,
-					event_id: current.id,
-					trace_id: current.trace_id,
-					error: result.error.message,
-					duration_ms: durationMs,
-				});
-				// fail-open: continue with current event
+				const errorResult = applyErrorPolicy(
+					policy,
+					def.name,
+					result.error,
+					current,
+					durationMs,
+					options,
+				);
+				if (errorResult) return errorResult;
 			}
 
 			if (result.event) {
@@ -205,15 +264,15 @@ export async function executeTransformPipeline(
 				});
 			} catch (err) {
 				const durationMs = Date.now() - startTime;
-				options.onLog?.({
-					phase: 'transform.error',
-					transform: def.name,
-					event_id: current.id,
-					trace_id: current.trace_id,
-					error: (err as Error).message,
-					duration_ms: durationMs,
-				});
-				// fail-open: continue with current event
+				const errorResult = applyErrorPolicy(
+					policy,
+					def.name,
+					err as Error,
+					current,
+					durationMs,
+					options,
+				);
+				if (errorResult) return errorResult;
 			}
 		}
 	}

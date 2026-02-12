@@ -60,7 +60,7 @@ orgloop env
 # Validate, preview, run
 orgloop validate
 orgloop plan
-orgloop apply
+orgloop start
 ```
 
 ## Key config files

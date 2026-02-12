@@ -11,10 +11,10 @@ The [manifesto](/vision/manifesto/) ends with a compelling demo:
 npm install -g @orgloop/cli
 npm install @orgloop/module-engineering
 orgloop add module engineering
-orgloop apply
+orgloop start
 ```
 
-But between `add module` and `apply`, there is an implicit step: **configure your environment**. You need to install OpenClaw, create a GitHub personal access token, configure Claude Code hooks, set up shared webhook secrets, and write a `.env` file. Each of those has its own setup flow, its own documentation, its own failure modes.
+But between `add module` and `start`, there is an implicit step: **configure your environment**. You need to install OpenClaw, create a GitHub personal access token, configure Claude Code hooks, set up shared webhook secrets, and write a `.env` file. Each of those has its own setup flow, its own documentation, its own failure modes.
 
 This is where people give up. Not because OrgLoop is hard, but because the "Edit" step between installation and execution is a scattered scavenger hunt across half a dozen platforms.
 
@@ -55,7 +55,7 @@ orgctl has a different security model, different dependencies, and a different l
 7. **Store credentials** -- Write to `.env` file and optionally OS keychain
 8. **Configure hooks** -- Write hook files per manifest's `hooks` entries (e.g., Claude Code stop hooks)
 9. **Install module** -- `orgloop add module <name> --non-interactive --param X=Y`
-10. **Apply** -- `orgloop apply`
+10. **Apply** -- `orgloop start`
 
 ### Supporting Commands
 
@@ -162,14 +162,14 @@ orgloop add module engineering \
   Write .env files ─────────────────
   Configure hooks ──────────────────
   Call orgloop add module ────────── ── Module installation
-  Call orgloop apply ─────────────── ── Engine startup
+  Call orgloop start ─────────────── ── Engine startup
                                      ── Event routing
                                      ── Transform pipeline
                                      ── Actor delivery
                                      ── Logging & observability
 ```
 
-orgctl's job is done when `orgloop apply` starts successfully. After that, OrgLoop owns the runtime.
+orgctl's job is done when `orgloop start` starts successfully. After that, OrgLoop owns the runtime.
 
 ## Implementation Status
 

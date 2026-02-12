@@ -16,13 +16,13 @@ The manifesto ends with that promise. Everything below is the path to making it 
 - Monorepo setup (pnpm workspaces, Turborepo, Biome)
 - `@orgloop/core` — event bus (in-memory + file WAL), router, transform pipeline, logger fan-out
 - `@orgloop/sdk` — plugin interfaces, base classes, test harnesses for connectors, transforms, loggers
-- `@orgloop/cli` — `init`, `validate`, `plan`, `apply`, `stop`, `status`, `logs`, `test`, `add`, `env`, `doctor`, `routes`, `hook`, `inspect`, `install-service`, `service`, `version`
+- `@orgloop/cli` — `init`, `validate`, `plan`, `start`, `stop`, `status`, `logs`, `test`, `add`, `env`, `doctor`, `routes`, `hook`, `inspect`, `install-service`, `service`, `version`
 - YAML schema + JSON Schema validation
 - Checkpoint persistence (file-based)
 - Built-in transforms: `filter` (jq-based), `dedup`, shell script executor
 - Built-in loggers: `file` (JSONL), `console`
 
-**Exit criteria:** `orgloop init && orgloop validate && orgloop apply` works end-to-end with a mock connector.
+**Exit criteria:** `orgloop init && orgloop validate && orgloop start` works end-to-end with a mock connector.
 
 ### Phase 2: Migrate Bespoke Scripts
 
@@ -77,7 +77,7 @@ orgloop add module engineering
 # Set env vars: GITHUB_TOKEN, LINEAR_API_KEY, OPENCLAW_WEBHOOK_TOKEN
 orgloop env                     # Verify credentials
 orgloop validate                # Check config
-orgloop apply
+orgloop start
 ```
 
 Your engineering organization is running. GitHub events route to your agent. CI failures wake your supervisor. PR reviews trigger focused SOPs. Linear tickets flow through transforms. Everything is auditable, deterministic, and version-controlled.
@@ -101,7 +101,7 @@ Connectors progress through stages (see [Scope Boundaries](./scope-boundaries/))
 
 | Stage | Capability | User experience |
 |---|---|---|
-| 1. Functional | source/target works | "Set GITHUB_TOKEN and run apply" |
+| 1. Functional | source/target works | "Set GITHUB_TOKEN and run start" |
 | 2. Discoverable | setup metadata, validators | "GITHUB_TOKEN -- create at github.com/settings/tokens" |
 | 3. Self-service | credential acquisition | "Authenticate via browser? (Y/n)" |
 

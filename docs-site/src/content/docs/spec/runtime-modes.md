@@ -28,7 +28,7 @@ await loop.start();
 
 ### Mode 1: CLI Mode (MVP)
 
-**Command:** `orgloop apply`
+**Command:** `orgloop start`
 
 For individual developers and small teams. The CLI manages the full lifecycle: load config, start the engine as a long-running daemon, handle signals, manage the PID file. The daemon manages all source polling internally — poll intervals declared in YAML replace external schedulers (LaunchAgents, systemd timers, cron). One OrgLoop process replaces N poller scripts.
 
@@ -36,10 +36,10 @@ Use `orgloop install-service` to generate platform-appropriate service files (La
 
 ```bash
 # Foreground (development)
-orgloop apply
+orgloop start
 
 # Daemonized (production)
-orgloop apply --daemon
+orgloop start --daemon
 
 # System service (production, managed restart)
 orgloop service install  # Generates launchd/systemd unit
@@ -50,7 +50,7 @@ orgloop service install  # Generates launchd/systemd unit
 **Under the hood:**
 
 ```typescript
-// cli/src/commands/apply.ts — simplified
+// cli/src/commands/start.ts — simplified
 import { OrgLoop } from '@orgloop/core';
 import { loadCliConfig } from '../config';
 import { resolveConnectors } from '../resolve-connectors';
@@ -155,7 +155,7 @@ GET    /api/v1/routes/:id          Route detail (match/drop counts)
 # Configuration management
 POST   /api/v1/config/validate     Validate a config payload
 POST   /api/v1/config/plan         Compute a plan
-POST   /api/v1/config/apply        Apply a config change
+POST   /api/v1/config/start        Apply a config change
 
 # Logs
 GET    /api/v1/logs                Stream logs (SSE)
@@ -190,7 +190,7 @@ POST   /api/v1/webhooks/:source    Receive webhook from a source platform
    ┌────────▼────────┐   ┌────────▼────────┐  ┌───────▼────────┐
    │  @orgloop/cli   │   │ @orgloop/server │  │  Your app      │
    │                 │   │  (placeholder)  │  │                │
-   │  orgloop apply  │   │                 │  │  import {      │
+   │  orgloop start  │   │                 │  │  import {      │
    │  orgloop status │   │  orgloop serve  │  │    OrgLoop     │
    │  orgloop logs   │   │  REST API       │  │  } from core   │
    │  orgloop test   │   │  (v1.1)         │  │                │
@@ -202,6 +202,6 @@ POST   /api/v1/webhooks/:source    Receive webhook from a source platform
 
 | Mode | Priority | Notes |
 |------|----------|-------|
-| CLI mode (`orgloop apply`) | **MVP** | Ship first. This proves the core works. |
+| CLI mode (`orgloop start`) | **MVP** | Ship first. This proves the core works. |
 | Library mode (`import { OrgLoop }`) | **MVP** | Comes free with library-first design. The CLI already uses it. |
 | Server mode (`orgloop serve`) | **v1.1** | After CLI is proven, add the HTTP layer. The library API is already there; server is just HTTP routing on top. |

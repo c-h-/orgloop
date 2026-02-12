@@ -9,7 +9,7 @@ orgloop/
   packages/
     sdk/          @orgloop/sdk         Type definitions, interfaces, event helpers, test harness
     core/         @orgloop/core        Runtime engine: bus, router, scheduler, transform pipeline, config loader
-    cli/          @orgloop/cli         CLI binary (orgloop) — init, validate, plan, apply, stop, status, logs, etc.
+    cli/          @orgloop/cli         CLI binary (orgloop) — init, validate, plan, start, stop, status, logs, etc.
   connectors/
     github/       @orgloop/connector-github       Source: polls GitHub REST API for PR/issue/CI activity
     linear/       @orgloop/connector-linear       Source: polls Linear GraphQL API for issue/comment updates
@@ -306,4 +306,4 @@ Start reading here to understand the system:
 | `packages/core/src/scheduler.ts` | Poll scheduling (setInterval-based) |
 | `packages/core/src/schema.ts` | YAML config loader + JSON Schema validation |
 | `packages/cli/src/index.ts` | CLI entry point, command registration |
-| `packages/cli/src/commands/apply.ts` | `orgloop apply` -- the main "start engine" command |
+| `packages/cli/src/commands/start.ts` | `orgloop start` -- the main "start engine" command |

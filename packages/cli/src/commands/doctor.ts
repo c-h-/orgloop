@@ -348,7 +348,7 @@ export function printDoctorResult(result: DoctorResult): void {
 
 	if (parts.length === 0) {
 		output.info(chalk.green('All checks passed.'));
-		output.info(chalk.dim('Next: run `orgloop apply` to start.'));
+		output.info(chalk.dim('Next: run `orgloop start` to start.'));
 	} else {
 		output.info(`${parts.join(', ')}.`);
 		if (result.status === 'degraded') {

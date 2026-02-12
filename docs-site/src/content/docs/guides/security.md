@@ -116,7 +116,7 @@ orgloop logs --result drop --since 1h
 
 See the [Building Transforms](/guides/transform-authoring/) guide for details on how transforms interact with the audit pipeline.
 
-## Plan before apply
+## Plan before start
 
 `orgloop plan` shows exactly what will change before any config is applied:
 
@@ -134,10 +134,10 @@ $ orgloop plan
     + github-to-engineering  (new)
 
   Plan: 3 to add, 1 to change, 0 to remove.
-  Run `orgloop apply` to execute this plan.
+  Run `orgloop start` to execute this plan.
 ```
 
-No surprise mutations. You review the diff, then apply. Infrastructure-as-code discipline applied to your organization's operational topology.
+No surprise mutations. You review the diff, then start. Infrastructure-as-code discipline applied to your organization's operational topology.
 
 ## Supply chain security
 
@@ -156,7 +156,7 @@ No walled-garden marketplace, no binary blobs.
 OrgLoop's default network posture is **zero inbound connections**:
 
 - Sources poll outbound -- no listening ports
-- `orgloop apply` runs as a local daemon with no network exposure
+- `orgloop start` runs as a local daemon with no network exposure
 - `orgloop serve` (HTTP API) is opt-in and binds to `127.0.0.1` by default
 
 For production deployments:

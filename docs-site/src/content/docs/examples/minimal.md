@@ -31,7 +31,7 @@ Copy the example and run it:
 cp -r examples/minimal my-project
 cd my-project
 orgloop validate
-orgloop apply
+orgloop start
 ```
 
 Or scaffold from scratch:
@@ -40,7 +40,7 @@ Or scaffold from scratch:
 orgloop init    # select "webhook" when prompted for connectors
 cd my-project
 orgloop validate
-orgloop apply
+orgloop start
 ```
 
 ## Configuration

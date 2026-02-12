@@ -20,7 +20,7 @@ npm install -g @orgloop/cli
 | [`orgloop doctor`](#doctor) | Full environment health check |
 | [`orgloop plan`](#plan) | Preview changes (Terraform-style diff) |
 | [`orgloop routes`](#routes) | Visualize the routing topology |
-| [`orgloop apply`](#apply) | Start the runtime |
+| [`orgloop start`](#start) | Start the runtime |
 | [`orgloop status`](#status) | Show runtime status and recent events |
 | [`orgloop logs`](#logs) | Tail or query the event log |
 | [`orgloop test`](#test) | Inject a test event and trace its path |
@@ -366,7 +366,7 @@ OrgLoop Plan — my-org
 
 Plan: 7 to add, 1 to change, 0 to remove.
 
-Run `orgloop apply` to execute this plan.
+Run `orgloop start` to execute this plan.
 ```
 
 Symbols:
@@ -417,12 +417,12 @@ Shows sources, routes with filter criteria and transform chains, and target acto
 
 ---
 
-## apply
+## start
 
 Start the runtime. Events begin flowing.
 
 ```
-orgloop apply [options]
+orgloop start [options]
 ```
 
 | Flag | Description |
@@ -432,7 +432,7 @@ orgloop apply [options]
 ### Foreground (development)
 
 ```bash
-$ orgloop apply
+$ orgloop start
 
 Applying plan...
 
@@ -455,7 +455,7 @@ Press Ctrl+C to stop in foreground mode.
 ### Daemon mode (production)
 
 ```bash
-orgloop apply --daemon
+orgloop start --daemon
 # PID written to ~/.orgloop/orgloop.pid
 ```
 
@@ -463,7 +463,7 @@ One long-running process manages all source polling internally. Poll intervals a
 
 ### Pre-flight validation
 
-Apply checks environment variables before starting. If any are missing, it fails fast with actionable guidance:
+Start checks environment variables before starting. If any are missing, it fails fast with actionable guidance:
 
 ```
 Environment Variables:

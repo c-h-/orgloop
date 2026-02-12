@@ -146,7 +146,7 @@ orgctl bootstrap @orgloop/module-engineering --github-repo my-org/my-repo
 # 4. Broker credentials (GitHub OAuth, OpenClaw token generation)
 # 5. Write .env
 # 6. orgloop add module engineering --non-interactive
-# 7. orgloop apply
+# 7. orgloop start
 ```
 
 OrgLoop does not know or care that orgctl exists. It reads the same YAML it always reads. The orchestrator is a consumer of OrgLoop's stable interfaces.
@@ -166,13 +166,13 @@ The path from today to the vision is incremental. Each stage is reachable withou
 
 **Today:**
 ```
-orgloop init -> orgloop env (shows what's needed) -> manually fix -> orgloop apply
+orgloop init -> orgloop env (shows what's needed) -> manually fix -> orgloop start
 ```
 User does manual service installation and credential creation. OrgLoop guides honestly.
 
 **Tomorrow (connector maturity):**
 ```
-orgloop init -> orgloop setup (OAuth prompts, auto-detection) -> orgloop apply
+orgloop init -> orgloop setup (OAuth prompts, auto-detection) -> orgloop start
 ```
 Connectors at Stage 2-3 handle credential acquisition. No manual token pasting.
 

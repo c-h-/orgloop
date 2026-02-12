@@ -192,6 +192,50 @@ async function validateTransformScripts(
 	return results;
 }
 
+async function validateTransformConfigs(
+	transforms: TransformDefinition[],
+): Promise<ValidationResult[]> {
+	const results: ValidationResult[] = [];
+
+	for (const t of transforms) {
+		if (t.type === 'package' && t.package && t.config) {
+			try {
+				const mod = await import(t.package);
+				if (typeof mod.register !== 'function') continue;
+
+				const reg = mod.register();
+				if (!reg.configSchema) continue;
+
+				const AjvMod = await import('ajv');
+				const AjvClass = AjvMod.default?.default ?? AjvMod.default ?? AjvMod;
+				const ajv = new AjvClass({ allErrors: true });
+				const validate = ajv.compile(reg.configSchema);
+				const errors: string[] = [];
+
+				if (!validate(t.config)) {
+					for (const e of validate.errors ?? []) {
+						errors.push(`${e.instancePath || '/'}: ${e.message}`);
+					}
+				}
+
+				results.push({
+					file: `transform: ${t.name}`,
+					valid: errors.length === 0,
+					description:
+						errors.length === 0
+							? `valid ${t.type} transform config`
+							: `invalid config for transform "${t.name}"`,
+					errors,
+				});
+			} catch {
+				// Package not available — skip config validation (already caught elsewhere)
+			}
+		}
+	}
+
+	return results;
+}
+
 function findClosestMatch(target: string, candidates: string[]): string | null {
 	if (candidates.length === 0) return null;
 
@@ -433,6 +477,10 @@ export async function runValidation(configPath: string): Promise<{
 		...transforms.values(),
 	]);
 	results.push(...scriptResults);
+
+	// 4b. Validate package transform configs against their schemas
+	const configResults = await validateTransformConfigs([...transforms.values()]);
+	results.push(...configResults);
 
 	// 5. Load and validate logger files
 	for (const file of project.loggers ?? []) {

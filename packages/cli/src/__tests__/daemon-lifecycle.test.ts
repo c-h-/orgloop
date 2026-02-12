@@ -7,7 +7,7 @@
  * PID file), WQ-69 (duplicate instance prevention), WQ-70 (PID cleanup
  * on error and exit).
  *
- * Tests exercise the same patterns used in apply.ts and stop.ts.
+ * Tests exercise the same patterns used in start.ts and stop.ts.
  * Real child processes are spawned for fork-related tests.
  */
 
@@ -566,7 +566,7 @@ describe('state file persistence', () => {
 			loggers: [{ name: 'console', type: 'orgloop-logger-console' }],
 		};
 
-		// Mirrors saveState() from apply.ts
+		// Mirrors saveState() from start.ts
 		const state = {
 			sources: Object.fromEntries(
 				config.sources.map((s) => [
@@ -605,7 +605,7 @@ describe('state file persistence', () => {
 		expect(info.isFile()).toBe(true);
 	});
 
-	it('overwrites previous state on re-apply', async () => {
+	it('overwrites previous state on re-start', async () => {
 		await writeFile(stateFile, JSON.stringify({ sources: { old: {} } }), 'utf-8');
 		await writeFile(stateFile, JSON.stringify({ sources: { new_source: {} } }), 'utf-8');
 

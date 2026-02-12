@@ -16,6 +16,10 @@ export function register(): TransformRegistration {
 					type: 'object',
 					description: 'Dot-path field → value patterns. All must match for event to pass.',
 				},
+				match_any: {
+					type: 'object',
+					description: 'Dot-path field → value patterns. Any match passes the event (OR mode).',
+				},
 				exclude: {
 					type: 'object',
 					description: 'Dot-path field → value or array. Any match drops the event.',
