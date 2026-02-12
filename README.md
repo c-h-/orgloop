@@ -58,17 +58,20 @@ orgloop status        # See everything flowing
 ```
 
 ```
-OrgLoop -- my-org (running, uptime 3h 22m)
+OrgLoop Runtime
+  Status: running (PID 42891)
+  Uptime: 3h 22m
+  Control API: http://127.0.0.1:4800
+  Modules: 1
 
-Sources:
-  github        poll/5m    47 events (24h)
-  linear        poll/5m    12 events (24h)
-  claude-code   hook        3 events (24h)
+Module: engineering
+  State: active | Uptime: 3h 22m
+  Sources: 3 | Actors: 1 | Routes: 3
 
-Routes:
-  github-to-engineering       45 matched, 2 dropped, 0 errors
-  linear-to-project           12 matched, 0 errors
-  claude-code-to-supervisor    3 matched, 0 errors
+  SOURCE       HEALTH    LAST POLL   ERRORS  EVENTS
+  github       healthy   2m ago      0       47
+  linear       healthy   3m ago      0       12
+  claude-code  healthy   18m ago     0       3
 ```
 
 **Prerequisites for the full engineering workflow:**
@@ -143,6 +146,7 @@ loggers:
 - **Transforms for security** -- injection scanning, bot noise filtering, rate limiting
 - **Full observability** -- every event, transform, delivery logged and traceable
 - **One process replaces N pollers** -- no more scattered LaunchAgents and cron jobs
+- **Multi-module runtime** -- load, unload, reload modules without restarting
 - **`plan` before `start`** -- see exactly what will change (Terraform-style)
 
 ---
@@ -162,6 +166,11 @@ orgloop inspect route github-to-engineering
 
 # Tail logs with filters
 orgloop logs --source github --since 2h
+
+# Module management (hot-load without restarting)
+orgloop module list
+orgloop module load ./my-module
+orgloop module reload engineering
 ```
 
 ---
@@ -171,8 +180,8 @@ orgloop logs --source github --since 2h
 | Package | Description |
 |---------|-------------|
 | `@orgloop/sdk` | Interfaces, types, test harness |
-| `@orgloop/core` | Engine, router, bus, scheduler, schema validation |
-| `@orgloop/cli` | CLI (`init`, `plan`, `start`, `status`, `doctor`, ...) |
+| `@orgloop/core` | Runtime, module lifecycle, router, bus, scheduler, schema validation |
+| `@orgloop/cli` | CLI (`init`, `plan`, `start`, `status`, `module`, `doctor`, ...) |
 | `@orgloop/server` | HTTP API server |
 | `@orgloop/connector-github` | Poll-based: PRs, reviews, CI, comments |
 | `@orgloop/connector-linear` | Poll-based: issues, comments, state changes |
