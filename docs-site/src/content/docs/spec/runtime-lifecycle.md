@@ -3,7 +3,7 @@ title: "Runtime & Module Lifecycle"
 description: "Runtime as a long-lived host process, modules as dynamically loadable workloads, identity model, state isolation, and the path to networked runtimes."
 ---
 
-> **Status: Design.** This spec describes the target architecture for multi-module runtime management. The current implementation runs one config file per daemon process. This design evolves the architecture toward a single runtime hosting multiple independent modules.
+> **Status: Implemented.** The core architecture described here is implemented in `packages/core/src/runtime.ts`, `packages/core/src/module-instance.ts`, and `packages/core/src/registry.ts`. The `OrgLoop` engine class (`packages/core/src/engine.ts`) is a backward-compatible wrapper that creates a single "default" module within a Runtime. CLI support via `orgloop module` commands. Phase 1 (backwards compatible) and Phase 3 (dynamic module management) are live. Phase 2 (boot manifest with `modules:` section) is config-only — not yet implemented.
 
 ### Core Insight: Separate the Runtime from the Workload
 

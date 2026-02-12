@@ -13,17 +13,23 @@ This is the most important architectural decision for long-term flexibility. Don
 
 ```typescript
 // The core library — this is the foundation
+// Option A: OrgLoop wrapper (single-module, backward-compatible)
 import { OrgLoop, OrgLoopConfig, OrgLoopOptions } from '@orgloop/core';
 
-// Sources and actors are pre-instantiated and passed via options
 const loop = new OrgLoop(config, {
   sources: sourcesMap,   // Map<string, SourceConnector>
   actors: actorsMap,     // Map<string, ActorConnector>
 });
 await loop.start();
 
-// That's it. The engine is running.
-// Everything below is a different way to invoke these same methods.
+// Option B: Runtime (multi-module, full control)
+import { Runtime } from '@orgloop/core';
+
+const runtime = new Runtime();
+await runtime.start();
+await runtime.loadModule(moduleConfig, { sources, actors });
+// Load more modules dynamically...
+await runtime.loadModule(anotherModuleConfig, { sources: otherSources, actors: otherActors });
 ```
 
 ### Mode 1: CLI Mode (MVP)
@@ -51,22 +57,24 @@ orgloop service install  # Generates launchd/systemd unit
 
 ```typescript
 // cli/src/commands/start.ts — simplified
-import { OrgLoop } from '@orgloop/core';
+import { Runtime } from '@orgloop/core';
 import { loadCliConfig } from '../config';
 import { resolveConnectors } from '../resolve-connectors';
 
 const config = await loadCliConfig({ configPath: flags.config });
 const { sources, actors } = await resolveConnectors(config);
-const loop = new OrgLoop(config, { sources, actors });
 
-process.on('SIGTERM', () => loop.stop());
-process.on('SIGINT', () => loop.stop());
-
-await loop.start();
-// Engine runs until stopped
+const runtime = new Runtime();
+await runtime.start();
+await runtime.startHttpServer();  // Control API + webhook listener
+await runtime.loadModule(
+  { name: config.project.name, sources: config.sources, actors: config.actors, routes: config.routes, ... },
+  { sources, actors }
+);
+// Runtime is running. Modules can be loaded/unloaded dynamically.
 ```
 
-The CLI is a thin wrapper around the library. `resolveConnectors()` handles the bridge between declarative YAML config and instantiated connector objects. All runtime logic lives in `@orgloop/core`.
+The CLI creates a `Runtime` instance and loads the config as a module. `resolveConnectors()` handles the bridge between declarative YAML config and instantiated connector objects. All runtime logic lives in `@orgloop/core`.
 
 ### Mode 2: Library/SDK Mode
 
