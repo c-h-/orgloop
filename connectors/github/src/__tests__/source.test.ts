@@ -45,17 +45,28 @@ function createMockOctokit() {
 		iterator: ReturnType<typeof vi.fn>;
 	};
 
-	// paginate.iterator for fetchUpdatedPulls — yields pages of {data, headers}
+	// paginate.iterator — yields pages of {data, headers}
+	// Used by fetchUpdatedPulls, pollClosedPRs, pollOpenedPRs, pollReadyForReviewPRs,
+	// pollFailedWorkflowRuns
 	paginate.iterator = vi.fn((endpoint: unknown, params: unknown) => {
 		// Default: call the endpoint once and yield result as a single page
 		const fn = endpoint as (...args: unknown[]) => Promise<{ data: unknown }>;
 		return {
 			async *[Symbol.asyncIterator]() {
 				const result = await fn(params);
-				yield {
-					data: Array.isArray(result.data) ? result.data : [],
-					headers: {},
-				};
+				let items: unknown[];
+				if (Array.isArray(result.data)) {
+					items = result.data;
+				} else if (
+					result.data &&
+					typeof result.data === 'object' &&
+					'workflow_runs' in (result.data as Record<string, unknown>)
+				) {
+					items = (result.data as Record<string, unknown>).workflow_runs as unknown[];
+				} else {
+					items = [];
+				}
+				yield { data: items, headers: {} };
 			},
 		};
 	});
@@ -859,12 +870,18 @@ describe('GitHubSource', () => {
 				},
 			});
 
-			// issue_comment succeeds, then closedPRs throws 429
+			// issue_comment succeeds via paginate(), then closedPRs throws 429 via iterator
 			mock.issues.listCommentsForRepo.mockResolvedValue({ data: [comment] });
-			mock.pulls.list.mockRejectedValue(rateLimitError);
-			mock.paginate
-				.mockResolvedValueOnce([comment]) // issue comments
-				.mockRejectedValue(rateLimitError); // closed PRs
+			mock.paginate.mockResolvedValueOnce([comment]); // issue comments
+			// pollClosedPRs now uses paginate.iterator — override it to throw
+			mock.paginate.iterator.mockImplementation(() => {
+				return {
+					// biome-ignore lint/correctness/useYield: mock iterator that throws before yielding
+					async *[Symbol.asyncIterator]() {
+						throw rateLimitError;
+					},
+				};
+			});
 
 			const source = await createSource(['issue_comment', 'pull_request.closed'], mock);
 			const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -935,6 +952,43 @@ describe('GitHubSource', () => {
 		});
 	});
 
+	describe('epoch checkpoint treated as no checkpoint', () => {
+		it('applies lookback window when checkpoint is epoch', async () => {
+			const mock = createMockOctokit();
+			// PR from 30 days ago — outside 7d lookback
+			const oldDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+			const pr = makePR({ updated_at: oldDate });
+			const review = makeReview({ submitted_at: oldDate });
+
+			mock.pulls.list.mockResolvedValue({ data: [pr] });
+			mock.pulls.listReviews.mockResolvedValue({ data: [review] });
+
+			const source = await createSource(['pull_request.review_submitted'], mock);
+			// Epoch checkpoint should trigger lookback, filtering out the 30-day-old event
+			const result = await source.poll('1970-01-01T00:00:00.000Z');
+
+			expect(result.events).toHaveLength(0);
+			// Checkpoint should be ~7 days ago, not epoch
+			expect(result.checkpoint > '2020-01-01T00:00:00Z').toBe(true);
+		});
+
+		it('applies lookback window when checkpoint is epoch (zero)', async () => {
+			const mock = createMockOctokit();
+			const recentDate = new Date().toISOString();
+			const pr = makePR({ updated_at: recentDate });
+			const review = makeReview({ submitted_at: recentDate });
+
+			mock.pulls.list.mockResolvedValue({ data: [pr] });
+			mock.pulls.listReviews.mockResolvedValue({ data: [review] });
+
+			const source = await createSource(['pull_request.review_submitted'], mock);
+			// Epoch checkpoint — recent events should still be returned via lookback
+			const result = await source.poll('1970-01-01T00:00:00.000Z');
+
+			expect(result.events).toHaveLength(1);
+		});
+	});
+
 	describe('fetchUpdatedPulls early termination', () => {
 		it('stops paginating when all PRs on a page are older than since', async () => {
 			const mock = createMockOctokit();
@@ -967,6 +1021,105 @@ describe('GitHubSource', () => {
 
 			// Should have only fetched 2 pages (stopped after finding all-old page)
 			expect(pageCount).toBe(2);
+		});
+	});
+
+	describe('pagination early-exit for poll methods', () => {
+		it('pollClosedPRs stops paginating when all PRs on a page are older than since', async () => {
+			const mock = createMockOctokit();
+			const recentPR = makePR({
+				number: 1,
+				state: 'closed',
+				updated_at: '2024-01-15T10:00:00Z',
+				closed_at: '2024-01-15T10:00:00Z',
+			});
+			const oldPR = makePR({
+				number: 2,
+				state: 'closed',
+				updated_at: '2024-01-10T10:00:00Z',
+				closed_at: '2024-01-10T10:00:00Z',
+			});
+
+			let pageCount = 0;
+			mock.paginate.iterator.mockReturnValue({
+				async *[Symbol.asyncIterator]() {
+					pageCount++;
+					yield { data: [recentPR], headers: {} };
+					pageCount++;
+					yield { data: [oldPR], headers: {} };
+					pageCount++;
+					// Should never reach here
+					yield { data: [oldPR], headers: {} };
+				},
+			});
+
+			const source = await createSource(['pull_request.closed'], mock);
+			const result = await source.poll('2024-01-15T09:00:00Z');
+
+			expect(pageCount).toBe(2);
+			expect(result.events).toHaveLength(1);
+		});
+
+		it('pollOpenedPRs stops paginating when all PRs on a page are older than since', async () => {
+			const mock = createMockOctokit();
+			const recentPR = makePR({
+				number: 1,
+				created_at: '2024-01-15T10:00:00Z',
+				updated_at: '2024-01-15T10:00:00Z',
+			});
+			const oldPR = makePR({
+				number: 2,
+				created_at: '2024-01-10T10:00:00Z',
+				updated_at: '2024-01-10T10:00:00Z',
+			});
+
+			let pageCount = 0;
+			mock.paginate.iterator.mockReturnValue({
+				async *[Symbol.asyncIterator]() {
+					pageCount++;
+					yield { data: [recentPR], headers: {} };
+					pageCount++;
+					yield { data: [oldPR], headers: {} };
+					pageCount++;
+					yield { data: [oldPR], headers: {} };
+				},
+			});
+
+			const source = await createSource(['pull_request.opened'], mock);
+			const result = await source.poll('2024-01-15T09:00:00Z');
+
+			expect(pageCount).toBe(2);
+			expect(result.events).toHaveLength(1);
+		});
+
+		it('pollFailedWorkflowRuns stops paginating when all runs on a page are older than since', async () => {
+			const mock = createMockOctokit();
+			const recentRun = makeWorkflowRun({
+				id: 1,
+				updated_at: '2024-01-15T10:00:00Z',
+			});
+			const oldRun = makeWorkflowRun({
+				id: 2,
+				updated_at: '2024-01-10T10:00:00Z',
+			});
+
+			let pageCount = 0;
+			mock.paginate.iterator.mockReturnValue({
+				async *[Symbol.asyncIterator]() {
+					pageCount++;
+					yield { data: [recentRun], headers: {} };
+					pageCount++;
+					yield { data: [oldRun], headers: {} };
+					pageCount++;
+					yield { data: [oldRun], headers: {} };
+				},
+			});
+
+			const source = await createSource(['workflow_run.completed'], mock);
+			const result = await source.poll('2024-01-15T09:00:00Z');
+
+			expect(pageCount).toBe(2);
+			expect(result.events).toHaveLength(1);
 		});
 	});
 

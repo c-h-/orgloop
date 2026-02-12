@@ -40,6 +40,9 @@ function resolveEnvVar(value: string): string {
 /** Default lookback window for initial sync (no checkpoint) */
 const DEFAULT_INITIAL_LOOKBACK = '7d';
 
+/** Epoch threshold — checkpoints at or before this are treated as "no checkpoint" */
+const EPOCH_THRESHOLD = '1970-01-02T00:00:00.000Z';
+
 /** Remaining rate limit requests before we start warning */
 const RATE_LIMIT_WARN_THRESHOLD = 100;
 
@@ -89,10 +92,12 @@ export class GitHubSource implements SourceConnector {
 	}
 
 	async poll(checkpoint: string | null): Promise<PollResult> {
-		// Apply initial lookback window when no checkpoint exists
-		const since = checkpoint
-			? new Date(checkpoint).toISOString()
-			: new Date(Date.now() - this.initialLookbackMs).toISOString();
+		// Apply initial lookback window when no checkpoint exists or checkpoint is epoch
+		const isEpochCheckpoint = checkpoint != null && checkpoint <= EPOCH_THRESHOLD;
+		const since =
+			checkpoint && !isEpochCheckpoint
+				? new Date(checkpoint).toISOString()
+				: new Date(Date.now() - this.initialLookbackMs).toISOString();
 		const events: OrgLoopEvent[] = [];
 		let latestTimestamp = since;
 
@@ -391,7 +396,10 @@ export class GitHubSource implements SourceConnector {
 	}
 
 	private async pollClosedPRs(since: string): Promise<OrgLoopEvent[]> {
-		const pulls = await this.octokit.paginate(this.octokit.pulls.list, {
+		const events: OrgLoopEvent[] = [];
+		const repoData = { full_name: `${this.owner}/${this.repo}` };
+
+		const iterator = this.octokit.paginate.iterator(this.octokit.pulls.list, {
 			owner: this.owner,
 			repo: this.repo,
 			state: 'closed',
@@ -400,14 +408,36 @@ export class GitHubSource implements SourceConnector {
 			per_page: 100,
 		});
 
-		const repoData = { full_name: `${this.owner}/${this.repo}` };
-		return (pulls as unknown as GitHubPull[])
-			.filter((pr) => pr.closed_at && (pr.closed_at as string) > since)
-			.map((pr) => normalizePullRequestClosed(this.sourceId, pr, repoData));
+		for await (const response of iterator) {
+			if (response.headers) {
+				this.updateRateLimitFromHeaders(response.headers as unknown as Record<string, string>);
+			}
+
+			const pulls = response.data as unknown as GitHubPull[];
+			let allOlderThanSince = true;
+
+			for (const pr of pulls) {
+				if (pr.updated_at && (pr.updated_at as string) >= since) {
+					allOlderThanSince = false;
+					if (pr.closed_at && (pr.closed_at as string) > since) {
+						events.push(normalizePullRequestClosed(this.sourceId, pr, repoData));
+					}
+				}
+			}
+
+			if (allOlderThanSince && pulls.length > 0) {
+				break;
+			}
+		}
+
+		return events;
 	}
 
 	private async pollOpenedPRs(since: string): Promise<OrgLoopEvent[]> {
-		const pulls = await this.octokit.paginate(this.octokit.pulls.list, {
+		const events: OrgLoopEvent[] = [];
+		const repoData = { full_name: `${this.owner}/${this.repo}` };
+
+		const iterator = this.octokit.paginate.iterator(this.octokit.pulls.list, {
 			owner: this.owner,
 			repo: this.repo,
 			state: 'open',
@@ -416,14 +446,36 @@ export class GitHubSource implements SourceConnector {
 			per_page: 100,
 		});
 
-		const repoData = { full_name: `${this.owner}/${this.repo}` };
-		return (pulls as unknown as GitHubPull[])
-			.filter((pr) => pr.created_at && (pr.created_at as string) > since)
-			.map((pr) => normalizePullRequestOpened(this.sourceId, pr, repoData));
+		for await (const response of iterator) {
+			if (response.headers) {
+				this.updateRateLimitFromHeaders(response.headers as unknown as Record<string, string>);
+			}
+
+			const pulls = response.data as unknown as GitHubPull[];
+			let allOlderThanSince = true;
+
+			for (const pr of pulls) {
+				if (pr.created_at && (pr.created_at as string) >= since) {
+					allOlderThanSince = false;
+					if ((pr.created_at as string) > since) {
+						events.push(normalizePullRequestOpened(this.sourceId, pr, repoData));
+					}
+				}
+			}
+
+			if (allOlderThanSince && pulls.length > 0) {
+				break;
+			}
+		}
+
+		return events;
 	}
 
 	private async pollReadyForReviewPRs(since: string): Promise<OrgLoopEvent[]> {
-		const pulls = await this.octokit.paginate(this.octokit.pulls.list, {
+		const events: OrgLoopEvent[] = [];
+		const repoData = { full_name: `${this.owner}/${this.repo}` };
+
+		const iterator = this.octokit.paginate.iterator(this.octokit.pulls.list, {
 			owner: this.owner,
 			repo: this.repo,
 			state: 'open',
@@ -432,24 +484,65 @@ export class GitHubSource implements SourceConnector {
 			per_page: 100,
 		});
 
-		const repoData = { full_name: `${this.owner}/${this.repo}` };
-		return (pulls as unknown as GitHubPull[])
-			.filter((pr) => pr.draft === false && pr.updated_at && (pr.updated_at as string) > since)
-			.map((pr) => normalizePullRequestReadyForReview(this.sourceId, pr, repoData));
+		for await (const response of iterator) {
+			if (response.headers) {
+				this.updateRateLimitFromHeaders(response.headers as unknown as Record<string, string>);
+			}
+
+			const pulls = response.data as unknown as GitHubPull[];
+			let allOlderThanSince = true;
+
+			for (const pr of pulls) {
+				if (pr.updated_at && (pr.updated_at as string) >= since) {
+					allOlderThanSince = false;
+					if (pr.draft === false && (pr.updated_at as string) > since) {
+						events.push(normalizePullRequestReadyForReview(this.sourceId, pr, repoData));
+					}
+				}
+			}
+
+			if (allOlderThanSince && pulls.length > 0) {
+				break;
+			}
+		}
+
+		return events;
 	}
 
 	private async pollFailedWorkflowRuns(since: string): Promise<OrgLoopEvent[]> {
-		const data = await this.octokit.paginate(this.octokit.actions.listWorkflowRunsForRepo, {
+		const events: OrgLoopEvent[] = [];
+		const repoData = { full_name: `${this.owner}/${this.repo}` };
+
+		const iterator = this.octokit.paginate.iterator(this.octokit.actions.listWorkflowRunsForRepo, {
 			owner: this.owner,
 			repo: this.repo,
 			status: 'failure' as const,
 			per_page: 100,
 		});
 
-		const repoData = { full_name: `${this.owner}/${this.repo}` };
-		return (data as unknown as Record<string, unknown>[])
-			.filter((run) => (run.updated_at as string) > since)
-			.map((run) => normalizeWorkflowRunFailed(this.sourceId, run, repoData));
+		for await (const response of iterator) {
+			if (response.headers) {
+				this.updateRateLimitFromHeaders(response.headers as unknown as Record<string, string>);
+			}
+
+			const runs = response.data as unknown as Record<string, unknown>[];
+			let allOlderThanSince = true;
+
+			for (const run of runs) {
+				if (run.updated_at && (run.updated_at as string) >= since) {
+					allOlderThanSince = false;
+					if ((run.updated_at as string) > since) {
+						events.push(normalizeWorkflowRunFailed(this.sourceId, run, repoData));
+					}
+				}
+			}
+
+			if (allOlderThanSince && runs.length > 0) {
+				break;
+			}
+		}
+
+		return events;
 	}
 
 	private async pollCheckSuites(since: string): Promise<OrgLoopEvent[]> {
