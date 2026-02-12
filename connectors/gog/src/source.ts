@@ -178,14 +178,13 @@ export class GogSource implements SourceConnector {
 				}
 			}
 
-			// Get a fresh historyId from the history endpoint
-			const historyResult = await this.execGog(['gmail', 'history', '--max', '1']);
-			const historyId = this.extractHistoryId(historyResult);
-
+			// We can't call `gog gmail history` without an existing historyId,
+			// so bootstrap into search-based mode instead. Subsequent polls
+			// will use search with dedup until we obtain a real historyId.
 			this.saveSeenCache();
 			return {
 				events,
-				checkpoint: JSON.stringify({ mode: 'history', historyId } satisfies GogCheckpoint),
+				checkpoint: JSON.stringify({ mode: 'search', lastPollTimestamp: new Date().toISOString() } satisfies GogCheckpoint),
 			};
 		}
 

@@ -169,8 +169,8 @@ describe('GogSource', () => {
 			expect(result.events[0].payload.message_id).toBe('msg-001');
 
 			const cp = JSON.parse(result.checkpoint);
-			expect(cp.mode).toBe('history');
-			expect(cp.historyId).toBe('99999');
+			expect(cp.mode).toBe('search');
+			expect(cp.lastPollTimestamp).toBeDefined();
 		});
 
 		it('processes messagesAdded from history records', async () => {
@@ -291,7 +291,8 @@ describe('GogSource', () => {
 			expect(result.events.length).toBe(1);
 			expect(result.events[0].payload.message_id).toBe('msg-fresh');
 			const cp = JSON.parse(result.checkpoint);
-			expect(cp.historyId).toBe('50000');
+			expect(cp.mode).toBe('search');
+			expect(cp.lastPollTimestamp).toBeDefined();
 		});
 	});
 
@@ -639,8 +640,8 @@ describe('GogSource', () => {
 
 			const result = await source.poll(null);
 			const cp = JSON.parse(result.checkpoint);
-			expect(cp.mode).toBe('history');
-			expect(cp.historyId).toBeDefined();
+			expect(cp.mode).toBe('search');
+			expect(cp.lastPollTimestamp).toBeDefined();
 		});
 
 		it('handles corrupt checkpoint gracefully', async () => {
@@ -651,10 +652,10 @@ describe('GogSource', () => {
 				return { history: [], historyId: '10000' };
 			});
 
-			// Corrupt checkpoint — should not throw
+			// Corrupt checkpoint — should not throw, falls back to bootstrap (search mode)
 			const result = await source.poll('not-valid-json');
 			const cp = JSON.parse(result.checkpoint);
-			expect(cp.mode).toBe('history');
+			expect(cp.mode).toBe('search');
 		});
 
 		it('preserves search mode checkpoint', async () => {
