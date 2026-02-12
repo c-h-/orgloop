@@ -6,13 +6,15 @@
 
 **Organization as Code -- declarative event routing for autonomous AI organizations.**
 
-🧬 OrgLoop is a declarative runtime for autonomous AI organizations. You define event sources, actors, routes, and standard operating procedures in YAML. When something happens — a PR merges, a customer emails, CI fails — OrgLoop matches the event to a route and wakes the right actor with a focused prompt for exactly what to do.
+🧬 OrgLoop is a declarative runtime for autonomous AI organizations. You define event sources, actors, routes, and standard operating procedures in YAML. When something happens: a PR merges, a customer emails, Claude Code stops working. OrgLoop matches the event to a route and wakes the right actor with a focused prompt for exactly what to do.
 
-OrgLoop is open-ended and open source. Build your organization embracing all of your specialized agents: Claude Code Team implementers, OpenClaw supervisors, Deep Research lone wolves. Connect GitHub with Salesforce and Gmail. Whatever you want — use an existing connector or contribute one. Then see all your business processes — information flows, event handling prompts, transforms — in one place. Declarative and reproducible.
+When that actor finishes, its completion fires an event back into the system, and the loop continues. Events are generated programmatically and flow through deterministic routing, not chat threads. You are not dependent on a heartbeat eventually finding the right state, an Agent remembering to call a tool, nor a patrol coming across something important.
+
+OrgLoop is open-ended and open source. Build your organization with all of your specialized agents: Claude Code implementers, OpenClaw supervisors, Deep Research lone wolves. Connect GitHub, Linear, Gmail, whatever. There are pre-built connectors, and they're easy to contribute. Tune all your business processes, information flows, and event handling in one place.
 
 > You don't need reliable actors if you have a reliable system around them.
 
-AI agents forget, idle, rabbit-hole, drop context. OrgLoop doesn't fix the agents -- it makes the *system* reliable. When a resource changes state, the right actor is woken with the right context. When that actor finishes, its completion is itself an event, routed to the next actor. **The org loops.**
+AI agents forget, idle, rabbit-hole, drop context. OrgLoop doesn't fix the agents -- it makes the *system* reliable. **The org loops.**
 
 ```
 Source -> [Transform] -> Route -> Actor

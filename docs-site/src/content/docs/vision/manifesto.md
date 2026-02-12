@@ -31,7 +31,9 @@ AI agents are the same. They're probabilistic, not because the tech is bad, but 
 
 The breakthrough: **a deterministic layer that ensures every meaningful state change triggers an appropriate response, regardless of whether any individual actor remembers to check.**
 
-And it's an open architecture. Any system with an API can be a source. Any agent, webhook, or human can be an actor. The primitives don't care what's on either end — write a connector and you're in. Build your organization embracing all of your specialized agents: Claude Code implementers, OpenClaw supervisors, Deep Research analysts. Connect GitHub with Salesforce and Gmail. Whatever you want.
+Events are generated programmatically and flow through deterministic routing, not chat threads. You are not dependent on a heartbeat eventually finding the right state, an Agent remembering to call a tool, nor a patrol coming across something important. When an actor finishes, its completion fires an event back into the system, and the loop continues.
+
+And it's an open architecture. Any system with an API can be a source. Any agent, webhook, or human can be an actor. The primitives don't care what's on either end — write a connector and you're in. Build your organization with all of your specialized agents: Claude Code implementers, OpenClaw supervisors, Deep Research analysts. Connect GitHub, Linear, Gmail, whatever. There are pre-built connectors, and they're easy to contribute.
 
 > We don't implement the action. We automate the nudge, with direction.
 

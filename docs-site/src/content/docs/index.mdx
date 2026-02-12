@@ -7,7 +7,9 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 
 **Organization as Code -- declarative event routing for autonomous AI organizations.**
 
-🧬 OrgLoop is a declarative runtime for autonomous AI organizations. You define event sources, actors, routes, and standard operating procedures in YAML. When something happens — a PR merges, a customer emails, CI fails — OrgLoop matches the event to a route and wakes the right actor with a focused prompt for exactly what to do.
+🧬 OrgLoop is a declarative runtime for autonomous AI organizations. You define event sources, actors, routes, and standard operating procedures in YAML. When something happens: a PR merges, a customer emails, Claude Code stops working. OrgLoop matches the event to a route and wakes the right actor with a focused prompt for exactly what to do.
+
+When that actor finishes, its completion fires an event back into the system, and the loop continues. Events are generated programmatically and flow through deterministic routing, not chat threads.
 
 > You don't need reliable actors if you have a reliable system around them.
 
