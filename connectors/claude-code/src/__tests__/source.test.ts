@@ -333,6 +333,128 @@ describe('ClaudeCodeSource HMAC validation', () => {
 	});
 });
 
+describe('ClaudeCodeSource cwd alias and transcript_path', () => {
+	it('accepts cwd as alias for working_directory', async () => {
+		const source = new ClaudeCodeSource();
+		await source.init({
+			id: 'claude-code',
+			connector: '@orgloop/connector-claude-code',
+			config: {},
+		});
+
+		const handler = source.webhook();
+		const payload = {
+			session_id: 'sess-cwd-alias',
+			cwd: '/home/user/project',
+			duration_seconds: 60,
+			exit_status: 0,
+		};
+
+		const req = createMockRequest(JSON.stringify(payload));
+		const res = createMockResponse();
+		const events = await handler(req, res);
+
+		expect(res.statusCode).toBe(200);
+		expect(events).toHaveLength(1);
+		expect(events[0].payload.working_directory).toBe('/home/user/project');
+		expect(events[0].provenance.working_directory).toBe('/home/user/project');
+	});
+
+	it('prefers working_directory over cwd when both are present', async () => {
+		const source = new ClaudeCodeSource();
+		await source.init({
+			id: 'claude-code',
+			connector: '@orgloop/connector-claude-code',
+			config: {},
+		});
+
+		const handler = source.webhook();
+		const payload = {
+			session_id: 'sess-both',
+			working_directory: '/explicit/path',
+			cwd: '/cwd/path',
+			duration_seconds: 30,
+			exit_status: 0,
+		};
+
+		const req = createMockRequest(JSON.stringify(payload));
+		const res = createMockResponse();
+		const events = await handler(req, res);
+
+		expect(events[0].payload.working_directory).toBe('/explicit/path');
+	});
+
+	it('includes transcript_path in event payload', async () => {
+		const source = new ClaudeCodeSource();
+		await source.init({
+			id: 'claude-code',
+			connector: '@orgloop/connector-claude-code',
+			config: {},
+		});
+
+		const handler = source.webhook();
+		const payload = {
+			session_id: 'sess-transcript',
+			working_directory: '/tmp/work',
+			duration_seconds: 90,
+			exit_status: 0,
+			transcript_path: '/tmp/transcripts/sess-transcript.json',
+		};
+
+		const req = createMockRequest(JSON.stringify(payload));
+		const res = createMockResponse();
+		const events = await handler(req, res);
+
+		expect(res.statusCode).toBe(200);
+		expect(events[0].payload.transcript_path).toBe('/tmp/transcripts/sess-transcript.json');
+	});
+
+	it('defaults transcript_path to empty string when not provided', async () => {
+		const source = new ClaudeCodeSource();
+		await source.init({
+			id: 'claude-code',
+			connector: '@orgloop/connector-claude-code',
+			config: {},
+		});
+
+		const handler = source.webhook();
+		const payload = {
+			session_id: 'sess-no-transcript',
+			working_directory: '/tmp',
+			duration_seconds: 10,
+			exit_status: 0,
+		};
+
+		const req = createMockRequest(JSON.stringify(payload));
+		const res = createMockResponse();
+		const events = await handler(req, res);
+
+		expect(events[0].payload.transcript_path).toBe('');
+	});
+
+	it('defaults working_directory to empty string when neither field present', async () => {
+		const source = new ClaudeCodeSource();
+		await source.init({
+			id: 'claude-code',
+			connector: '@orgloop/connector-claude-code',
+			config: {},
+		});
+
+		const handler = source.webhook();
+		const payload = {
+			session_id: 'sess-no-dir',
+			duration_seconds: 5,
+			exit_status: 0,
+		};
+
+		const req = createMockRequest(JSON.stringify(payload));
+		const res = createMockResponse();
+		const events = await handler(req, res);
+
+		expect(events[0].payload.working_directory).toBe('');
+	});
+});
+
 describe('ClaudeCodeSource buffer persistence', () => {
 	let bufferDir: string;
 

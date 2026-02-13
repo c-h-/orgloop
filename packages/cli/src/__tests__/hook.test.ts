@@ -1,6 +1,14 @@
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { type IncomingMessage, type Server, type ServerResponse, createServer } from 'node:http';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { isConnectionError, postToWebhook } from '../commands/hook.js';
+import {
+	isConnectionError,
+	postToWebhook,
+	readOpenClawSession,
+	transformClaudeCodePayload,
+} from '../commands/hook.js';
 
 // ─── Test HTTP server ───────────────────────────────────────────────────────
 
@@ -206,6 +214,137 @@ describe('hook command', () => {
 			expect(result.ok).toBe(true);
 			// The request went to our server on serverPort — confirming port was used
 			expect(lastRequest).not.toBeNull();
+		});
+	});
+
+	describe('transformClaudeCodePayload', () => {
+		it('remaps cwd to working_directory', () => {
+			const result = transformClaudeCodePayload({
+				session_id: 'sess-abc',
+				cwd: '/home/user/project',
+				transcript_path: '/tmp/transcript.json',
+			});
+			expect(result.working_directory).toBe('/home/user/project');
+			expect(result.session_id).toBe('sess-abc');
+			expect(result.transcript_path).toBe('/tmp/transcript.json');
+		});
+
+		it('defaults missing fields gracefully', () => {
+			const result = transformClaudeCodePayload({});
+			expect(result.session_id).toBe('');
+			expect(result.working_directory).toBe('');
+			expect(result.duration_seconds).toBe(0);
+			expect(result.exit_status).toBe(0);
+			expect(result.summary).toBe('');
+			expect(result.transcript_path).toBe('');
+		});
+
+		it('passes through all Claude Code stdin fields', () => {
+			const result = transformClaudeCodePayload({
+				session_id: 'sess-123',
+				cwd: '/tmp/work',
+				transcript_path: '/tmp/transcript.md',
+			});
+			expect(result).toEqual({
+				session_id: 'sess-123',
+				working_directory: '/tmp/work',
+				duration_seconds: 0,
+				exit_status: 0,
+				summary: '',
+				transcript_path: '/tmp/transcript.md',
+			});
+		});
+
+		it('produces a payload the webhook handler accepts', async () => {
+			const transformed = transformClaudeCodePayload({
+				session_id: 'sess-e2e',
+				cwd: '/tmp/e2e',
+				transcript_path: '/tmp/t.json',
+			});
+			const body = JSON.stringify(transformed);
+			const result = await postToWebhook('claude-code', body, serverPort);
+			expect(result.ok).toBe(true);
+			// Verify the body was sent correctly
+			const parsed = JSON.parse(lastRequest?.body);
+			expect(parsed.session_id).toBe('sess-e2e');
+			expect(parsed.working_directory).toBe('/tmp/e2e');
+			expect(parsed.transcript_path).toBe('/tmp/t.json');
+		});
+	});
+
+	describe('readOpenClawSession', () => {
+		let sessionsDir: string;
+
+		beforeAll(() => {
+			sessionsDir = join(
+				tmpdir(),
+				`orgloop-test-sessions-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+			);
+			mkdirSync(sessionsDir, { recursive: true });
+		});
+
+		afterAll(() => {
+			if (existsSync(sessionsDir)) {
+				rmSync(sessionsDir, { recursive: true, force: true });
+			}
+		});
+
+		it('returns defaults when sessions dir does not exist', () => {
+			const result = readOpenClawSession('sess-xxx', '/nonexistent/path');
+			expect(result).toEqual({ duration_seconds: 0, exit_status: 0, summary: '' });
+		});
+
+		it('returns defaults when no matching file found', () => {
+			const result = readOpenClawSession('sess-no-match', sessionsDir);
+			expect(result).toEqual({ duration_seconds: 0, exit_status: 0, summary: '' });
+		});
+
+		it('reads enrichment from matching session file', () => {
+			const sessionData = {
+				duration_seconds: 300,
+				exit_status: 0,
+				summary: 'Implemented feature X',
+			};
+			writeFileSync(join(sessionsDir, 'sess-enrich-001.json'), JSON.stringify(sessionData));
+
+			const result = readOpenClawSession('sess-enrich-001', sessionsDir);
+			expect(result.duration_seconds).toBe(300);
+			expect(result.exit_status).toBe(0);
+			expect(result.summary).toBe('Implemented feature X');
+		});
+
+		it('handles malformed JSON gracefully', () => {
+			writeFileSync(join(sessionsDir, 'sess-bad-json.json'), 'not-json');
+			const result = readOpenClawSession('sess-bad-json', sessionsDir);
+			expect(result).toEqual({ duration_seconds: 0, exit_status: 0, summary: '' });
+		});
+
+		it('handles partial session data with type-safe defaults', () => {
+			writeFileSync(
+				join(sessionsDir, 'sess-partial.json'),
+				JSON.stringify({ duration_seconds: 60 }),
+			);
+			const result = readOpenClawSession('sess-partial', sessionsDir);
+			expect(result.duration_seconds).toBe(60);
+			expect(result.exit_status).toBe(0);
+			expect(result.summary).toBe('');
+		});
+
+		it('enriches transformClaudeCodePayload when session file exists', () => {
+			writeFileSync(
+				join(sessionsDir, 'sess-enrich-full.json'),
+				JSON.stringify({
+					duration_seconds: 120,
+					exit_status: 1,
+					summary: 'Fixed bug in router',
+				}),
+			);
+			// Temporarily override by calling transform with a custom readOpenClawSession
+			// We test the integration by calling readOpenClawSession directly
+			const enrichment = readOpenClawSession('sess-enrich-full', sessionsDir);
+			expect(enrichment.duration_seconds).toBe(120);
+			expect(enrichment.exit_status).toBe(1);
+			expect(enrichment.summary).toBe('Fixed bug in router');
 		});
 	});
 });

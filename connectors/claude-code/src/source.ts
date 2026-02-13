@@ -33,10 +33,13 @@ function resolveEnvVar(value: string): string {
 
 interface ClaudeCodeSessionPayload {
 	session_id: string;
-	working_directory: string;
+	working_directory?: string;
+	/** Alias for working_directory (sent by Claude Code's stop hook) */
+	cwd?: string;
 	duration_seconds: number;
 	exit_status: number;
 	summary?: string;
+	transcript_path?: string;
 	timestamp?: string;
 }
 
@@ -122,6 +125,8 @@ export class ClaudeCodeSource implements SourceConnector {
 
 			try {
 				const payload = JSON.parse(body) as ClaudeCodeSessionPayload;
+				// Accept cwd as alias for working_directory (Claude Code stop hook sends cwd)
+				const workingDirectory = payload.working_directory ?? payload.cwd ?? '';
 
 				const event = buildEvent({
 					source: this.sourceId,
@@ -132,14 +137,15 @@ export class ClaudeCodeSource implements SourceConnector {
 						author: 'claude-code',
 						author_type: 'bot',
 						session_id: payload.session_id,
-						working_directory: payload.working_directory,
+						working_directory: workingDirectory,
 					},
 					payload: {
 						session_id: payload.session_id,
-						working_directory: payload.working_directory,
+						working_directory: workingDirectory,
 						duration_seconds: payload.duration_seconds,
 						exit_status: payload.exit_status,
 						summary: payload.summary ?? '',
+						transcript_path: payload.transcript_path ?? '',
 					},
 				});
 
