@@ -133,7 +133,7 @@ async function runForeground(configPath?: string, force?: boolean): Promise<void
 
 		// Write PID file
 		await mkdir(PID_DIR, { recursive: true });
-		await writeFile(PID_FILE, String(process.pid), 'utf-8');
+		await writeFile(PID_FILE, String(process.pid), { encoding: 'utf-8', mode: 0o644 });
 
 		output.blank();
 		output.info(`OrgLoop is running. PID: ${process.pid}`);
@@ -242,10 +242,12 @@ async function runForeground(configPath?: string, force?: boolean): Promise<void
 
 	// Ensure PID/port files are always cleaned up
 	process.on('exit', () => {
-		try {
-			unlinkSync(PID_FILE);
-		} catch {
-			/* ignore */
+		for (const f of [PID_FILE, PORT_FILE]) {
+			try {
+				unlinkSync(f);
+			} catch {
+				/* ignore */
+			}
 		}
 	});
 
@@ -308,11 +310,14 @@ async function runForeground(configPath?: string, force?: boolean): Promise<void
 
 		// Write PID file and port file
 		await mkdir(PID_DIR, { recursive: true });
-		await writeFile(PID_FILE, String(process.pid), 'utf-8');
+		await writeFile(PID_FILE, String(process.pid), { encoding: 'utf-8', mode: 0o644 });
 
 		const runtimeStatus = runtime.status();
 		if (runtimeStatus.httpPort) {
-			await writeFile(PORT_FILE, String(runtimeStatus.httpPort), 'utf-8');
+			await writeFile(PORT_FILE, String(runtimeStatus.httpPort), {
+				encoding: 'utf-8',
+				mode: 0o644,
+			});
 		}
 
 		// Periodically write health state to state file

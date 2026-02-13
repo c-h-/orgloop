@@ -133,7 +133,14 @@ export function registerStopCommand(program: Command): void {
 					output.json({ stopped: true, pid });
 				}
 			} catch (err) {
-				output.error(`Stop failed: ${err instanceof Error ? err.message : String(err)}`);
+				const errObj = err as NodeJS.ErrnoException;
+				if (errObj.code === 'EPERM' || errObj.code === 'EACCES') {
+					output.error(
+						'Permission denied. The daemon may have been started by another user. Try: sudo orgloop stop',
+					);
+				} else {
+					output.error(`Stop failed: ${err instanceof Error ? err.message : String(err)}`);
+				}
 				process.exitCode = 1;
 			}
 		});
