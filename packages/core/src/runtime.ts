@@ -26,6 +26,7 @@ import type { RuntimeControl } from './http.js';
 import { LoggerManager } from './logger.js';
 import type { ModuleConfig, ModuleContext } from './module-instance.js';
 import { ModuleInstance } from './module-instance.js';
+import { stripFrontMatter } from './prompt.js';
 import { ModuleRegistry } from './registry.js';
 import { matchRoutes } from './router.js';
 import { Scheduler } from './scheduler.js';
@@ -438,8 +439,10 @@ class Runtime extends EventEmitter implements RuntimeControl {
 			if (route.with?.prompt_file) {
 				try {
 					const promptContent = await readFile(route.with.prompt_file, 'utf-8');
-					deliveryConfig.launch_prompt = promptContent;
+					const { content: strippedContent, metadata } = stripFrontMatter(promptContent);
+					deliveryConfig.launch_prompt = strippedContent;
 					deliveryConfig.launch_prompt_file = route.with.prompt_file;
+					deliveryConfig.launch_prompt_meta = metadata;
 				} catch {
 					// Non-fatal: log but continue delivery
 				}

@@ -1,6 +1,9 @@
+import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { MockActor, MockLogger, MockSource, MockTransform, createTestEvent } from '@orgloop/sdk';
 import type { OrgLoopConfig, OrgLoopEvent, Transform, TransformContext } from '@orgloop/sdk';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import { OrgLoop } from '../engine.js';
 
 function makeConfig(overrides?: Partial<OrgLoopConfig>): OrgLoopConfig {
@@ -329,5 +332,90 @@ describe('OrgLoop engine integration', () => {
 		expect(actor.delivered).toHaveLength(0);
 
 		await engine.stop();
+	});
+
+	// ─── Prompt front matter stripping (WQ-92) ──────────────────────────────
+
+	describe('prompt front matter stripping', () => {
+		const tempDir = join(tmpdir(), 'orgloop-test-prompt');
+		const promptPath = join(tempDir, 'review-sop.md');
+
+		// Create temp prompt file with front matter
+		if (!existsSync(tempDir)) mkdirSync(tempDir, { recursive: true });
+		writeFileSync(
+			promptPath,
+			[
+				'---',
+				'title: Review SOP',
+				'priority: high',
+				'tags:',
+				'  - review',
+				'  - code',
+				'---',
+				'You are a senior code reviewer.',
+				'',
+				'Review the PR carefully.',
+			].join('\n'),
+		);
+
+		afterAll(() => {
+			try {
+				unlinkSync(promptPath);
+			} catch {
+				// ignore cleanup errors
+			}
+		});
+
+		it('strips front matter from prompt_file and delivers metadata to actor (WQ-92)', async () => {
+			const source = new MockSource('test-source');
+			const actor = new MockActor('test-actor');
+
+			const config = makeConfig({
+				routes: [
+					{
+						name: 'prompt-route',
+						when: { source: 'test-source', events: ['resource.changed'] },
+						then: { actor: 'test-actor' },
+						with: { prompt_file: promptPath },
+					},
+				],
+			});
+
+			const engine = new OrgLoop(config, {
+				sources: new Map([['test-source', source]]),
+				actors: new Map([['test-actor', actor]]),
+			});
+
+			await engine.start();
+
+			const event = createTestEvent({
+				source: 'test-source',
+				type: 'resource.changed',
+			});
+			await engine.inject(event);
+
+			expect(actor.delivered).toHaveLength(1);
+
+			const deliveryConfig = actor.delivered[0].config;
+
+			// launch_prompt should NOT contain front matter delimiters or YAML
+			expect(deliveryConfig.launch_prompt).toBe(
+				'You are a senior code reviewer.\n\nReview the PR carefully.',
+			);
+			expect(deliveryConfig.launch_prompt).not.toContain('---');
+			expect(deliveryConfig.launch_prompt).not.toContain('title:');
+
+			// launch_prompt_meta should contain parsed YAML metadata
+			expect(deliveryConfig.launch_prompt_meta).toEqual({
+				title: 'Review SOP',
+				priority: 'high',
+				tags: ['review', 'code'],
+			});
+
+			// launch_prompt_file should reference the original path
+			expect(deliveryConfig.launch_prompt_file).toBe(promptPath);
+
+			await engine.stop();
+		});
 	});
 });

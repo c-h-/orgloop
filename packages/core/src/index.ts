@@ -60,6 +60,10 @@ export type { RuntimeControl } from './http.js';
 export { Runtime } from './runtime.js';
 export type { RuntimeOptions, LoadModuleOptions } from './runtime.js';
 
+// Prompt utilities
+export { stripFrontMatter } from './prompt.js';
+export type { StripFrontMatterResult } from './prompt.js';
+
 // Module system
 export { ModuleInstance } from './module-instance.js';
 export type { ModuleConfig, ModuleContext } from './module-instance.js';

@@ -155,10 +155,12 @@ export interface RouteWith {
 export interface RouteDeliveryConfig {
 	/** Actor-specific config from route's then.config */
 	[key: string]: unknown;
-	/** Resolved launch prompt text (from route's with.prompt_file) */
+	/** Resolved launch prompt text (from route's with.prompt_file, front matter stripped) */
 	launch_prompt?: string;
 	/** Original prompt file path (for reference/logging) */
 	launch_prompt_file?: string;
+	/** Parsed front matter metadata from prompt file, or null if none */
+	launch_prompt_meta?: Record<string, unknown> | null;
 }
 
 /** Error policy for transforms — controls behavior when a transform throws */
