@@ -124,7 +124,7 @@ routes:
       events: [resource.changed]
     transforms:
       - transforms/drop-bot-noise.sh
-      - transforms/injection-scanner.sh
+      - transforms/dedup.sh
     then: { actor: openclaw-engineering-agent }
 
   - name: claude-code-to-supervisor
