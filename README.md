@@ -209,7 +209,7 @@ orgloop module reload engineering
 
 ## Status
 
-Early release. The concepts behind OrgLoop have been running in production since January 2026 -- managing a real engineering organization with GitHub, Linear, Claude Code, and OpenClaw. The framework is being extracted and formalized from that battle-tested system.
+Alpha. OrgLoop has been running a real startup's engineering organization in production since January 2026 — managing PR reviews, CI failures, Claude Code supervision, Linear ticket triage, Gmail routing, and weekly product updates across 6 connectors, 9 SOPs, and two route groups. The framework is extracted and formalized from that battle-tested system.
 
 If this is interesting to you, star and watch the repo. Contributions welcome.
 
@@ -224,3 +224,7 @@ See [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
 ## License
 
 [MIT License](LICENSE.md)
+
+---
+
+Built by [Charlie Hulcher](https://github.com/c-h-) — running in production at [Kindo](https://kindo.ai).
