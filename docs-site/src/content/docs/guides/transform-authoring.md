@@ -206,7 +206,7 @@ Key behaviors:
 
 ## Built-in transforms
 
-OrgLoop ships two built-in transforms:
+OrgLoop ships three built-in transforms:
 
 ### `@orgloop/transform-filter`
 
@@ -255,6 +255,20 @@ transforms:
         - payload.pr_number
       window: 5m
       store: memory
+```
+
+### `@orgloop/transform-enrich`
+
+Adds, copies, or computes fields on events as they flow through the pipeline.
+
+```yaml
+transforms:
+  - ref: enrich
+    config:
+      add:
+        metadata.processed_at: "{{ now }}"
+      copy:
+        metadata.source_platform: provenance.platform
 ```
 
 ## Testing
