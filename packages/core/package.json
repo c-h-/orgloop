@@ -19,9 +19,9 @@
   },
   "dependencies": {
     "@orgloop/sdk": "workspace:*",
-    "ajv": "^8.17.0",
+    "ajv": "^8.18.0",
     "js-yaml": "^4.1.0",
-    "uuid": "^11.0.0"
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",

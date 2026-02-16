@@ -14,10 +14,10 @@
   "dependencies": {
     "@orgloop/sdk": "workspace:*",
     "@opentelemetry/api": "^1.9.0",
-    "@opentelemetry/api-logs": "^0.57.0",
-    "@opentelemetry/sdk-logs": "^0.57.0",
-    "@opentelemetry/exporter-logs-otlp-http": "^0.57.0",
-    "@opentelemetry/resources": "^1.30.0",
+    "@opentelemetry/api-logs": "^0.212.0",
+    "@opentelemetry/sdk-logs": "^0.212.0",
+    "@opentelemetry/exporter-logs-otlp-http": "^0.212.0",
+    "@opentelemetry/resources": "^2.5.1",
     "@opentelemetry/semantic-conventions": "^1.28.0"
   },
   "orgloop": {

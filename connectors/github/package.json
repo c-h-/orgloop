@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@orgloop/sdk": "workspace:*",
-    "@octokit/rest": "^21.0.0"
+    "@octokit/rest": "^22.0.1"
   },
   "orgloop": {
     "type": "connector",
