@@ -15,16 +15,15 @@ import type {
 	OrgLoopEvent,
 	RouteDeliveryConfig,
 	RuntimeStatus,
-	SourceHealthState,
 } from '@orgloop/sdk';
 import { generateTraceId } from '@orgloop/sdk';
 import type { EventBus } from './bus.js';
 import { InMemoryBus } from './bus.js';
-import { ConnectorError, DeliveryError, ModuleNotFoundError, RuntimeError } from './errors.js';
-import { DEFAULT_HTTP_PORT, WebhookServer } from './http.js';
+import { ConnectorError, DeliveryError, ModuleNotFoundError } from './errors.js';
 import type { RuntimeControl } from './http.js';
+import { DEFAULT_HTTP_PORT, WebhookServer } from './http.js';
 import { LoggerManager } from './logger.js';
-import type { ModuleConfig, ModuleContext } from './module-instance.js';
+import type { ModuleConfig } from './module-instance.js';
 import { ModuleInstance } from './module-instance.js';
 import { stripFrontMatter } from './prompt.js';
 import { ModuleRegistry } from './registry.js';
@@ -32,8 +31,8 @@ import { matchRoutes } from './router.js';
 import { Scheduler } from './scheduler.js';
 import type { CheckpointStore } from './store.js';
 import { InMemoryCheckpointStore } from './store.js';
-import { executeTransformPipeline } from './transform.js';
 import type { TransformPipelineOptions } from './transform.js';
+import { executeTransformPipeline } from './transform.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

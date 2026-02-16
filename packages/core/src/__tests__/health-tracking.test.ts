@@ -1,5 +1,5 @@
-import { MockActor, MockSource, createTestEvent } from '@orgloop/sdk';
 import type { OrgLoopConfig, SourceHealthState } from '@orgloop/sdk';
+import { createTestEvent, MockActor, MockSource } from '@orgloop/sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { OrgLoop } from '../engine.js';
 

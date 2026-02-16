@@ -8,8 +8,8 @@
  * any scheduled cron time has passed since the last checkpoint.
  */
 
-import { buildEvent, parseDuration } from '@orgloop/sdk';
 import type { OrgLoopEvent, PollResult, SourceConfig, SourceConnector } from '@orgloop/sdk';
+import { buildEvent, parseDuration } from '@orgloop/sdk';
 
 /** A single schedule definition from config */
 export interface CronSchedule {

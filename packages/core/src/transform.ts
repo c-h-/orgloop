@@ -15,10 +15,11 @@ import type {
 	LogEntry,
 	OrgLoopEvent,
 	RouteTransformRef,
+	Transform,
+	TransformContext,
 	TransformDefinition,
 	TransformErrorPolicy,
 } from '@orgloop/sdk';
-import type { Transform, TransformContext } from '@orgloop/sdk';
 import { TransformError } from './errors.js';
 
 // ─── Script Transform Execution ──────────────────────────────────────────────

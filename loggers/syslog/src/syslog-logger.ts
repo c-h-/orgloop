@@ -5,10 +5,10 @@
  * and Unix socket transports. Zero external dependencies.
  */
 
-import { type Socket as UdpSocket, createSocket } from 'node:dgram';
-import { type Socket as TcpSocket, createConnection } from 'node:net';
+import { createSocket, type Socket as UdpSocket } from 'node:dgram';
+import { createConnection, type Socket as TcpSocket } from 'node:net';
 import { hostname } from 'node:os';
-import type { LogEntry, LogPhase, Logger } from '@orgloop/sdk';
+import type { LogEntry, Logger, LogPhase } from '@orgloop/sdk';
 
 // ─── RFC 5424 Facilities ─────────────────────────────────────────────────────
 

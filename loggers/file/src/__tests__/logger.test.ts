@@ -2,7 +2,7 @@
  * Tests for FileLogger — JSONL write, buffering, rotation, path expansion, error resilience.
  */
 
-import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { LogEntry } from '@orgloop/sdk';

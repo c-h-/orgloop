@@ -1,5 +1,5 @@
-import { createTestEvent } from '@orgloop/sdk';
 import type { OrgLoopEvent } from '@orgloop/sdk';
+import { createTestEvent } from '@orgloop/sdk';
 import { describe, expect, it } from 'vitest';
 import { InMemoryBus } from '../bus.js';
 

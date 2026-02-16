@@ -1,5 +1,5 @@
-import { createTestEvent } from '@orgloop/sdk';
 import type { RouteDeliveryConfig } from '@orgloop/sdk';
+import { createTestEvent } from '@orgloop/sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { OpenClawTarget } from '../target.js';
 

@@ -175,7 +175,7 @@ export function registerLogsCommand(program: Command): void {
 		.option('--since <duration>', 'Time range filter (e.g., 2h, 30m)')
 		.option('--format <format>', 'Output format: human (default) or json', 'human')
 		.option('--no-follow', 'Do not tail, just show existing entries')
-		.action(async (opts, cmd) => {
+		.action(async (opts, _cmd) => {
 			try {
 				const logFile = DEFAULT_LOG_FILE;
 

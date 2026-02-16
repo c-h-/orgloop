@@ -1,7 +1,7 @@
 import { MockActor, MockLogger, MockSource, MockTransform } from '@orgloop/sdk';
 import { describe, expect, it } from 'vitest';
-import { ModuleInstance } from '../module-instance.js';
 import type { ModuleConfig } from '../module-instance.js';
+import { ModuleInstance } from '../module-instance.js';
 import { InMemoryCheckpointStore } from '../store.js';
 
 function makeConfig(overrides?: Partial<ModuleConfig>): ModuleConfig {

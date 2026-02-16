@@ -2,8 +2,8 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { LinearSource } from '../source.js';
 import type { CachedIssueState } from '../source.js';
+import { LinearSource } from '../source.js';
 
 // ─── Mock Helpers ──────────────────────────────────────────────────────────────
 
@@ -539,7 +539,7 @@ describe('LinearSource', () => {
 
 			// Track issue poll calls vs comment poll calls
 			let issueCallCount = 0;
-			const issuesFn = vi.fn().mockImplementation((opts: { after?: string }) => {
+			const issuesFn = vi.fn().mockImplementation((_opts: { after?: string }) => {
 				// pollComments also calls team.issues — return empty for that
 				issueCallCount++;
 				if (issueCallCount === 1) return page1;

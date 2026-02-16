@@ -5,9 +5,8 @@ import type {
 	SourceInstanceConfig,
 	TransformDefinition,
 } from '@orgloop/sdk';
-import chalk from 'chalk';
 import { describe, expect, it } from 'vitest';
-import { type RouteGraph, buildRouteGraph, renderRouteGraph } from '../commands/routes.js';
+import { buildRouteGraph, type RouteGraph, renderRouteGraph } from '../commands/routes.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

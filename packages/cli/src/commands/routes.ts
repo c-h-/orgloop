@@ -8,13 +8,7 @@
  * Supports --json for machine-readable graph output.
  */
 
-import type {
-	ActorInstanceConfig,
-	OrgLoopConfig,
-	RouteDefinition,
-	SourceInstanceConfig,
-	TransformDefinition,
-} from '@orgloop/sdk';
+import type { OrgLoopConfig } from '@orgloop/sdk';
 import chalk from 'chalk';
 import type { Command } from 'commander';
 import { loadCliConfig, resolveConfigPath } from '../config.js';

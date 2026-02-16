@@ -7,8 +7,8 @@
 
 import type { LogEntry, LogPhase } from '@orgloop/sdk';
 import { register } from '../index.js';
-import { SyslogLogger, formatRfc5424, getSeverity } from '../syslog-logger.js';
 import type { SyslogTransport } from '../syslog-logger.js';
+import { formatRfc5424, getSeverity, SyslogLogger } from '../syslog-logger.js';
 
 // ─── Test Helpers ────────────────────────────────────────────────────────────
 

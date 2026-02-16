@@ -9,7 +9,7 @@ import { homedir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import type { LogEntry, Logger } from '@orgloop/sdk';
 import { parseDuration } from '@orgloop/sdk';
-import { type RotationConfig, needsRotation, parseSize, rotateFile } from './rotation.js';
+import { needsRotation, parseSize, type RotationConfig, rotateFile } from './rotation.js';
 
 interface FileLoggerConfig {
 	path?: string;

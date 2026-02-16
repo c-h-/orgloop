@@ -7,10 +7,12 @@
 
 import { readFile } from 'node:fs/promises';
 import { dirname, isAbsolute, resolve } from 'node:path';
-import AjvModule from 'ajv';
 import type { ErrorObject } from 'ajv';
+import AjvModule from 'ajv';
 import yaml from 'js-yaml';
+
 const Ajv = AjvModule.default ?? AjvModule;
+
 import type {
 	ActorInstanceConfig,
 	LoggerDefinition,
