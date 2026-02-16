@@ -1,6 +1,6 @@
 ---
 title: "Built-in Transforms"
-description: "Transform interface, script contract, and built-in transforms — filter, dedup, injection scanner, and more."
+description: "Transform interface, script contract, and built-in transforms — filter, dedup, enrich, and more."
 ---
 
 ### 10.1 Transform Interface: Dual-Mode
@@ -91,7 +91,7 @@ All three policies log the error. The difference is what happens to the event af
 
 ### 10.3 Built-in Transforms
 
-> **Implementation status:** Only `@orgloop/transform-filter` and `@orgloop/transform-dedup` are implemented. All other transforms listed below are proposed designs for future implementation.
+> **Implementation status:** `@orgloop/transform-filter`, `@orgloop/transform-dedup`, and `@orgloop/transform-enrich` are implemented. All other transforms listed below are proposed designs for future implementation.
 
 #### Implemented
 
@@ -148,6 +148,22 @@ transforms:
 ```
 
 Periodic cleanup removes expired entries. Hash-based comparison prevents exact-duplicate events from reaching actors.
+
+**`@orgloop/transform-enrich`**
+
+Adds, copies, or computes fields on events as they flow through the pipeline.
+
+```yaml
+transforms:
+  - ref: enrich
+    config:
+      add:
+        metadata.processed_at: "{{ now }}"
+      copy:
+        metadata.source_platform: provenance.platform
+```
+
+Useful for attaching metadata that downstream actors or loggers need but that the source connector doesn't provide.
 
 #### Proposed (Not Yet Implemented)
 

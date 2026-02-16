@@ -19,8 +19,8 @@ The manifesto ends with that promise. Everything below is the path to making it 
 - `@orgloop/cli` — `init`, `validate`, `plan`, `start`, `stop`, `status`, `logs`, `test`, `add`, `env`, `doctor`, `routes`, `hook`, `inspect`, `install-service`, `service`, `version`
 - YAML schema + JSON Schema validation
 - Checkpoint persistence (file-based)
-- Built-in transforms: `filter` (jq-based), `dedup`, shell script executor
-- Built-in loggers: `file` (JSONL), `console`
+- Built-in transforms: `filter` (jq-based), `dedup`, `enrich`, shell script executor
+- Built-in loggers: `file` (JSONL), `console`, `otel` (OpenTelemetry), `syslog`
 
 **Exit criteria:** `orgloop init && orgloop validate && orgloop start` works end-to-end with a mock connector.
 

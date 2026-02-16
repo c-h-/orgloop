@@ -198,7 +198,7 @@ cd my-org
 orgloop add module engineering
 ```
 
-This adds 5 pre-built routes: PR review, CI failure triage, Linear ticket routing, Claude Code supervision, and a feedback loop.
+This adds 5 pre-built routes: PR review, PR comment response, CI failure triage, Linear ticket routing, and Claude Code supervision.
 
 ### Check your environment
 
