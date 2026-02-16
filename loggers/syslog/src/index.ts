@@ -76,12 +76,12 @@ export function register(): LoggerRegistration {
 	};
 }
 
-export { SyslogLogger } from './syslog-logger.js';
+export type { SyslogLoggerConfig, SyslogTransport } from './syslog-logger.js';
 export {
 	formatRfc5424,
 	getSeverity,
-	UdpTransport,
+	SyslogLogger,
 	TcpTransport,
+	UdpTransport,
 	UnixTransport,
 } from './syslog-logger.js';
-export type { SyslogTransport, SyslogLoggerConfig } from './syslog-logger.js';

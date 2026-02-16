@@ -5,112 +5,104 @@
  * for building OrgLoop plugins (connectors, transforms, loggers).
  */
 
-// Core types
-export type {
-	OrgLoopEvent,
-	OrgLoopEventType,
-	AuthorType,
-	EventProvenance,
-	SourceConfig,
-	ActorConfig,
-	PollConfig,
-	RouteDefinition,
-	RouteWhen,
-	RouteTransformRef,
-	RouteThen,
-	RouteWith,
-	RouteDeliveryConfig,
-	TransformDefinition,
-	TransformErrorPolicy,
-	LoggerDefinition,
-	DeliveryConfig,
-	RetryConfig,
-	CircuitBreakerConfig,
-	LogPhase,
-	LogEntry,
-	ProjectConfig,
-	OrgLoopConfig,
-	SourceInstanceConfig,
-	ActorInstanceConfig,
-	EventFilter,
-	EventHandler,
-	Subscription,
-	DurationString,
-	SourceHealthStatus,
-	SourceHealthState,
-	ModuleState,
-	ModuleStatus,
-	RuntimeStatus,
-	BootModuleEntry,
-	RuntimeConfig,
-} from './types.js';
-
-export { parseDuration } from './types.js';
-
 // Connector interfaces
 export type {
-	SourceConnector,
 	ActorConnector,
-	PollResult,
-	DeliveryResult,
-	WebhookHandler,
+	ConnectorIntegration,
 	ConnectorRegistration,
 	ConnectorSetup,
-	ConnectorIntegration,
-	EnvVarDefinition,
 	CredentialValidator,
+	DeliveryResult,
+	EnvVarDefinition,
+	PollResult,
 	ServiceDetector,
+	SourceConnector,
+	WebhookHandler,
 } from './connector.js';
-
+export type { BuildEventOptions, ValidationError } from './event.js';
+// Event helpers
+export {
+	buildEvent,
+	generateEventId,
+	generateTraceId,
+	isOrgLoopEvent,
+	validateEvent,
+} from './event.js';
+// Logger interface
+export type {
+	Logger,
+	LoggerRegistration,
+} from './logger.js';
+// Module types
+export type {
+	InstalledModule,
+	ModuleActorDefinition,
+	ModuleConnectorRequirement,
+	ModuleConnectors,
+	ModuleCredentialRequirement,
+	ModuleExpansionContext,
+	ModuleHookRequirement,
+	ModuleManifest,
+	ModuleMetadata,
+	ModuleParameter,
+	ModuleProvides,
+	ModuleRequirements,
+	ModuleServiceRequirement,
+	ModuleSourceDefinition,
+} from './module.js';
+export { expandTemplate, expandTemplateDeep, moduleManifestSchema } from './module.js';
+// Test harness
+export {
+	createTestContext,
+	createTestEvent,
+	MockActor,
+	MockLogger,
+	MockSource,
+	MockTransform,
+} from './testing.js';
 // Transform interface
 export type {
 	Transform,
 	TransformContext,
 	TransformRegistration,
 } from './transform.js';
-
-// Logger interface
+// Core types
 export type {
-	Logger,
-	LoggerRegistration,
-} from './logger.js';
-
-// Event helpers
-export {
-	generateEventId,
-	generateTraceId,
-	buildEvent,
-	validateEvent,
-	isOrgLoopEvent,
-} from './event.js';
-export type { BuildEventOptions, ValidationError } from './event.js';
-
-// Module types
-export type {
-	ModuleManifest,
-	ModuleMetadata,
-	ModuleRequirements,
-	ModuleConnectorRequirement,
-	ModuleServiceRequirement,
-	ModuleCredentialRequirement,
-	ModuleHookRequirement,
-	ModuleParameter,
-	ModuleProvides,
-	InstalledModule,
-	ModuleExpansionContext,
-	ModuleConnectors,
-	ModuleSourceDefinition,
-	ModuleActorDefinition,
-} from './module.js';
-
-export { expandTemplate, expandTemplateDeep, moduleManifestSchema } from './module.js';
-
-// Test harness
-export {
-	MockSource,
-	MockActor,
-	MockTransform,
-	MockLogger,
-	createTestEvent,
-	createTestContext,
-} from './testing.js';
+	ActorConfig,
+	ActorInstanceConfig,
+	AuthorType,
+	BootModuleEntry,
+	CircuitBreakerConfig,
+	DeliveryConfig,
+	DurationString,
+	EventFilter,
+	EventHandler,
+	EventProvenance,
+	LogEntry,
+	LoggerDefinition,
+	LogPhase,
+	ModuleState,
+	ModuleStatus,
+	OrgLoopConfig,
+	OrgLoopEvent,
+	OrgLoopEventType,
+	PollConfig,
+	ProjectConfig,
+	RetryConfig,
+	RouteDefinition,
+	RouteDeliveryConfig,
+	RouteThen,
+	RouteTransformRef,
+	RouteWhen,
+	RouteWith,
+	RuntimeConfig,
+	RuntimeStatus,
+	SourceConfig,
+	SourceHealthState,
+	SourceHealthStatus,
+	SourceInstanceConfig,
+	Subscription,
+	TransformDefinition,
+	TransformErrorPolicy,
+} from './types.js';
+export { parseDuration } from './types.js';

@@ -69,7 +69,6 @@ connectors:
 		);
 
 		// Ensure the var is not set
-		// biome-ignore lint/performance/noDelete: process.env requires delete to truly unset
 		delete process.env.APPLY_DOCTOR_GATE_MISSING_VAR;
 
 		const result = await runDoctor(join(tempDir, 'orgloop.yaml'));

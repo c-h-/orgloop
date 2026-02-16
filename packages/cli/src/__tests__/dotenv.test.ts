@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -23,9 +23,7 @@ describe('loadDotEnv', () => {
 		await writeFile(join(tempDir, '.env'), 'DOTENV_TEST_A=hello\nDOTENV_TEST_B=world\n');
 
 		// Ensure vars are not set
-		// biome-ignore lint/performance/noDelete: process.env requires delete to truly unset
 		delete process.env.DOTENV_TEST_A;
-		// biome-ignore lint/performance/noDelete: process.env requires delete to truly unset
 		delete process.env.DOTENV_TEST_B;
 
 		try {
@@ -35,9 +33,7 @@ describe('loadDotEnv', () => {
 			expect(process.env.DOTENV_TEST_A).toBe('hello');
 			expect(process.env.DOTENV_TEST_B).toBe('world');
 		} finally {
-			// biome-ignore lint/performance/noDelete: process.env requires delete to truly unset
 			delete process.env.DOTENV_TEST_A;
-			// biome-ignore lint/performance/noDelete: process.env requires delete to truly unset
 			delete process.env.DOTENV_TEST_B;
 		}
 	});
@@ -52,7 +48,6 @@ describe('loadDotEnv', () => {
 			'# This is a comment\n\nDOTENV_TEST_COMMENT=yes\n  # indented comment\n',
 		);
 
-		// biome-ignore lint/performance/noDelete: process.env requires delete to truly unset
 		delete process.env.DOTENV_TEST_COMMENT;
 
 		try {
@@ -60,7 +55,6 @@ describe('loadDotEnv', () => {
 			expect(loaded).toEqual(['DOTENV_TEST_COMMENT']);
 			expect(process.env.DOTENV_TEST_COMMENT).toBe('yes');
 		} finally {
-			// biome-ignore lint/performance/noDelete: process.env requires delete to truly unset
 			delete process.env.DOTENV_TEST_COMMENT;
 		}
 	});
@@ -75,9 +69,7 @@ describe('loadDotEnv', () => {
 			'DOTENV_TEST_DQ="double quoted"\nDOTENV_TEST_SQ=\'single quoted\'\n',
 		);
 
-		// biome-ignore lint/performance/noDelete: process.env requires delete to truly unset
 		delete process.env.DOTENV_TEST_DQ;
-		// biome-ignore lint/performance/noDelete: process.env requires delete to truly unset
 		delete process.env.DOTENV_TEST_SQ;
 
 		try {
@@ -87,9 +79,7 @@ describe('loadDotEnv', () => {
 			expect(process.env.DOTENV_TEST_DQ).toBe('double quoted');
 			expect(process.env.DOTENV_TEST_SQ).toBe('single quoted');
 		} finally {
-			// biome-ignore lint/performance/noDelete: process.env requires delete to truly unset
 			delete process.env.DOTENV_TEST_DQ;
-			// biome-ignore lint/performance/noDelete: process.env requires delete to truly unset
 			delete process.env.DOTENV_TEST_SQ;
 		}
 	});
@@ -108,7 +98,6 @@ describe('loadDotEnv', () => {
 			expect(loaded).not.toContain('DOTENV_TEST_EXISTING');
 			expect(process.env.DOTENV_TEST_EXISTING).toBe('from-shell');
 		} finally {
-			// biome-ignore lint/performance/noDelete: process.env requires delete to truly unset
 			delete process.env.DOTENV_TEST_EXISTING;
 		}
 	});
@@ -133,7 +122,6 @@ describe('loadDotEnv', () => {
 			'DOTENV_TEST_NEW=new-value\nDOTENV_TEST_OLD=old-value\n',
 		);
 
-		// biome-ignore lint/performance/noDelete: process.env requires delete to truly unset
 		delete process.env.DOTENV_TEST_NEW;
 		process.env.DOTENV_TEST_OLD = 'already-set';
 
@@ -143,9 +131,7 @@ describe('loadDotEnv', () => {
 			expect(process.env.DOTENV_TEST_NEW).toBe('new-value');
 			expect(process.env.DOTENV_TEST_OLD).toBe('already-set');
 		} finally {
-			// biome-ignore lint/performance/noDelete: process.env requires delete to truly unset
 			delete process.env.DOTENV_TEST_NEW;
-			// biome-ignore lint/performance/noDelete: process.env requires delete to truly unset
 			delete process.env.DOTENV_TEST_OLD;
 		}
 	});

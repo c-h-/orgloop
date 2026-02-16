@@ -238,7 +238,6 @@ loggers:
 
 			// Ensure another var is unset — delete is required for process.env
 			const origMissing = process.env.ORGLOOP_TEST_MISSING_VAR;
-			// biome-ignore lint/performance/noDelete: process.env requires delete to truly unset
 			delete process.env.ORGLOOP_TEST_MISSING_VAR;
 
 			try {
@@ -246,7 +245,6 @@ loggers:
 				expect(process.env.ORGLOOP_TEST_MISSING_VAR).toBeUndefined();
 			} finally {
 				if (origVal === undefined) {
-					// biome-ignore lint/performance/noDelete: process.env requires delete to truly unset
 					delete process.env.ORGLOOP_TEST_SET_VAR;
 				} else {
 					process.env.ORGLOOP_TEST_SET_VAR = origVal;

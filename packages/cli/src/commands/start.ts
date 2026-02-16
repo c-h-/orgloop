@@ -321,7 +321,7 @@ async function runForeground(configPath?: string, force?: boolean): Promise<void
 		}
 
 		// Periodically write health state to state file
-		const healthInterval = setInterval(async () => {
+		const _healthInterval = setInterval(async () => {
 			try {
 				const status = runtime.status();
 				const state = JSON.parse(await readFile(STATE_FILE, 'utf-8').catch(() => '{}'));

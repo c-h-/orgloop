@@ -19,7 +19,7 @@ interface EmittedRecord {
 }
 
 const emittedRecords: EmittedRecord[] = [];
-let mockExporterShutdownCalled = false;
+let _mockExporterShutdownCalled = false;
 let mockProviderForceFlushCalled = false;
 let mockProviderShutdownCalled = false;
 let mockExporterConfig: Record<string, unknown> = {};
@@ -31,7 +31,7 @@ let exporterShouldFail = false;
 
 function resetMocks() {
 	emittedRecords.length = 0;
-	mockExporterShutdownCalled = false;
+	_mockExporterShutdownCalled = false;
 	mockProviderForceFlushCalled = false;
 	mockProviderShutdownCalled = false;
 	mockExporterConfig = {};
@@ -67,7 +67,7 @@ vi.mock('@opentelemetry/exporter-logs-otlp-http', () => ({
 			}
 		}
 		shutdown() {
-			mockExporterShutdownCalled = true;
+			_mockExporterShutdownCalled = true;
 			return Promise.resolve();
 		}
 	},

@@ -395,25 +395,6 @@ export class GogSource implements SourceConnector {
 		return { records: [], historyId: undefined };
 	}
 
-	private extractHistoryId(result: unknown): string | undefined {
-		if (result && typeof result === 'object') {
-			const obj = result as { historyId?: string };
-			if (obj.historyId) return obj.historyId;
-
-			// If it's a history list, take the last record's ID
-			if (Array.isArray(result) && result.length > 0) {
-				const last = result[result.length - 1] as GogHistoryRecord;
-				return last.id;
-			}
-
-			const withHistory = result as { history?: GogHistoryRecord[] };
-			if (withHistory.history?.length) {
-				return withHistory.history[withHistory.history.length - 1].id;
-			}
-		}
-		return undefined;
-	}
-
 	// ─── Event Building ─────────────────────────────────────────────────────
 
 	private async messageToEvent(msg: GogMessage): Promise<OrgLoopEvent | null> {

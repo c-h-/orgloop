@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+	createTestContext,
+	createTestEvent,
 	MockActor,
 	MockLogger,
 	MockSource,
 	MockTransform,
-	createTestContext,
-	createTestEvent,
 } from '../testing.js';
 
 describe('MockSource', () => {

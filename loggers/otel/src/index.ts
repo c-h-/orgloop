@@ -70,5 +70,4 @@ export function register(): LoggerRegistration {
 	};
 }
 
-export { OtelLogger } from './otel-logger.js';
-export { PHASE_SEVERITY } from './otel-logger.js';
+export { OtelLogger, PHASE_SEVERITY } from './otel-logger.js';

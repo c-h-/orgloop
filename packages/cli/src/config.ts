@@ -5,7 +5,7 @@
  * resolves environment variables, merges with user defaults.
  */
 
-import { access, readFile, readdir } from 'node:fs/promises';
+import { access, readdir, readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import type { OrgLoopConfig, ProjectConfig } from '@orgloop/sdk';
