@@ -5,7 +5,7 @@
  * which variables are set and which are missing.
  */
 
-import { access, readFile, readdir } from 'node:fs/promises';
+import { access, readdir, readFile } from 'node:fs/promises';
 import { dirname, isAbsolute, resolve } from 'node:path';
 import chalk from 'chalk';
 import type { Command } from 'commander';

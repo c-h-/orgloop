@@ -24,8 +24,8 @@ import type {
 import type { EventBus } from './bus.js';
 import { LoggerManager } from './logger.js';
 import type { ModuleConfig } from './module-instance.js';
-import { Runtime } from './runtime.js';
 import type { SourceCircuitBreakerOptions as RuntimeCircuitBreakerOptions } from './runtime.js';
+import { Runtime } from './runtime.js';
 import type { CheckpointStore } from './store.js';
 
 // ─── Engine Options ───────────────────────────────────────────────────────────

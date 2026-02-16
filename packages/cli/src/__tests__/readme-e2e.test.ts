@@ -75,7 +75,7 @@ afterEach(async () => {
 describe('README onboarding flow', () => {
 	it('init → add module → doctor → plan completes successfully', async () => {
 		// ── Step 1: init ──────────────────────────────────────────────────
-		const initOutput = cli(
+		const _initOutput = cli(
 			'init --no-interactive --name test-org --connectors github,linear,openclaw,claude-code --dir .',
 			testDir,
 		);
@@ -239,7 +239,7 @@ routes:
 		const doctorResult = JSON.parse(doctorOutput);
 
 		// Should have route-graph warnings for the broken references
-		const routeGraphWarnings = doctorResult.checks.filter(
+		const _routeGraphWarnings = doctorResult.checks.filter(
 			(c: { category: string }) => c.category === 'route-graph',
 		);
 

@@ -25,7 +25,7 @@ const AVAILABLE_CONNECTORS = [
 	'pagerduty',
 ];
 
-function connectorYaml(name: string, role: 'source' | 'actor'): string {
+function connectorYaml(name: string, _role: 'source' | 'actor'): string {
 	const configs: Record<string, string> = {
 		github: `apiVersion: orgloop/v1alpha1
 kind: ConnectorGroup

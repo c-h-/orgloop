@@ -314,7 +314,7 @@ describe('CronSource', () => {
 
 		// Monday 2026-02-09 at 8:00 AM checkpoint, poll at 9:05 AM
 		const before9am = new Date(2026, 1, 9, 8, 0, 0).toISOString();
-		const checkpoint = JSON.stringify({ standup: before9am });
+		const _checkpoint = JSON.stringify({ standup: before9am });
 
 		// Mock "now" by injecting a checkpoint that is 65 minutes old from 9:05
 		// The findLastMatch should find 9:00 between 8:00 and now

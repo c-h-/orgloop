@@ -8,9 +8,9 @@
 import { readFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import type { ModuleExpansionContext, ModuleManifest, RouteDefinition } from '@orgloop/sdk';
-import { expandTemplateDeep, moduleManifestSchema } from '@orgloop/sdk';
-import AjvModule from 'ajv';
+import { moduleManifestSchema } from '@orgloop/sdk';
 import type { ErrorObject } from 'ajv';
+import AjvModule from 'ajv';
 import yaml from 'js-yaml';
 
 const Ajv = AjvModule.default ?? AjvModule;

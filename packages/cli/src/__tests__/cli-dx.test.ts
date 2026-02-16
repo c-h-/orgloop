@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { scanEnvVars } from '../commands/env.js';
 import type { EnvWarning } from '../commands/validate.js';
 
@@ -43,9 +43,7 @@ connectors:
 		);
 
 		// Ensure vars are unset
-		// biome-ignore lint/performance/noDelete: process.env requires delete to truly unset
 		delete process.env.ORGLOOP_TEST_VALIDATE_TOKEN;
-		// biome-ignore lint/performance/noDelete: process.env requires delete to truly unset
 		delete process.env.ORGLOOP_TEST_VALIDATE_REPO;
 
 		const envVars = await scanEnvVars(join(tempDir, 'orgloop.yaml'));
@@ -97,7 +95,6 @@ connectors:
 
 			expect(envWarnings).toHaveLength(0);
 		} finally {
-			// biome-ignore lint/performance/noDelete: process.env requires delete to truly unset
 			delete process.env.ORGLOOP_TEST_VALIDATE_SET;
 		}
 	});
@@ -127,7 +124,6 @@ connectors:
 		);
 
 		process.env.ORGLOOP_TEST_MIX_PRESENT = 'yes';
-		// biome-ignore lint/performance/noDelete: process.env requires delete to truly unset
 		delete process.env.ORGLOOP_TEST_MIX_MISSING;
 
 		try {
@@ -142,7 +138,6 @@ connectors:
 			expect(envWarnings).toHaveLength(1);
 			expect(envWarnings[0].name).toBe('ORGLOOP_TEST_MIX_MISSING');
 		} finally {
-			// biome-ignore lint/performance/noDelete: process.env requires delete to truly unset
 			delete process.env.ORGLOOP_TEST_MIX_PRESENT;
 		}
 	});
@@ -187,11 +182,8 @@ connectors:
 		);
 
 		// Ensure all vars are unset
-		// biome-ignore lint/performance/noDelete: process.env requires delete to truly unset
 		delete process.env.ORGLOOP_TEST_A;
-		// biome-ignore lint/performance/noDelete: process.env requires delete to truly unset
 		delete process.env.ORGLOOP_TEST_B;
-		// biome-ignore lint/performance/noDelete: process.env requires delete to truly unset
 		delete process.env.ORGLOOP_TEST_C;
 
 		const envVars = await scanEnvVars(join(tempDir, 'orgloop.yaml'));
@@ -247,7 +239,6 @@ connectors:
 
 			expect(missing).toHaveLength(0);
 		} finally {
-			// biome-ignore lint/performance/noDelete: process.env requires delete to truly unset
 			delete process.env.ORGLOOP_TEST_PREFLIGHT_OK;
 		}
 	});

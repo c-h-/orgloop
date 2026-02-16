@@ -1,15 +1,9 @@
-import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { CredentialValidator, ServiceDetector } from '@orgloop/sdk';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import {
-	type DoctorResult,
-	checkCredentials,
-	checkServices,
-	checkValidation,
-	runDoctor,
-} from '../commands/doctor.js';
+import { checkCredentials, checkServices, checkValidation, runDoctor } from '../commands/doctor.js';
 
 describe('doctor command', () => {
 	let tempDir: string;
@@ -204,19 +198,16 @@ connectors:
 				expect(okChecks.length).toBe(3);
 			} finally {
 				if (origRepo === undefined) {
-					// biome-ignore lint/performance/noDelete: process.env requires delete
 					delete process.env.GITHUB_REPO;
 				} else {
 					process.env.GITHUB_REPO = origRepo;
 				}
 				if (origToken === undefined) {
-					// biome-ignore lint/performance/noDelete: process.env requires delete
 					delete process.env.GITHUB_TOKEN;
 				} else {
 					process.env.GITHUB_TOKEN = origToken;
 				}
 				if (origAgent === undefined) {
-					// biome-ignore lint/performance/noDelete: process.env requires delete
 					delete process.env.OPENCLAW_AGENT_ID;
 				} else {
 					process.env.OPENCLAW_AGENT_ID = origAgent;
@@ -231,11 +222,8 @@ connectors:
 			const origRepo = process.env.GITHUB_REPO;
 			const origToken = process.env.GITHUB_TOKEN;
 			const origAgent = process.env.OPENCLAW_AGENT_ID;
-			// biome-ignore lint/performance/noDelete: process.env requires delete
 			delete process.env.GITHUB_REPO;
-			// biome-ignore lint/performance/noDelete: process.env requires delete
 			delete process.env.GITHUB_TOKEN;
-			// biome-ignore lint/performance/noDelete: process.env requires delete
 			delete process.env.OPENCLAW_AGENT_ID;
 
 			try {
@@ -288,19 +276,16 @@ connectors:
 				expect(result.checks.every((c) => c.status === 'ok')).toBe(true);
 			} finally {
 				if (origRepo === undefined) {
-					// biome-ignore lint/performance/noDelete: process.env requires delete
 					delete process.env.GITHUB_REPO;
 				} else {
 					process.env.GITHUB_REPO = origRepo;
 				}
 				if (origToken === undefined) {
-					// biome-ignore lint/performance/noDelete: process.env requires delete
 					delete process.env.GITHUB_TOKEN;
 				} else {
 					process.env.GITHUB_TOKEN = origToken;
 				}
 				if (origAgent === undefined) {
-					// biome-ignore lint/performance/noDelete: process.env requires delete
 					delete process.env.OPENCLAW_AGENT_ID;
 				} else {
 					process.env.OPENCLAW_AGENT_ID = origAgent;
@@ -315,11 +300,8 @@ connectors:
 			const origRepo = process.env.GITHUB_REPO;
 			const origToken = process.env.GITHUB_TOKEN;
 			const origAgent = process.env.OPENCLAW_AGENT_ID;
-			// biome-ignore lint/performance/noDelete: process.env requires delete
 			delete process.env.GITHUB_REPO;
-			// biome-ignore lint/performance/noDelete: process.env requires delete
 			delete process.env.GITHUB_TOKEN;
-			// biome-ignore lint/performance/noDelete: process.env requires delete
 			delete process.env.OPENCLAW_AGENT_ID;
 
 			try {
@@ -399,19 +381,16 @@ connectors:
 				expect(tokenCheck?.scopes).toEqual(['repo', 'read:org']);
 			} finally {
 				if (origToken === undefined) {
-					// biome-ignore lint/performance/noDelete: process.env requires delete
 					delete process.env.GITHUB_TOKEN;
 				} else {
 					process.env.GITHUB_TOKEN = origToken;
 				}
 				if (origRepo === undefined) {
-					// biome-ignore lint/performance/noDelete: process.env requires delete
 					delete process.env.GITHUB_REPO;
 				} else {
 					process.env.GITHUB_REPO = origRepo;
 				}
 				if (origAgent === undefined) {
-					// biome-ignore lint/performance/noDelete: process.env requires delete
 					delete process.env.OPENCLAW_AGENT_ID;
 				} else {
 					process.env.OPENCLAW_AGENT_ID = origAgent;
@@ -447,19 +426,16 @@ connectors:
 				expect(tokenCheck?.detail).toContain('Invalid token');
 			} finally {
 				if (origToken === undefined) {
-					// biome-ignore lint/performance/noDelete: process.env requires delete
 					delete process.env.GITHUB_TOKEN;
 				} else {
 					process.env.GITHUB_TOKEN = origToken;
 				}
 				if (origRepo === undefined) {
-					// biome-ignore lint/performance/noDelete: process.env requires delete
 					delete process.env.GITHUB_REPO;
 				} else {
 					process.env.GITHUB_REPO = origRepo;
 				}
 				if (origAgent === undefined) {
-					// biome-ignore lint/performance/noDelete: process.env requires delete
 					delete process.env.OPENCLAW_AGENT_ID;
 				} else {
 					process.env.OPENCLAW_AGENT_ID = origAgent;
@@ -491,19 +467,16 @@ connectors:
 				}
 			} finally {
 				if (origRepo === undefined) {
-					// biome-ignore lint/performance/noDelete: process.env requires delete
 					delete process.env.GITHUB_REPO;
 				} else {
 					process.env.GITHUB_REPO = origRepo;
 				}
 				if (origToken === undefined) {
-					// biome-ignore lint/performance/noDelete: process.env requires delete
 					delete process.env.GITHUB_TOKEN;
 				} else {
 					process.env.GITHUB_TOKEN = origToken;
 				}
 				if (origAgent === undefined) {
-					// biome-ignore lint/performance/noDelete: process.env requires delete
 					delete process.env.OPENCLAW_AGENT_ID;
 				} else {
 					process.env.OPENCLAW_AGENT_ID = origAgent;
@@ -537,19 +510,16 @@ connectors:
 				expect(tokenCheck?.status).toBe('ok');
 			} finally {
 				if (origToken === undefined) {
-					// biome-ignore lint/performance/noDelete: process.env requires delete
 					delete process.env.GITHUB_TOKEN;
 				} else {
 					process.env.GITHUB_TOKEN = origToken;
 				}
 				if (origRepo === undefined) {
-					// biome-ignore lint/performance/noDelete: process.env requires delete
 					delete process.env.GITHUB_REPO;
 				} else {
 					process.env.GITHUB_REPO = origRepo;
 				}
 				if (origAgent === undefined) {
-					// biome-ignore lint/performance/noDelete: process.env requires delete
 					delete process.env.OPENCLAW_AGENT_ID;
 				} else {
 					process.env.OPENCLAW_AGENT_ID = origAgent;

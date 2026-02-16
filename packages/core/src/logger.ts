@@ -5,8 +5,7 @@
  * Non-blocking: errors in one logger don't affect others.
  */
 
-import type { LogEntry } from '@orgloop/sdk';
-import type { Logger } from '@orgloop/sdk';
+import type { LogEntry, Logger } from '@orgloop/sdk';
 
 interface TaggedLogger {
 	logger: Logger;

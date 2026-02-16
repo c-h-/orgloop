@@ -10,7 +10,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { OrgLoopConfig } from '@orgloop/sdk';
 import type { Command } from 'commander';
-import { loadCliConfig, resolveConfigPath } from '../config.js';
+import { loadCliConfig } from '../config.js';
 import * as output from '../output.js';
 
 // ─── Running state ───────────────────────────────────────────────────────────

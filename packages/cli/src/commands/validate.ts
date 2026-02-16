@@ -6,7 +6,7 @@
  */
 
 import { constants } from 'node:fs';
-import { access, readFile, stat } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import { dirname, isAbsolute, resolve } from 'node:path';
 import type {
 	ActorInstanceConfig,
@@ -97,9 +97,9 @@ function validateProjectSchema(data: unknown, filePath: string): ValidationResul
 }
 
 async function validateReferences(
-	basePath: string,
+	_basePath: string,
 	routesDir: string,
-	project: ProjectConfig,
+	_project: ProjectConfig,
 	sources: Map<string, SourceInstanceConfig>,
 	actors: Map<string, ActorInstanceConfig>,
 	transforms: Map<string, TransformDefinition>,
@@ -492,7 +492,7 @@ export async function runValidation(configPath: string): Promise<{
 		}
 
 		try {
-			const data = (await loadYaml(filePath)) as LoggerYaml;
+			const _data = (await loadYaml(filePath)) as LoggerYaml;
 			results.push({ file: file, valid: true, description: 'valid logger group', errors: [] });
 		} catch (err) {
 			results.push({
@@ -605,7 +605,7 @@ export function registerValidateCommand(program: Command): void {
 	program
 		.command('validate')
 		.description('Validate configuration files')
-		.action(async (opts, cmd) => {
+		.action(async (_opts, cmd) => {
 			try {
 				const globalOpts = cmd.parent?.opts() ?? {};
 				const configPath = resolveConfigPath(globalOpts.config);

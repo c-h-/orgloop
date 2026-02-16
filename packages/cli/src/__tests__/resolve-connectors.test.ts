@@ -1,5 +1,5 @@
-import { MockActor, MockSource } from '@orgloop/sdk';
 import type { ConnectorRegistration, OrgLoopConfig } from '@orgloop/sdk';
+import { MockActor, MockSource } from '@orgloop/sdk';
 import { describe, expect, it } from 'vitest';
 import { resolveConnectors } from '../resolve-connectors.js';
 

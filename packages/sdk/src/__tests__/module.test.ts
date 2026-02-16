@@ -2,8 +2,8 @@
  * Tests for module manifest types and parameter expansion engine.
  */
 
-import { expandTemplate, expandTemplateDeep, moduleManifestSchema } from '../module.js';
 import type { ModuleExpansionContext, ModuleManifest } from '../module.js';
+import { expandTemplate, expandTemplateDeep, moduleManifestSchema } from '../module.js';
 
 // ─── expandTemplate ──────────────────────────────────────────────────────────
 
