@@ -103,7 +103,7 @@ OrgLoop has five building blocks. That's it.
 | **Sources** | Things that emit events. A GitHub repo, a Linear project, a Claude Code session. Anything that changes state. |
 | **Actors** | Things that do work when woken. An OpenClaw agent, a Claude Code team, a human via notification. |
 | **Routes** | Declarative wiring. When source X emits event Y, wake actor Z with context C. Pure routing, no business logic. |
-| **Transforms** | Optional pipeline steps. Filter noise, scan for prompt injection, deduplicate. Mechanical -- actors handle reasoning, transforms handle plumbing. |
+| **Transforms** | Optional pipeline steps. Filter noise, deduplicate, enrich with metadata. Mechanical -- actors handle reasoning, transforms handle plumbing. |
 | **Loggers** | Passive observers. Every event, every transform, every delivery -- captured for debugging and audit. |
 
 For a deep dive, see [Five Primitives](/concepts/five-primitives/).
