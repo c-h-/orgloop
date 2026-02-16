@@ -42,10 +42,9 @@ function resetMocks() {
 
 // Mock OTel modules
 vi.mock('@opentelemetry/resources', () => ({
-	Resource: class MockResource {
-		constructor(attrs: Record<string, string>) {
-			mockResourceAttrs = attrs;
-		}
+	resourceFromAttributes(attrs: Record<string, string>) {
+		mockResourceAttrs = attrs;
+		return attrs;
 	},
 }));
 
@@ -76,10 +75,6 @@ vi.mock('@opentelemetry/exporter-logs-otlp-http', () => ({
 vi.mock('@opentelemetry/sdk-logs', () => {
 	return {
 		LoggerProvider: class MockLoggerProvider {
-			private processors: unknown[] = [];
-			addLogRecordProcessor(processor: unknown) {
-				this.processors.push(processor);
-			}
 			getLogger(_name: string, _version: string) {
 				return {
 					emit(record: EmittedRecord) {

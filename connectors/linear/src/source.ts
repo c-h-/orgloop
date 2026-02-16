@@ -209,7 +209,7 @@ export class LinearSource implements SourceConnector {
 			}
 
 			hasMore = issues.pageInfo.hasNextPage;
-			cursor = issues.pageInfo.endCursor;
+			cursor = issues.pageInfo.endCursor ?? undefined;
 		}
 
 		return events;

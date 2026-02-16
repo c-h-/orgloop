@@ -60,7 +60,7 @@ export class OtelLogger implements Logger {
 	async init(config: Record<string, unknown>): Promise<void> {
 		const cfg = config as OtelLoggerConfig;
 
-		const { Resource } = await import('@opentelemetry/resources');
+		const { resourceFromAttributes } = await import('@opentelemetry/resources');
 		const { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } = await import(
 			'@opentelemetry/semantic-conventions'
 		);
@@ -73,7 +73,7 @@ export class OtelLogger implements Logger {
 			...(cfg.resource_attributes ?? {}),
 		};
 
-		const resource = new Resource(resourceAttrs);
+		const resource = resourceFromAttributes(resourceAttrs);
 
 		const exporter = new OTLPLogExporter({
 			url: cfg.endpoint ?? 'http://localhost:4318/v1/logs',
@@ -87,8 +87,7 @@ export class OtelLogger implements Logger {
 			maxExportBatchSize: batchConfig.max_export_batch_size ?? 512,
 		});
 
-		this.loggerProvider = new LoggerProvider({ resource });
-		this.loggerProvider.addLogRecordProcessor(processor);
+		this.loggerProvider = new LoggerProvider({ resource, processors: [processor] });
 		this.otelLogger = this.loggerProvider.getLogger('orgloop', '0.1.0');
 	}
 
