@@ -164,7 +164,7 @@ Same actor, different prompts per route. The routing layer decides which SOP is 
 
 **Composable workflows.** Connectors, transforms, and loggers are independently publishable packages. Anyone can build and share a connector for their platform.
 
-**Installable organizations.** Modules are entire operational workflows, packaged as code. The engineering org -- sources, routes, transforms, SOPs, and a manifest declaring every dependency -- is a module you can install. `orgloop add module engineering` gives you a functioning autonomous engineering department.
+**Installable organizations.** Modules are entire operational workflows, packaged as code. The engineering org -- sources, routes, transforms, SOPs, and a manifest declaring every dependency -- is a module you can install. `orgloop add module @orgloop/module-engineering` gives you a functioning autonomous engineering department.
 
 **Observability built in.** Every event flows through OrgLoop with a trace ID. What's in flight, what's stalled, what's completing, what's failing -- across every business process.
 

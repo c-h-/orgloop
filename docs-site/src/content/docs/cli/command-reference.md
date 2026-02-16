@@ -182,13 +182,13 @@ orgloop add module <name> [options]
 
 ```bash
 # Install from npm registry
-orgloop add module engineering
+orgloop add module @orgloop/module-engineering
 
 # Install from a local path
 orgloop add module my-workflow --path ./modules/my-workflow
 
 # Non-interactive with explicit params
-orgloop add module engineering --no-interactive \
+orgloop add module @orgloop/module-engineering --no-interactive \
   --params '{"github_source":"github","agent_actor":"engineering"}'
 ```
 

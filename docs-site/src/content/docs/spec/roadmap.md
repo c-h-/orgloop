@@ -62,7 +62,7 @@ Module system implemented in the MVP:
 - `modules/engineering/` — the reference module (GitHub, Linear, Claude Code, OpenClaw)
 - `modules/minimal/` — simplest possible module (webhook -> webhook)
 
-**Exit criteria:** Met. `orgloop add module engineering` scaffolds a working engineering org.
+**Exit criteria:** Met. `orgloop add module @orgloop/module-engineering` scaffolds a working engineering org.
 
 ### Phase 5: Launch
 
@@ -73,7 +73,7 @@ The killer demo: the manifesto ends with a live demonstration. You read the mani
 ```bash
 npm install -g @orgloop/cli
 orgloop init --name my-org --connectors github,linear,openclaw,claude-code --no-interactive
-orgloop add module engineering
+orgloop add module @orgloop/module-engineering
 # Set env vars: GITHUB_TOKEN, LINEAR_API_KEY, OPENCLAW_WEBHOOK_TOKEN
 orgloop env                     # Verify credentials
 orgloop validate                # Check config

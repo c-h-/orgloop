@@ -34,7 +34,7 @@ Set up a webhook source and a console logger, then route an event between them.
 npm install -g @orgloop/cli
 orgloop init    # select "webhook" when prompted for connectors
 cd my-org
-orgloop add module minimal
+orgloop add module @orgloop/module-minimal
 orgloop start
 ```
 
@@ -56,7 +56,7 @@ When you're ready to wire up real services, OrgLoop scales to a full engineering
 
 ```bash
 orgloop init    # select github, linear, claude-code, openclaw
-orgloop add module engineering
+orgloop add module @orgloop/module-engineering
 orgloop doctor        # Check deps + credentials
 orgloop plan          # Preview what will run
 orgloop start         # Start the runtime

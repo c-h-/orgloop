@@ -22,7 +22,7 @@ Set up a webhook source and a console logger, route an event between them.
 ```bash
 npm install -g @orgloop/cli
 orgloop init    # select "webhook" when prompted for connectors
-cd my-org && orgloop add module minimal
+cd my-org && orgloop add module @orgloop/module-minimal
 orgloop validate && orgloop start
 ```
 
@@ -68,7 +68,7 @@ When an actor finishes work, that completion is itself an event — routed back 
 		Actor completion feeds back as events. A dev agent finishes, the supervisor evaluates, relaunches if needed. The org loops.
 	</Card>
 	<Card title="Modules" icon="puzzle">
-		Install entire workflows as packages. `orgloop add module engineering` gives you PR review, CI triage, ticket routing, and Claude Code supervision in one command.
+		Install entire workflows as packages. `orgloop add module @orgloop/module-engineering` gives you PR review, CI triage, ticket routing, and Claude Code supervision in one command.
 	</Card>
 </CardGrid>
 

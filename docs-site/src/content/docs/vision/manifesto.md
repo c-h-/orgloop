@@ -250,7 +250,8 @@ The agents aren't the problem. The system around them is.
 
 ```bash
 npm install -g @orgloop/cli
-orgloop add module engineering
+npm install @orgloop/module-engineering
+orgloop add module @orgloop/module-engineering
 # orgloop doctor tells you what's needed and how to get it
 orgloop start
 ```

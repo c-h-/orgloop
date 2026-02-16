@@ -5,7 +5,7 @@ Minimal starter module -- 1 webhook source, 1 generic actor, 1 example route. Us
 ## Install
 
 ```bash
-orgloop add module minimal
+orgloop add module @orgloop/module-minimal
 ```
 
 ## What's Included
