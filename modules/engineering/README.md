@@ -1,38 +1,71 @@
 # @orgloop/module-engineering
 
-Engineering organization workflow module -- PR review, CI failure triage, Linear ticket management, and Claude Code supervision. Wires GitHub, Linear, and Claude Code sources to an OpenClaw agent actor.
+**A complete autonomous engineering organization, packaged as a module.**
+
+You use Claude Code for implementation. You use OpenClaw to supervise it. OrgLoop is the layer that wires them together — so when a PR gets a review at 2am, Claude Code addresses the feedback, and when that session finishes, a supervisor evaluates the output and relaunches if needed. No human in the loop.
+
+This module gives you 5 routes, 4 SOPs, and the transforms to run an engineering org that handles PR reviews, CI failures, Linear ticket triage, and Claude Code supervision autonomously.
 
 ## Install
 
 ```bash
 orgloop add module engineering
+orgloop doctor    # shows what's needed and how to get it
+orgloop start
 ```
 
-## What's Included
+## What You Get
 
-**Sources (3):**
-- **github** -- GitHub repository events (PR reviews, comments, CI failures, merges)
-- **linear** -- Linear project tracking events (optional, skipped if unconfigured)
-- **claude-code** -- Claude Code session exit events (optional, skipped if unconfigured)
+### Routes
 
-**Actors (1):**
-- **openclaw-engineering-agent** -- OpenClaw agent for executing engineering workflows
+| Route | Trigger | What Happens |
+|-------|---------|-------------|
+| **pr-review** | PR review submitted | Agent wakes with PR review SOP — reads comments, makes fixes, pushes, re-requests review |
+| **pr-comment** | Inline PR comment | Same SOP — addresses the specific comment in context |
+| **ci-failure** | CI workflow fails | Agent wakes with CI failure SOP — diagnoses the failure, fixes root cause, pushes |
+| **linear-triage** | Linear issue updated | Agent wakes with triage SOP — evaluates the ticket, decides action based on state change |
+| **claude-code-supervisor** | Claude Code session ends | Agent evaluates what the dev session accomplished — relaunches, opens PR, or escalates |
 
-**Routes (5):**
-- **pr-review** -- PR review submitted: address feedback
-- **pr-comment** -- PR review comment: respond to inline feedback
-- **ci-failure** -- CI workflow failed: diagnose and fix
-- **linear-triage** -- Linear issue updated: triage and act
-- **claude-code-supervisor** -- Claude Code session ended: review and decide next action
+### The Loop in Action
 
-**Transforms (3):**
-- **drop-bot-noise** -- Filter out events authored by bots
-- **my-notifications** -- Keep only events involving watched GitHub accounts (`GITHUB_WATCHED`)
-- **dedup** -- Deduplicate events within a 10-minute window
+This is where it clicks. The routes aren't independent — they form a loop:
 
-**SOPs (3):** `pr-review.md`, `ci-failure.md`, `linear-ticket.md`
+```
+Linear ticket assigned
+  → linear-triage route wakes agent → agent starts Claude Code implementation
+    → Claude Code finishes → claude-code-supervisor route wakes agent
+      → agent evaluates output → opens PR
+        → PR gets review → pr-review route wakes agent
+          → agent addresses feedback → pushes → CI runs
+            → CI fails → ci-failure route wakes agent
+              → agent fixes → CI passes → ready for merge
+```
 
-**Loggers (1):** File logger writing JSONL to `~/.orgloop/logs/orgloop.log`
+Each step triggers the next. The org loops.
+
+### SOPs (Standard Operating Procedures)
+
+Each route delivers a focused SOP — the agent gets specific instructions for exactly what happened, not a grab-bag of everything it might need to know.
+
+- **`pr-review.md`** — Parse the review, address each comment individually, check PR health before re-requesting review. Includes guidance on AI/bot comments and security red flags.
+- **`ci-failure.md`** — Categorize the failure (type errors, lint, tests, build, flaky), fix root cause, verify CI passes. Never skip or disable tests.
+- **`linear-ticket.md`** — Triage before acting: is it clear? Is it blocked? Is someone already on it? Action table by state change.
+- **`claude-code-supervisor.md`** — Evaluate session output, decide whether to relaunch, open PR, or escalate. Guards against infinite relaunch loops.
+
+### Transforms
+
+- **drop-bot-noise** — Filters out events authored by bots (you don't need to review your own bot's actions)
+- **my-notifications** — Keeps only events involving your watched GitHub accounts (`GITHUB_WATCHED`)
+- **dedup** — Deduplicates events within a 10-minute window (GitHub often sends multiple events for the same action)
+
+## Prerequisites
+
+- **GitHub** — repo access + [personal access token](https://github.com/settings/tokens) with `repo` scope
+- **OpenClaw** — running locally with a webhook token configured
+- **Linear** *(optional)* — API key for ticket management. Module works without it; Linear routes are skipped.
+- **Claude Code** *(optional)* — installed locally for the supervisor loop. Module works without it; supervisor route is skipped.
+
+Run `orgloop doctor` after installing — it checks every dependency and tells you exactly what's missing and how to get it.
 
 ## Parameters
 
@@ -55,9 +88,19 @@ orgloop add module engineering
 | `LINEAR_API_KEY` | no | Linear API key |
 | `LINEAR_TEAM_KEY` | no | Linear team key |
 
+## Customizing
+
+The SOPs are starting points. Copy them to your project's `sops/` directory and customize:
+
+```bash
+cp node_modules/@orgloop/module-engineering/sops/*.md ./sops/
+```
+
+Then update your routes to point at your local copies. Make the SOPs match how your team actually works — add your review standards, your CI conventions, your triage criteria.
+
 ## Documentation
 
-Full documentation at [orgloop.ai](https://orgloop.ai)
+Full documentation at [orgloop.ai](https://orgloop.ai). See the [Manifesto](https://orgloop.ai/vision/manifesto/) for the thinking behind Organization as Code.
 
 ## License
 
