@@ -33,6 +33,11 @@ export function register(): TransformRegistration {
 					description: 'Storage backend (only "memory" for MVP).',
 					default: 'memory',
 				},
+				track_delivery: {
+					type: 'boolean',
+					description: 'Track delivery stats (seen vs delivered vs dropped).',
+					default: false,
+				},
 			},
 			required: ['window'],
 			additionalProperties: false,
@@ -40,4 +45,5 @@ export function register(): TransformRegistration {
 	};
 }
 
+export type { DedupStats } from './dedup.js';
 export { DedupTransform } from './dedup.js';

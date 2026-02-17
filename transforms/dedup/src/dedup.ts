@@ -16,6 +16,14 @@ interface DedupConfig {
 	key: string[];
 	window: string;
 	store?: 'memory';
+	track_delivery?: boolean;
+}
+
+export interface DedupStats {
+	seen: number;
+	dropped: number;
+	delivered: number;
+	windowMs: number;
 }
 
 /** Config as it may arrive from YAML — supports both `key` and `fields` */
@@ -24,10 +32,11 @@ interface DedupRawConfig {
 	fields?: string[];
 	window?: string;
 	store?: 'memory';
+	track_delivery?: boolean;
 }
 
 /** Known config properties for validation */
-const KNOWN_CONFIG_KEYS = new Set(['key', 'fields', 'window', 'store']);
+const KNOWN_CONFIG_KEYS = new Set(['key', 'fields', 'window', 'store', 'track_delivery']);
 
 /**
  * Get a value from a nested object using a dot-separated path.
@@ -50,6 +59,8 @@ export class DedupTransform implements Transform {
 	private windowMs = 5 * 60 * 1000;
 	private seen = new Map<string, number>();
 	private cleanupTimer: ReturnType<typeof setInterval> | null = null;
+	private droppedCount = 0;
+	private deliveredCount = 0;
 
 	async init(config: Record<string, unknown>): Promise<void> {
 		// Validate config keys — warn on unknown properties to catch typos early
@@ -69,6 +80,7 @@ export class DedupTransform implements Transform {
 		this.config = {
 			key: keyPaths,
 			window: c.window ?? '5m',
+			track_delivery: c.track_delivery ?? false,
 		};
 		this.windowMs = parseDuration(this.config.window);
 
@@ -88,12 +100,23 @@ export class DedupTransform implements Transform {
 
 		if (lastSeen !== undefined && now - lastSeen < this.windowMs) {
 			// Duplicate within window — drop
+			this.droppedCount++;
 			return null;
 		}
 
 		// New or expired — pass and record
 		this.seen.set(hash, now);
+		this.deliveredCount++;
 		return event;
+	}
+
+	getStats(): DedupStats {
+		return {
+			seen: this.seen.size,
+			dropped: this.droppedCount,
+			delivered: this.deliveredCount,
+			windowMs: this.windowMs,
+		};
 	}
 
 	async shutdown(): Promise<void> {
@@ -102,6 +125,8 @@ export class DedupTransform implements Transform {
 			this.cleanupTimer = null;
 		}
 		this.seen.clear();
+		this.droppedCount = 0;
+		this.deliveredCount = 0;
 	}
 
 	private buildHash(event: OrgLoopEvent): string {

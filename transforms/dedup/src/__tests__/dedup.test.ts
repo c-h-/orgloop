@@ -440,6 +440,56 @@ describe('DedupTransform', () => {
 		).resolves.not.toThrow();
 	});
 
+	// ─── Stats tracking (WQ-95) ─────────────────────────────────────────────
+
+	it('tracks seen/dropped/delivered stats', async () => {
+		await dedup.init({ key: ['source', 'type'], window: '5m' });
+
+		const ctx = createTestContext();
+		const e1 = createTestEvent({ source: 'github', type: 'resource.changed' });
+		const e2 = createTestEvent({ source: 'github', type: 'resource.changed' });
+		const e3 = createTestEvent({ source: 'linear', type: 'resource.changed' });
+
+		await dedup.execute(e1, ctx); // delivered
+		await dedup.execute(e2, ctx); // dropped (dup)
+		await dedup.execute(e3, ctx); // delivered
+
+		const stats = dedup.getStats();
+		expect(stats.delivered).toBe(2);
+		expect(stats.dropped).toBe(1);
+		expect(stats.seen).toBe(2); // 2 unique hashes in the map
+		expect(stats.windowMs).toBe(5 * 60 * 1000);
+	});
+
+	it('resets stats on shutdown', async () => {
+		await dedup.init({ key: ['source'], window: '5m' });
+
+		const ctx = createTestContext();
+		await dedup.execute(createTestEvent({ source: 'github' }), ctx);
+		await dedup.execute(createTestEvent({ source: 'github' }), ctx);
+
+		expect(dedup.getStats().delivered).toBe(1);
+		expect(dedup.getStats().dropped).toBe(1);
+
+		await dedup.shutdown();
+
+		const fresh = new DedupTransform();
+		await fresh.init({ key: ['source'], window: '5m' });
+		expect(fresh.getStats().delivered).toBe(0);
+		expect(fresh.getStats().dropped).toBe(0);
+		await fresh.shutdown();
+	});
+
+	it('accepts track_delivery config option', async () => {
+		await expect(
+			dedup.init({
+				key: ['source'],
+				window: '5m',
+				track_delivery: true,
+			}),
+		).resolves.not.toThrow();
+	});
+
 	// ─── Registration ──────────────────────────────────────────────────────────
 
 	it('register() returns valid TransformRegistration', async () => {

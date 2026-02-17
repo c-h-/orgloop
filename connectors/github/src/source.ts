@@ -1,8 +1,10 @@
 /**
  * GitHub source connector — polls GitHub API for repository events.
  *
- * Uses octokit.paginate() for all list endpoints to avoid data loss
- * from silent truncation at page boundaries.
+ * Smart polling strategy (WQ-94):
+ * - Repo-level endpoints for review comments (replaces per-PR scraping)
+ * - Local PR state cache (skip unchanged PRs for reviews)
+ * - Rate budget awareness (skip non-essential events when budget low)
  *
  * Rate limit awareness: reads X-RateLimit-Remaining/Reset headers,
  * warns when low, pauses when exhausted. Initial sync defaults to a
@@ -46,6 +48,12 @@ const EPOCH_THRESHOLD = '1970-01-02T00:00:00.000Z';
 /** Remaining rate limit requests before we start warning */
 const RATE_LIMIT_WARN_THRESHOLD = 100;
 
+/** Minimum budget to continue fetching non-essential event types */
+const RATE_BUDGET_MIN_THRESHOLD = 50;
+
+/** Evict cached PR entries older than 30 days */
+const PR_CACHE_EVICTION_MS = 30 * 24 * 60 * 60 * 1000;
+
 interface GitHubSourceConfig {
 	repo: string; // "owner/repo"
 	events: string[];
@@ -53,6 +61,8 @@ interface GitHubSourceConfig {
 	token: string;
 	/** How far back to look on initial sync (e.g. "7d", "24h"). Default: 7d */
 	initial_lookback?: string;
+	/** Max percentage of remaining rate limit to use per poll (0-1). Default: 0.8 */
+	rate_budget?: number;
 }
 
 type GitHubPull = Record<string, unknown>;
@@ -61,6 +71,12 @@ type GitHubPull = Record<string, unknown>;
 interface RateLimitState {
 	remaining: number;
 	resetAt: Date;
+}
+
+/** Per-poll budget tracking */
+interface PollBudget {
+	apiCalls: number;
+	startRemaining: number | null;
 }
 
 export class GitHubSource implements SourceConnector {
@@ -73,6 +89,14 @@ export class GitHubSource implements SourceConnector {
 	private sourceId = '';
 	private initialLookbackMs = parseDuration(DEFAULT_INITIAL_LOOKBACK);
 	private rateLimit: RateLimitState | null = null;
+	private rateBudgetFraction = 0.8;
+
+	// WQ-94: PR state cache — tracks updated_at per PR to skip unchanged PRs
+	private prCache = new Map<number, string>();
+	private lastCacheEviction = Date.now();
+
+	// WQ-94: Per-poll budget tracking
+	private pollBudget: PollBudget = { apiCalls: 0, startRemaining: null };
 
 	async init(config: SourceConfig): Promise<void> {
 		const cfg = config.config as unknown as GitHubSourceConfig;
@@ -85,6 +109,10 @@ export class GitHubSource implements SourceConnector {
 
 		if (cfg.initial_lookback) {
 			this.initialLookbackMs = parseDuration(cfg.initial_lookback);
+		}
+
+		if (cfg.rate_budget !== undefined) {
+			this.rateBudgetFraction = Math.max(0, Math.min(1, cfg.rate_budget));
 		}
 
 		const token = resolveEnvVar(cfg.token);
@@ -100,6 +128,12 @@ export class GitHubSource implements SourceConnector {
 				: new Date(Date.now() - this.initialLookbackMs).toISOString();
 		const events: OrgLoopEvent[] = [];
 		let latestTimestamp = since;
+
+		// Reset per-poll budget tracking
+		this.pollBudget = {
+			apiCalls: 0,
+			startRemaining: this.rateLimit?.remaining ?? null,
+		};
 
 		try {
 			// Check rate limit before starting
@@ -120,8 +154,9 @@ export class GitHubSource implements SourceConnector {
 				events.push(...reviews);
 			}
 
+			// WQ-94: Use repo-level endpoint for review comments instead of per-PR
 			if (this.events.includes('pull_request_review_comment')) {
-				const comments = await this.pollReviewComments(since, pulls);
+				const comments = await this.pollReviewCommentsRepoLevel(since, pulls);
 				events.push(...comments);
 			}
 
@@ -130,32 +165,43 @@ export class GitHubSource implements SourceConnector {
 				events.push(...comments);
 			}
 
+			// Non-essential event types: skip if rate budget is low
 			if (
 				this.events.includes('pull_request.closed') ||
 				this.events.includes('pull_request.merged')
 			) {
-				const prs = await this.pollClosedPRs(since);
-				events.push(...prs);
+				if (this.hasBudget()) {
+					const prs = await this.pollClosedPRs(since);
+					events.push(...prs);
+				}
 			}
 
 			if (this.events.includes('pull_request.opened')) {
-				const prs = await this.pollOpenedPRs(since);
-				events.push(...prs);
+				if (this.hasBudget()) {
+					const prs = await this.pollOpenedPRs(since);
+					events.push(...prs);
+				}
 			}
 
 			if (this.events.includes('pull_request.ready_for_review')) {
-				const prs = await this.pollReadyForReviewPRs(since);
-				events.push(...prs);
+				if (this.hasBudget()) {
+					const prs = await this.pollReadyForReviewPRs(since);
+					events.push(...prs);
+				}
 			}
 
 			if (this.events.includes('workflow_run.completed')) {
-				const runs = await this.pollFailedWorkflowRuns(since);
-				events.push(...runs);
+				if (this.hasBudget()) {
+					const runs = await this.pollFailedWorkflowRuns(since);
+					events.push(...runs);
+				}
 			}
 
 			if (this.events.includes('check_suite.completed')) {
-				const suites = await this.pollCheckSuites(since);
-				events.push(...suites);
+				if (this.hasBudget()) {
+					const suites = await this.pollCheckSuites(since);
+					events.push(...suites);
+				}
 			}
 		} catch (err: unknown) {
 			const error = err as {
@@ -175,6 +221,7 @@ export class GitHubSource implements SourceConnector {
 					: '';
 				console.warn(`[github] Rate limited.${resetInfo} Returning partial results.`);
 				// Return what we have so far with current checkpoint
+				this.logBudget();
 				return {
 					events: this.filterByAuthors(events),
 					checkpoint: this.advanceCheckpoint(events, latestTimestamp),
@@ -189,6 +236,12 @@ export class GitHubSource implements SourceConnector {
 
 		// Find the latest timestamp among all events
 		latestTimestamp = this.advanceCheckpoint(events, latestTimestamp);
+
+		// Evict stale cache entries periodically
+		this.evictStaleCache();
+
+		// Log budget usage
+		this.logBudget();
 
 		return { events: this.filterByAuthors(events), checkpoint: latestTimestamp };
 	}
@@ -236,6 +289,28 @@ export class GitHubSource implements SourceConnector {
 	}
 
 	/**
+	 * WQ-94: Check if we have enough rate budget to continue fetching.
+	 * Returns false if remaining requests are below the safety threshold.
+	 */
+	private hasBudget(): boolean {
+		if (!this.rateLimit) return true;
+		// Use rateBudgetFraction to scale the threshold: lower fraction → higher threshold
+		const threshold = Math.floor(RATE_BUDGET_MIN_THRESHOLD / this.rateBudgetFraction);
+		return this.rateLimit.remaining > threshold;
+	}
+
+	/**
+	 * WQ-94: Log budget usage at end of poll.
+	 */
+	private logBudget(): void {
+		const used = this.pollBudget.apiCalls;
+		const remaining = this.rateLimit?.remaining ?? 'unknown';
+		if (used > 0) {
+			console.log(`[github] Poll used ${used} API calls. Remaining: ${remaining}`);
+		}
+	}
+
+	/**
 	 * Advance checkpoint to the latest event timestamp.
 	 */
 	private advanceCheckpoint(events: OrgLoopEvent[], fallback: string): string {
@@ -257,6 +332,22 @@ export class GitHubSource implements SourceConnector {
 	}
 
 	/**
+	 * WQ-94: Evict PR cache entries older than 30 days.
+	 */
+	private evictStaleCache(): void {
+		const now = Date.now();
+		if (now - this.lastCacheEviction < PR_CACHE_EVICTION_MS) return;
+
+		const cutoff = new Date(now - PR_CACHE_EVICTION_MS).toISOString();
+		for (const [prNumber, updatedAt] of this.prCache) {
+			if (updatedAt < cutoff) {
+				this.prCache.delete(prNumber);
+			}
+		}
+		this.lastCacheEviction = now;
+	}
+
+	/**
 	 * Fetch recently-updated PRs using pagination with early termination.
 	 * Stops fetching pages once PRs are older than the since cutoff.
 	 */
@@ -275,6 +366,7 @@ export class GitHubSource implements SourceConnector {
 		});
 
 		for await (const response of iterator) {
+			this.pollBudget.apiCalls++;
 			// Track rate limit from each response
 			if (response.headers) {
 				this.updateRateLimitFromHeaders(response.headers as unknown as Record<string, string>);
@@ -299,19 +391,34 @@ export class GitHubSource implements SourceConnector {
 		return result;
 	}
 
+	/**
+	 * WQ-94: Only fetch reviews for PRs whose updated_at changed since last poll.
+	 * Skips unchanged PRs to reduce API calls.
+	 */
 	private async pollReviews(since: string, pulls: GitHubPull[]): Promise<OrgLoopEvent[]> {
 		const events: OrgLoopEvent[] = [];
 		const repoData = { full_name: `${this.owner}/${this.repo}` };
 
 		for (const pr of pulls) {
+			const prNumber = pr.number as number;
+			const prUpdatedAt = pr.updated_at as string;
+
+			// WQ-94: Skip PRs whose updated_at hasn't changed since last poll
+			const cachedUpdatedAt = this.prCache.get(prNumber);
+			if (cachedUpdatedAt && cachedUpdatedAt === prUpdatedAt) {
+				continue;
+			}
+
 			// Check rate limit before each per-PR API call
 			await this.checkRateLimit();
+			if (!this.hasBudget()) break;
 
 			try {
+				this.pollBudget.apiCalls++;
 				const reviews = await this.octokit.paginate(this.octokit.pulls.listReviews, {
 					owner: this.owner,
 					repo: this.repo,
-					pull_number: pr.number as number,
+					pull_number: prNumber,
 					per_page: 100,
 				});
 				for (const review of reviews) {
@@ -332,46 +439,62 @@ export class GitHubSource implements SourceConnector {
 			} catch {
 				// Skip individual PR errors
 			}
+
+			// Update cache after successful fetch
+			this.prCache.set(prNumber, prUpdatedAt);
 		}
 		return events;
 	}
 
-	private async pollReviewComments(since: string, pulls: GitHubPull[]): Promise<OrgLoopEvent[]> {
+	/**
+	 * WQ-94: Fetch review comments at repo level instead of per-PR.
+	 * Uses /repos/{owner}/{repo}/pulls/comments?since= for a single API call.
+	 * Maps each comment back to its PR from the pulls list.
+	 */
+	private async pollReviewCommentsRepoLevel(
+		since: string,
+		pulls: GitHubPull[],
+	): Promise<OrgLoopEvent[]> {
 		const events: OrgLoopEvent[] = [];
 		const repoData = { full_name: `${this.owner}/${this.repo}` };
 
+		// Build a lookup of PR number → PR data for enrichment
+		const prByNumber = new Map<number, GitHubPull>();
 		for (const pr of pulls) {
-			await this.checkRateLimit();
-
-			try {
-				const comments = await this.octokit.paginate(this.octokit.pulls.listReviewComments, {
-					owner: this.owner,
-					repo: this.repo,
-					pull_number: pr.number as number,
-					since,
-					per_page: 100,
-				});
-				for (const comment of comments) {
-					const updatedAt = (comment as unknown as Record<string, unknown>).updated_at as string;
-					if (updatedAt > since) {
-						events.push(
-							normalizePullRequestReviewComment(
-								this.sourceId,
-								comment as unknown as Record<string, unknown>,
-								pr,
-								repoData,
-							),
-						);
-					}
-				}
-			} catch {
-				// Skip individual PR errors
-			}
+			prByNumber.set(pr.number as number, pr);
 		}
+
+		this.pollBudget.apiCalls++;
+		const comments = await this.octokit.paginate(this.octokit.pulls.listReviewCommentsForRepo, {
+			owner: this.owner,
+			repo: this.repo,
+			since,
+			sort: 'updated',
+			direction: 'desc',
+			per_page: 100,
+		});
+
+		for (const comment of comments) {
+			const c = comment as unknown as Record<string, unknown>;
+			const updatedAt = c.updated_at as string;
+			if (updatedAt <= since) continue;
+
+			// Extract PR number from pull_request_url
+			const prUrl = c.pull_request_url as string | undefined;
+			const prNumber = prUrl ? Number(prUrl.split('/').pop()) : null;
+
+			// Look up PR data from our pulls list, or use a minimal fallback
+			const pr = prNumber ? prByNumber.get(prNumber) : undefined;
+			const prData = pr ?? { number: prNumber ?? 0, title: '' };
+
+			events.push(normalizePullRequestReviewComment(this.sourceId, c, prData, repoData));
+		}
+
 		return events;
 	}
 
 	private async pollIssueComments(since: string): Promise<OrgLoopEvent[]> {
+		this.pollBudget.apiCalls++;
 		const comments = await this.octokit.paginate(this.octokit.issues.listCommentsForRepo, {
 			owner: this.owner,
 			repo: this.repo,
@@ -409,6 +532,7 @@ export class GitHubSource implements SourceConnector {
 		});
 
 		for await (const response of iterator) {
+			this.pollBudget.apiCalls++;
 			if (response.headers) {
 				this.updateRateLimitFromHeaders(response.headers as unknown as Record<string, string>);
 			}
@@ -447,6 +571,7 @@ export class GitHubSource implements SourceConnector {
 		});
 
 		for await (const response of iterator) {
+			this.pollBudget.apiCalls++;
 			if (response.headers) {
 				this.updateRateLimitFromHeaders(response.headers as unknown as Record<string, string>);
 			}
@@ -485,6 +610,7 @@ export class GitHubSource implements SourceConnector {
 		});
 
 		for await (const response of iterator) {
+			this.pollBudget.apiCalls++;
 			if (response.headers) {
 				this.updateRateLimitFromHeaders(response.headers as unknown as Record<string, string>);
 			}
@@ -521,6 +647,7 @@ export class GitHubSource implements SourceConnector {
 		});
 
 		for await (const response of iterator) {
+			this.pollBudget.apiCalls++;
 			if (response.headers) {
 				this.updateRateLimitFromHeaders(response.headers as unknown as Record<string, string>);
 			}
@@ -546,6 +673,7 @@ export class GitHubSource implements SourceConnector {
 	}
 
 	private async pollCheckSuites(since: string): Promise<OrgLoopEvent[]> {
+		this.pollBudget.apiCalls++;
 		const { data } = await this.octokit.checks.listSuitesForRef({
 			owner: this.owner,
 			repo: this.repo,
@@ -565,6 +693,6 @@ export class GitHubSource implements SourceConnector {
 	}
 
 	async shutdown(): Promise<void> {
-		// Nothing to clean up
+		this.prCache.clear();
 	}
 }

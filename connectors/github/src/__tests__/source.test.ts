@@ -13,6 +13,7 @@ function createMockOctokit() {
 		list: vi.fn(),
 		listReviews: vi.fn(),
 		listReviewComments: vi.fn(),
+		listReviewCommentsForRepo: vi.fn(),
 	};
 	const issues = {
 		listCommentsForRepo: vi.fn(),
@@ -117,6 +118,7 @@ function makeReviewComment(overrides: Record<string, unknown> = {}) {
 		body: 'Needs a fix here',
 		updated_at: '2024-01-15T10:00:00Z',
 		html_url: 'https://github.com/owner/repo/pull/1#discussion_r200',
+		pull_request_url: 'https://api.github.com/repos/owner/repo/pulls/1',
 		diff_hunk: '@@ -1,3 +1,3 @@',
 		path: 'src/index.ts',
 		user: { login: 'bob', type: 'User' },
@@ -334,7 +336,7 @@ describe('GitHubSource', () => {
 			const comment = makeReviewComment();
 
 			mock.pulls.list.mockResolvedValue({ data: [pr] });
-			mock.pulls.listReviewComments.mockResolvedValue({ data: [comment] });
+			mock.pulls.listReviewCommentsForRepo.mockResolvedValue({ data: [comment] });
 
 			const source = await createSource(['pull_request_review_comment'], mock);
 			const result = await source.poll('2024-01-15T09:00:00Z');
@@ -355,7 +357,7 @@ describe('GitHubSource', () => {
 
 			mock.pulls.list.mockResolvedValue({ data: [pr] });
 			mock.pulls.listReviews.mockResolvedValue({ data: [review] });
-			mock.pulls.listReviewComments.mockResolvedValue({ data: [comment] });
+			mock.pulls.listReviewCommentsForRepo.mockResolvedValue({ data: [comment] });
 
 			const source = await createSource(
 				['pull_request.review_submitted', 'pull_request_review_comment'],

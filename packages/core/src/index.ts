@@ -54,6 +54,9 @@ export {
 	InMemoryCheckpointStore,
 	InMemoryEventStore,
 } from './store.js';
+export type { SupervisorOptions, SupervisorStatus } from './supervisor.js';
+// Supervisor
+export { Supervisor } from './supervisor.js';
 export type { TransformPipelineOptions, TransformPipelineResult } from './transform.js';
 // Transform pipeline
 export { executeTransformPipeline } from './transform.js';

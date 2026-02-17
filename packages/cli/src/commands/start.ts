@@ -358,7 +358,7 @@ async function runForeground(configPath?: string, force?: boolean): Promise<void
 // ─── Shared action handler ───────────────────────────────────────────────────────────────
 
 async function startAction(
-	opts: { daemon?: boolean; force?: boolean },
+	opts: { daemon?: boolean; force?: boolean; supervised?: boolean },
 	cmd: { parent?: { opts(): Record<string, unknown> } },
 ): Promise<void> {
 	try {
@@ -413,6 +413,50 @@ async function startAction(
 
 			output.info('Starting OrgLoop daemon...');
 
+			if (opts.supervised) {
+				// WQ-93: Use supervisor for automatic restart on crash
+				let SupervisorClass: typeof import('@orgloop/core').Supervisor | undefined;
+				try {
+					const core = await import('@orgloop/core');
+					SupervisorClass = core.Supervisor;
+				} catch {
+					output.error('Supervisor requires @orgloop/core — falling back to direct fork');
+					opts.supervised = false;
+				}
+
+				if (opts.supervised && SupervisorClass) {
+					const supervisor = new SupervisorClass({
+						modulePath: fileURLToPath(import.meta.url),
+						env: {
+							ORGLOOP_CONFIG: (globalOpts.config as string) ?? '',
+						},
+						stdio: [stdoutFd, stderrFd],
+						maxRestarts: 10,
+						crashWindowMs: 300_000,
+					});
+
+					supervisor.onLog = (msg) => {
+						output.info(msg);
+					};
+
+					supervisor.onCrashLoop = () => {
+						output.error('Crash loop detected — supervisor giving up');
+						closeSync(stdoutFd);
+						closeSync(stderrFd);
+					};
+
+					await supervisor.start();
+					const status = supervisor.status();
+
+					output.success(`OrgLoop daemon started with supervisor. Child PID: ${status.childPid}`);
+					output.info(`Logs: ${LOG_DIR}`);
+
+					// Detach supervisor from parent
+					process.exit(0);
+				}
+			}
+
+			// Direct fork (no supervisor) — original behavior
 			const child = fork(fileURLToPath(import.meta.url), [], {
 				detached: true,
 				stdio: ['ignore', stdoutFd, stderrFd, 'ipc'],
@@ -449,6 +493,7 @@ export function registerStartCommand(program: Command): void {
 		.command('start')
 		.description('Start the runtime with current config')
 		.option('--daemon', 'Run as background daemon')
+		.option('--supervised', 'Enable supervisor for auto-restart (requires --daemon)')
 		.option('--force', 'Skip doctor pre-flight checks')
 		.action(startAction);
 }

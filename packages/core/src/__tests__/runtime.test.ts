@@ -260,6 +260,54 @@ describe('Runtime', () => {
 		expect(emittedEvents).toHaveLength(1);
 	});
 
+	// ─── WQ-93: Crash Handlers & Heartbeat ──────────────────────────────────
+
+	it('installs crash handlers when enabled', async () => {
+		runtime = new Runtime({
+			bus: new InMemoryBus(),
+			crashHandlers: true,
+			heartbeat: false,
+		});
+
+		const listenerCountBefore = process.listenerCount('uncaughtException');
+		await runtime.start();
+		expect(process.listenerCount('uncaughtException')).toBe(listenerCountBefore + 1);
+		expect(process.listenerCount('unhandledRejection')).toBeGreaterThan(0);
+
+		await runtime.stop();
+		expect(process.listenerCount('uncaughtException')).toBe(listenerCountBefore);
+	});
+
+	it('does not install crash handlers when disabled', async () => {
+		runtime = new Runtime({
+			bus: new InMemoryBus(),
+			crashHandlers: false,
+			heartbeat: false,
+		});
+
+		const listenerCountBefore = process.listenerCount('uncaughtException');
+		await runtime.start();
+		expect(process.listenerCount('uncaughtException')).toBe(listenerCountBefore);
+
+		await runtime.stop();
+	});
+
+	it('removes crash handlers on stop', async () => {
+		runtime = new Runtime({
+			bus: new InMemoryBus(),
+			crashHandlers: true,
+			heartbeat: false,
+		});
+
+		const listenerCountBefore = process.listenerCount('uncaughtException');
+		await runtime.start();
+		await runtime.stop();
+		expect(process.listenerCount('uncaughtException')).toBe(listenerCountBefore);
+		expect(process.listenerCount('unhandledRejection')).toBe(
+			process.listenerCount('unhandledRejection'),
+		);
+	});
+
 	it('stop() shuts down all modules', async () => {
 		runtime = new Runtime({ bus: new InMemoryBus() });
 		await runtime.start();

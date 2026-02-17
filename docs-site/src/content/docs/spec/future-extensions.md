@@ -305,4 +305,48 @@ Configurable at both the transform definition level (global default) and the rou
 
 ---
 
+### FE-23: Delivery Journal (Idempotent Re-delivery)
+
+**Gap:** If OrgLoop adds WAL replay (re-processing unacked events after crash recovery), the delivery pipeline needs idempotency. Currently, an event replayed from the WAL could be delivered to an actor twice. The dedup transform doesn't help here — it's a source-level dedup (prevents the same external event from being polled twice), not a delivery-level dedup.
+
+**Architectural decision (WQ-95):** Source dedup and delivery dedup are deliberately separate concerns:
+
+1. **Source dedup** (transforms/dedup) — prevents the same external event from entering the pipeline twice. Time-window based, in-memory, reset on restart. This is correct: the checkpoint already prevents most re-polls, and the dedup window is a safety net. Re-delivering a few events after restart is acceptable (actors should be idempotent per OrgLoop's design philosophy).
+
+2. **Delivery journal** (future, in Runtime) — tracks `(event_id, route, actor)` tuples to ensure at-most-once delivery per route. This belongs in `packages/core/src/runtime.ts`, not in the dedup transform. It should be a persistent store (file-based, alongside the WAL) that the Runtime consults before calling `actor.deliver()`.
+
+**Why not persist the dedup transform?** Adding persistence to the dedup transform would conflate two concerns. The dedup transform answers "have I seen this event key before?" while the delivery journal answers "have I delivered this specific event to this specific actor?" These have different key spaces, different lifetimes, and different consistency requirements.
+
+**Intended solution:**
+- Add `DeliveryJournal` interface to core with `hasDelivered(eventId, route, actor)` and `recordDelivery(eventId, route, actor)` methods
+- File-based implementation alongside the WAL
+- Runtime checks journal before `deliverToActor()` — skip if already delivered
+- Journal compacted periodically (entries older than event retention window)
+- Opt-in via config: `delivery: { journal: true }` on routes that need exactly-once semantics
+
+**Affects:** `packages/core/src/runtime.ts`, `packages/core/src/store.ts` (new DeliveryJournal), `packages/sdk/src/types.ts` (route config)
+
+---
+
+### FE-24: Daemon Supervisor & Health Monitoring
+
+**Gap:** OrgLoop daemon has no automatic restart capability. If the process crashes due to an uncaught exception, OOM, or signal, manual intervention is required.
+
+**Implemented (WQ-93):**
+- `Supervisor` class in `packages/core/src/supervisor.ts` — wraps child process fork with exponential backoff restart
+- Crash handlers (`uncaughtException`, `unhandledRejection`) in Runtime — attempt graceful shutdown before exit
+- Health heartbeat file (`~/.orgloop/heartbeat`) — written every 30s with timestamp, PID, uptime
+- `--supervised` flag on `orgloop start --daemon` to enable supervisor wrapper
+- Crash loop detection: max 10 restarts within 5-minute window
+
+**Future improvements:**
+- Integration with systemd/launchd for OS-level supervision
+- Health check HTTP endpoint (`GET /control/health`) with liveness/readiness semantics
+- Watchdog pattern: supervisor reads heartbeat file and force-restarts wedged processes
+- Graceful degradation: shed load when sources are unhealthy rather than crashing
+
+**Affects:** `packages/core/src/supervisor.ts`, `packages/core/src/runtime.ts`, `packages/cli/src/commands/start.ts`
+
+---
+
 *This appendix is committed to the repo. Actionable work items referencing these IDs are tracked in `local/WORK_QUEUE.md` (gitignored, private sprint queue).*

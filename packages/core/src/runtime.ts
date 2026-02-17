@@ -7,7 +7,9 @@
  */
 
 import { EventEmitter } from 'node:events';
-import { readFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import type {
 	LogEntry,
 	LogPhase,
@@ -54,6 +56,12 @@ export interface RuntimeOptions {
 	circuitBreaker?: SourceCircuitBreakerOptions;
 	/** Data directory for checkpoints and WAL */
 	dataDir?: string;
+	/** Enable crash handlers for uncaught exceptions/rejections (default: true) */
+	crashHandlers?: boolean;
+	/** Enable health heartbeat file (default: true when running as daemon) */
+	heartbeat?: boolean;
+	/** Heartbeat interval in ms (default: 30000) */
+	heartbeatIntervalMs?: number;
 }
 
 export interface LoadModuleOptions {
@@ -94,6 +102,19 @@ class Runtime extends EventEmitter implements RuntimeControl {
 	private readonly moduleConfigs = new Map<string, ModuleConfig>();
 	private readonly moduleLoadOptions = new Map<string, LoadModuleOptions>();
 
+	// Crash handlers
+	private readonly enableCrashHandlers: boolean;
+	private crashHandlersBound = false;
+	private boundUncaughtHandler: ((err: Error) => void) | null = null;
+	private boundRejectionHandler: ((reason: unknown) => void) | null = null;
+
+	// Health heartbeat
+	private readonly enableHeartbeat: boolean;
+	private readonly heartbeatIntervalMs: number;
+	private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+	private readonly heartbeatDir = join(homedir(), '.orgloop');
+	private readonly heartbeatFile = join(homedir(), '.orgloop', 'heartbeat');
+
 	constructor(options?: RuntimeOptions) {
 		super();
 		this.bus = options?.bus ?? new InMemoryBus();
@@ -109,6 +130,9 @@ class Runtime extends EventEmitter implements RuntimeControl {
 			retryAfterMs: options?.circuitBreaker?.retryAfterMs ?? 60_000,
 		};
 		this.webhookServer = new WebhookServer((event) => this.inject(event));
+		this.enableCrashHandlers = options?.crashHandlers ?? true;
+		this.enableHeartbeat = options?.heartbeat ?? !!process.env.ORGLOOP_DAEMON;
+		this.heartbeatIntervalMs = options?.heartbeatIntervalMs ?? 30_000;
 	}
 
 	// ─── Lifecycle ───────────────────────────────────────────────────────────
@@ -116,11 +140,21 @@ class Runtime extends EventEmitter implements RuntimeControl {
 	async start(): Promise<void> {
 		if (this.running) return;
 
+		// Install crash handlers
+		if (this.enableCrashHandlers) {
+			this.installCrashHandlers();
+		}
+
 		// Start scheduler
 		this.scheduler.start((sourceId, moduleName) => this.pollSource(sourceId, moduleName));
 
 		this.running = true;
 		this.startedAt = Date.now();
+
+		// Start health heartbeat
+		if (this.enableHeartbeat) {
+			this.startHeartbeat();
+		}
 
 		await this.emitLog('runtime.start', { result: 'started' });
 	}
@@ -168,6 +202,12 @@ class Runtime extends EventEmitter implements RuntimeControl {
 			clearTimeout(timer);
 		}
 		this.circuitRetryTimers.clear();
+
+		// Stop heartbeat
+		this.stopHeartbeat();
+
+		// Remove crash handlers
+		this.removeCrashHandlers();
 
 		// Flush and shutdown loggers
 		await this.loggerManager.flush();
@@ -610,6 +650,101 @@ class Runtime extends EventEmitter implements RuntimeControl {
 		}, this.circuitBreakerOpts.retryAfterMs);
 
 		this.circuitRetryTimers.set(timerKey, timer);
+	}
+
+	// ─── Crash Handlers ─────────────────────────────────────────────────────
+
+	private installCrashHandlers(): void {
+		if (this.crashHandlersBound) return;
+
+		this.boundUncaughtHandler = (err: Error) => {
+			const message = `Uncaught exception: ${err.message}`;
+			console.error(`[orgloop] ${message}`);
+			console.error(err.stack);
+			this.emit('error', err);
+			void this.emitLog('system.error', { error: message }).catch(() => {});
+			// Attempt graceful shutdown with timeout
+			const forceExit = setTimeout(() => process.exit(1), 5_000);
+			if (forceExit.unref) forceExit.unref();
+			void this.stop()
+				.catch(() => {})
+				.finally(() => {
+					clearTimeout(forceExit);
+					process.exit(1);
+				});
+		};
+
+		this.boundRejectionHandler = (reason: unknown) => {
+			const message = `Unhandled rejection: ${reason instanceof Error ? reason.message : String(reason)}`;
+			console.error(`[orgloop] ${message}`);
+			if (reason instanceof Error && reason.stack) {
+				console.error(reason.stack);
+			}
+			this.emit('error', reason instanceof Error ? reason : new Error(message));
+			void this.emitLog('system.error', { error: message }).catch(() => {});
+			// Attempt graceful shutdown with timeout
+			const forceExit = setTimeout(() => process.exit(1), 5_000);
+			if (forceExit.unref) forceExit.unref();
+			void this.stop()
+				.catch(() => {})
+				.finally(() => {
+					clearTimeout(forceExit);
+					process.exit(1);
+				});
+		};
+
+		process.on('uncaughtException', this.boundUncaughtHandler);
+		process.on('unhandledRejection', this.boundRejectionHandler);
+		this.crashHandlersBound = true;
+	}
+
+	private removeCrashHandlers(): void {
+		if (!this.crashHandlersBound) return;
+		if (this.boundUncaughtHandler) {
+			process.removeListener('uncaughtException', this.boundUncaughtHandler);
+			this.boundUncaughtHandler = null;
+		}
+		if (this.boundRejectionHandler) {
+			process.removeListener('unhandledRejection', this.boundRejectionHandler);
+			this.boundRejectionHandler = null;
+		}
+		this.crashHandlersBound = false;
+	}
+
+	// ─── Health Heartbeat ────────────────────────────────────────────────────
+
+	private startHeartbeat(): void {
+		if (this.heartbeatTimer) return;
+		// Write immediately, then on interval
+		void this.writeHeartbeat();
+		this.heartbeatTimer = setInterval(() => {
+			void this.writeHeartbeat();
+		}, this.heartbeatIntervalMs);
+		if (this.heartbeatTimer.unref) {
+			this.heartbeatTimer.unref();
+		}
+	}
+
+	private stopHeartbeat(): void {
+		if (this.heartbeatTimer) {
+			clearInterval(this.heartbeatTimer);
+			this.heartbeatTimer = null;
+		}
+	}
+
+	private async writeHeartbeat(): Promise<void> {
+		try {
+			await mkdir(this.heartbeatDir, { recursive: true });
+			const data = JSON.stringify({
+				pid: process.pid,
+				timestamp: new Date().toISOString(),
+				uptime_ms: this.running ? Date.now() - this.startedAt : 0,
+				modules: this.registry.list().length,
+			});
+			await writeFile(this.heartbeatFile, data, 'utf-8');
+		} catch {
+			// Non-fatal: heartbeat is best-effort
+		}
 	}
 
 	// ─── RuntimeControl Implementation ───────────────────────────────────────
