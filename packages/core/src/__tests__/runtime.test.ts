@@ -2,13 +2,12 @@
  * Tests for the Runtime class — multi-module lifecycle management.
  */
 
-import { MockActor, MockLogger, MockSource, MockTransform, createTestEvent } from '@orgloop/sdk';
-import type { ModuleStatus, OrgLoopEvent } from '@orgloop/sdk';
+import type { OrgLoopEvent } from '@orgloop/sdk';
+import { createTestEvent, MockActor, MockSource, MockTransform } from '@orgloop/sdk';
 import { afterEach, describe, expect, it } from 'vitest';
 import { InMemoryBus } from '../bus.js';
 import type { ModuleConfig } from '../module-instance.js';
 import { Runtime } from '../runtime.js';
-import { InMemoryCheckpointStore } from '../store.js';
 
 function makeModuleConfig(name: string, overrides?: Partial<ModuleConfig>): ModuleConfig {
 	return {

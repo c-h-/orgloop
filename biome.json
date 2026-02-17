@@ -1,8 +1,6 @@
 {
-	"$schema": "https://biomejs.dev/schemas/1.9.0/schema.json",
-	"organizeImports": {
-		"enabled": true
-	},
+	"$schema": "https://biomejs.dev/schemas/2.4.0/schema.json",
+	"assist": { "actions": { "source": { "organizeImports": "on" } } },
 	"formatter": {
 		"enabled": true,
 		"indentStyle": "tab",
@@ -17,7 +15,8 @@
 				"noForEach": "off"
 			},
 			"suspicious": {
-				"noThenProperty": "off"
+				"noThenProperty": "off",
+				"noTemplateCurlyInString": "off"
 			},
 			"style": {
 				"noNonNullAssertion": "error"
@@ -32,6 +31,6 @@
 		}
 	},
 	"files": {
-		"ignore": ["node_modules", "dist", "*.json", "docs-site/.astro"]
+		"includes": ["**", "!**/node_modules", "!**/dist", "!**/*.json", "!**/docs-site/.astro"]
 	}
 }

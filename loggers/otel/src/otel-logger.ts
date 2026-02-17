@@ -6,7 +6,7 @@
  */
 
 import type { LoggerProvider } from '@opentelemetry/sdk-logs';
-import type { LogEntry, LogPhase, Logger } from '@orgloop/sdk';
+import type { LogEntry, Logger, LogPhase } from '@orgloop/sdk';
 
 /** Phase → OTel severity number mapping (follows OTel severity spec) */
 const PHASE_SEVERITY: Record<LogPhase, { text: string; number: number }> = {

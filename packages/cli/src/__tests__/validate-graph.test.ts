@@ -5,7 +5,7 @@ import type {
 	TransformDefinition,
 } from '@orgloop/sdk';
 import { describe, expect, it } from 'vitest';
-import { type GraphWarning, validateRouteGraph } from '../commands/validate.js';
+import { validateRouteGraph } from '../commands/validate.js';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

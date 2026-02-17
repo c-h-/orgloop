@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { AgentCtlSource } from '../source.js';
 import type { AgentSession, ExecFn } from '../source.js';
+import { AgentCtlSource } from '../source.js';
 
 function makeSession(overrides: Partial<AgentSession> = {}): AgentSession {
 	return {

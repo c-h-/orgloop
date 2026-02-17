@@ -2,7 +2,6 @@
  * Transform error policy tests — verifies on_error: pass | drop | halt behavior.
  */
 
-import { MockActor, MockSource, createTestContext, createTestEvent } from '@orgloop/sdk';
 import type {
 	OrgLoopConfig,
 	OrgLoopEvent,
@@ -10,6 +9,7 @@ import type {
 	TransformContext,
 	TransformDefinition,
 } from '@orgloop/sdk';
+import { createTestContext, createTestEvent, MockActor, MockSource } from '@orgloop/sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { OrgLoop } from '../engine.js';
 import { TransformError } from '../errors.js';

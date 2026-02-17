@@ -6,7 +6,7 @@
  * No auth, no CORS — just local event ingestion.
  */
 
-import { type IncomingMessage, type ServerResponse, createServer } from 'node:http';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { OrgLoopEvent, WebhookHandler } from '@orgloop/sdk';
 
 export const DEFAULT_HTTP_PORT = 4800;

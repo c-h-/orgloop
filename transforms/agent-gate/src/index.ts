@@ -38,5 +38,5 @@ export function register(): TransformRegistration {
 	};
 }
 
-export { AgentGateTransform } from './agent-gate.js';
 export type { AgentGateConfig } from './agent-gate.js';
+export { AgentGateTransform } from './agent-gate.js';

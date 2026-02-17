@@ -5,7 +5,7 @@
  * composition (two modules sharing a source), namespacing (no collisions).
  */
 
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import yaml from 'js-yaml';
@@ -373,7 +373,7 @@ routes:
 describe('engineering module', () => {
 	it('loads the real engineering module manifest', async () => {
 		// Resolve the actual engineering module from the workspace
-		const engineeringPath = join(testDir, '../../..', 'modules', 'engineering');
+		const _engineeringPath = join(testDir, '../../..', 'modules', 'engineering');
 		// Use a direct path to the actual module in the repo
 		const repoRoot = join(__dirname, '..', '..', '..', '..');
 		const modulePath = join(repoRoot, 'modules', 'engineering');

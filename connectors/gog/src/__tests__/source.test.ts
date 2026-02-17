@@ -2,8 +2,8 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { GogSource } from '../source.js';
 import type { GogMessage } from '../source.js';
+import { GogSource } from '../source.js';
 
 // ─── Mock Helpers ──────────────────────────────────────────────────────────────
 
@@ -234,7 +234,7 @@ describe('GogSource', () => {
 			const source = await createSource();
 			const msg = makeMessage({ id: 'msg-dup' });
 
-			const pollCount = 0;
+			const _pollCount = 0;
 			mockExecGog(source, async (args) => {
 				if (args.includes('messages') && args.includes('search')) {
 					return [msg];
@@ -612,15 +612,8 @@ describe('GogSource', () => {
 		it('passes gog_client when configured', async () => {
 			const source = await createSource({ gog_client: 'my-client' });
 
-			// Verify by checking the real execGog builds the right args
-			// We need to mock at a lower level — mock child_process
-			const { execFile } = await import('node:child_process');
-			const { promisify } = await import('node:util');
-
-			// Instead, just verify via the mock
-			let capturedArgs: string[] = [];
-			mockExecGog(source, async (args) => {
-				capturedArgs = args;
+			// Verify via the mock
+			mockExecGog(source, async () => {
 				return [];
 			});
 

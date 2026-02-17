@@ -65,7 +65,7 @@ StandardError=append:${join(homedir(), '.orgloop', 'logs', 'daemon.stderr.log')}
 WantedBy=default.target`;
 }
 
-function generateDockerfile(configPath: string): string {
+function generateDockerfile(_configPath: string): string {
 	return `FROM node:22-slim
 
 WORKDIR /app

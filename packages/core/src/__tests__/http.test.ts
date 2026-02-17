@@ -1,6 +1,6 @@
 import http from 'node:http';
-import { MockActor, MockSource, createTestEvent } from '@orgloop/sdk';
 import type { OrgLoopConfig, OrgLoopEvent, WebhookHandler } from '@orgloop/sdk';
+import { createTestEvent, MockActor, MockSource } from '@orgloop/sdk';
 import { describe, expect, it } from 'vitest';
 import { OrgLoop } from '../engine.js';
 import { WebhookServer } from '../http.js';

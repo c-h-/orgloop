@@ -51,7 +51,7 @@ function collectProjectDeps(connectors: string[]): Record<string, string> {
 	return Object.fromEntries(Object.entries(deps).sort(([a], [b]) => a.localeCompare(b)));
 }
 
-function connectorYaml(name: string, role: 'source' | 'actor'): string {
+function connectorYaml(name: string, _role: 'source' | 'actor'): string {
 	const configs: Record<string, string> = {
 		github: `apiVersion: orgloop/v1alpha1
 kind: ConnectorGroup

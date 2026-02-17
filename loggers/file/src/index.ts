@@ -55,4 +55,4 @@ export function register(): LoggerRegistration {
 }
 
 export { FileLogger } from './file-logger.js';
-export { parseSize, rotateFile, needsRotation } from './rotation.js';
+export { needsRotation, parseSize, rotateFile } from './rotation.js';

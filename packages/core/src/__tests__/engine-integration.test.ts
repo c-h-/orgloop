@@ -1,8 +1,8 @@
 import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { MockActor, MockLogger, MockSource, MockTransform, createTestEvent } from '@orgloop/sdk';
 import type { OrgLoopConfig, OrgLoopEvent, Transform, TransformContext } from '@orgloop/sdk';
+import { createTestEvent, MockActor, MockLogger, MockSource, MockTransform } from '@orgloop/sdk';
 import { afterAll, describe, expect, it } from 'vitest';
 import { OrgLoop } from '../engine.js';
 
