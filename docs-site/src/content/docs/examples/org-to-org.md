@@ -11,7 +11,7 @@ This example uses only `@orgloop/connector-webhook` (available today) and `@orgl
 
 What happens when two organizations both run OrgLoop? They can communicate through webhooks -- one org's actor delivers to another org's source. Organizations become protocol endpoints.
 
-This is the most powerful generalization of OrgLoop. A department is a module. An organization is a composition of modules. Org-to-org communication is just another route.
+This is the natural endpoint of the module model. A department is a module. An organization is a composition of modules. Org-to-org communication is just another route.
 
 ## Architecture
 

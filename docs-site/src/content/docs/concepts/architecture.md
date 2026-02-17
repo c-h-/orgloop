@@ -21,14 +21,18 @@ orgloop/
     claude-code/  @orgloop/connector-claude-code      Hook: session exit receiver
     openclaw/     @orgloop/connector-openclaw          Target: delivers to OpenClaw agents
     webhook/      @orgloop/connector-webhook           Generic HTTP source + target
+    cron/         @orgloop/connector-cron              Scheduled: cron + interval syntax
 
   transforms/
     filter/       @orgloop/transform-filter           Match/exclude by field patterns
     dedup/        @orgloop/transform-dedup            SHA-256 hash, time window
+    enrich/       @orgloop/transform-enrich           Add, copy, and compute fields
 
   loggers/
     console/      @orgloop/logger-console             ANSI colors, phase icons
     file/         @orgloop/logger-file                Buffered JSONL, rotation, gzip
+    otel/         @orgloop/logger-otel                OpenTelemetry OTLP export
+    syslog/       @orgloop/logger-syslog              RFC 5424 syslog protocol
 
   modules/
     engineering/  @orgloop/module-engineering          Full engineering org workflow

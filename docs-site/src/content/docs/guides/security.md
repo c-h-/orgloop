@@ -39,14 +39,14 @@ routes:
       events: [resource.changed]
     transforms:
       - ref: drop-bot-noise
-      - ref: injection-scanner      # catches injection attempts
+      - ref: dedup
     then:
       actor: openclaw-engineering-agent
 ```
 
-If the scanner detects an injection attempt, the event is **dropped** -- it never reaches the LLM. The drop is logged with full context for audit.
+Today, the built-in transforms handle filtering and deduplication. You can write custom script transforms that inspect payloads for injection patterns -- a shell script that reads event JSON from stdin, checks for suspicious content, and exits with code 1 to drop the event. The transform pipeline is the right place for this because it runs before events reach any actor.
 
-This is defense-in-depth: actors should still handle adversarial input, but the transport layer filters obvious attacks before they arrive.
+This is defense-in-depth: actors should still handle adversarial input, but the transport layer can filter obvious attacks before they arrive.
 
 ## Input validation
 
@@ -58,7 +58,7 @@ $ orgloop validate
   ✓ connectors/github.yaml — valid source definition
   ✓ connectors/openclaw.yaml — valid actor definition
   ✗ routes/engineering.yaml — error at routes[0].transforms[1]:
-      Transform "injection-scanner" not found. Did you mean "injection-scan"?
+      Transform "my-filter" not found.
 
   1 error, 0 warnings
 ```
@@ -99,7 +99,7 @@ Loggers are **first-class primitives** in OrgLoop, not optional add-ons. Every e
 
 ```jsonl
 {"ts":"...","phase":"source.emit","source":"github","event_id":"evt_abc","event_type":"resource.changed"}
-{"ts":"...","phase":"transform.pass","transform":"injection-scanner","event_id":"evt_abc","result":"pass"}
+{"ts":"...","phase":"transform.pass","transform":"drop-bot-noise","event_id":"evt_abc","result":"pass"}
 {"ts":"...","phase":"route.match","event_id":"evt_abc","matched":"github-to-engineering"}
 {"ts":"...","phase":"deliver.success","event_id":"evt_abc","target":"openclaw-engineering-agent","status":"delivered"}
 ```
@@ -128,7 +128,7 @@ $ orgloop plan
     ~ claude-code     (changed — hook_type: post-exit → exit)
 
   Transforms:
-    + injection-scanner  (new — script)
+    + drop-bot-noise     (new — package)
 
   Routes:
     + github-to-engineering  (new)

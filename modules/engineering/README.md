@@ -7,9 +7,7 @@ Engineering organization workflow module for OrgLoop. Wires GitHub, Linear, and 
 ## Install
 
 ```bash
-orgloop add module engineering
-orgloop doctor    # shows what's needed and how to get it
-orgloop start
+orgloop add module @orgloop/module-engineering
 ```
 
 ## What You Get

@@ -111,7 +111,7 @@ Read that and you see an organization's nervous system. Every event that matters
 
 **Routes** are declarative wiring. When source X emits event Y, wake actor Z with context C. Pure routing, no business logic.
 
-**Transforms** are optional pipeline steps. Filter noise, scan for prompt injection, rate-limit. Mechanical. Actors handle reasoning, transforms handle plumbing.
+**Transforms** are optional pipeline steps. Filter noise, deduplicate, enrich with metadata. Mechanical. Actors handle reasoning, transforms handle plumbing.
 
 **Loggers** are passive observers. Every event, every transform, every delivery, captured for debugging and audit.
 
@@ -250,7 +250,8 @@ The agents aren't the problem. The system around them is.
 
 ```bash
 npm install -g @orgloop/cli
-orgloop add module engineering
+npm install @orgloop/module-engineering
+orgloop add module @orgloop/module-engineering
 # orgloop doctor tells you what's needed and how to get it
 orgloop start
 ```

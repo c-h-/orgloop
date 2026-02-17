@@ -6,7 +6,7 @@ description: Composable workflow packages — install a complete business proces
 A **module** is a bundled workflow: connectors + routes + transforms + SOPs, packaged as a single installable unit. Think of it as "install this business process."
 
 ```bash
-orgloop add module engineering
+orgloop add module @orgloop/module-engineering
 ```
 
 That one command installs a complete engineering organization workflow: PR review routing, CI failure triage, Linear ticket handling, Claude Code supervision -- 5 routes, 3 transforms, and 3 launch prompt SOPs.
@@ -25,16 +25,16 @@ Modules are:
 
 ```bash
 # Full engineering org (GitHub, Linear, Claude Code, OpenClaw)
-orgloop add module engineering
+orgloop add module @orgloop/module-engineering
 
 # Simplest possible setup (1 webhook source, 1 actor, 1 route)
-orgloop add module minimal
+orgloop add module @orgloop/module-minimal
 
 # From a local path (during development)
 orgloop add module my-workflow --path ./modules/my-workflow
 
 # Non-interactive (for CI/scripts)
-orgloop add module engineering --no-interactive \
+orgloop add module @orgloop/module-engineering --no-interactive \
   --params '{"github_source":"github","agent_actor":"engineering"}'
 ```
 
@@ -220,7 +220,7 @@ Modules support **degraded mode** -- they install and run immediately even when 
 | `queue` | Events queue locally until the dependency is available |
 
 ```bash
-$ orgloop add module engineering
+$ orgloop add module @orgloop/module-engineering
 
   Checking dependencies...
     ✓ @orgloop/connector-github

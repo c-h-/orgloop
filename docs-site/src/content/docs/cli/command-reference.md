@@ -182,13 +182,13 @@ orgloop add module <name> [options]
 
 ```bash
 # Install from npm registry
-orgloop add module engineering
+orgloop add module @orgloop/module-engineering
 
 # Install from a local path
 orgloop add module my-workflow --path ./modules/my-workflow
 
 # Non-interactive with explicit params
-orgloop add module engineering --no-interactive \
+orgloop add module @orgloop/module-engineering --no-interactive \
   --params '{"github_source":"github","agent_actor":"engineering"}'
 ```
 
@@ -211,7 +211,7 @@ $ orgloop validate
   ✓ connectors/github.yaml        valid source definition
   ✓ connectors/openclaw.yaml      valid actor definition
   ✗ routes/engineering.yaml — error at routes[0].transforms[1]:
-      Transform "injection-scanner" not found. Did you mean "injection-scan"?
+      Transform "my-filter" not found.
   ✓ loggers/default.yaml          valid logger group
 
 1 error, 0 warnings
@@ -702,7 +702,7 @@ $ orgloop test event.json
 Injecting test event: resource.changed (source: github)
 
   ✓ Transform: drop-bot-noise — PASS (2ms)
-  ✓ Transform: injection-scanner — PASS (15ms)
+  ✓ Transform: dedup — PASS (1ms)
   ✓ Route match: github-pr-review
   ✓ Delivery: engineering — 200 OK (89ms)
 
@@ -810,7 +810,7 @@ Events:     47 (24h), 312 (7d)
 $ orgloop inspect route github-pr-review
 
 Name:       github-pr-review
-Source:     github → [drop-bot-noise, injection-scanner] → engineering
+Source:     github → [drop-bot-noise, dedup] → engineering
 Prompt:     ./sops/pr-review.md
 Matched:    45 (24h)
 Dropped:    2 (24h) — all by drop-bot-noise

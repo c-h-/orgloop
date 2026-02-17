@@ -28,7 +28,7 @@ This replaces a collection of bespoke cron jobs and shell scripts with a single 
 ```bash
 orgloop init    # select github, linear, openclaw, claude-code
 cd my-org
-orgloop add module engineering
+orgloop add module @orgloop/module-engineering
 ```
 
 ### Environment variables

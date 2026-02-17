@@ -30,7 +30,7 @@ my-org/
 │   └── engineering.yaml
 ├── transforms/           # Transform definitions (or inline scripts)
 │   ├── drop-bot-noise.sh
-│   └── injection-scanner.sh
+│   └── custom-filter.sh
 ├── sops/                 # Launch prompt files (SOPs for actors)
 │   ├── pr-review.md
 │   ├── ci-failure.md
@@ -150,7 +150,7 @@ routes:
 
     transforms:
       - ref: drop-bot-noise
-      - ref: injection-scanner
+      - ref: dedup
 
     then:
       actor: openclaw-engineering-agent
@@ -174,7 +174,7 @@ routes:
         provenance.platform_event: workflow_run.completed
 
     transforms:
-      - ref: injection-scanner
+      - ref: dedup
 
     then:
       actor: openclaw-engineering-agent

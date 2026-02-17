@@ -78,7 +78,7 @@ routes:
           - pull_request_review_comment
     transforms:
       - ref: drop-bot-noise
-      - ref: injection-scanner
+      - ref: dedup
     then:
       actor: engineering
     with:
@@ -100,7 +100,7 @@ The `with.prompt_file` field points to a launch prompt -- a Markdown file with a
 
 ## Transforms
 
-Optional pipeline steps between source and actor. Filter noise, scan for prompt injection, deduplicate, rate-limit. Transforms are mechanical -- actors handle reasoning, transforms handle plumbing.
+Optional pipeline steps between source and actor. Filter noise, deduplicate, enrich with metadata. Transforms are mechanical -- actors handle reasoning, transforms handle plumbing.
 
 Two implementation types:
 - **Package transforms** -- TypeScript implementations of the `Transform` interface (e.g., `@orgloop/transform-filter`)
@@ -144,9 +144,11 @@ loggers:
       level: info
 ```
 
-Two built-in loggers:
+Four built-in loggers:
 - **Console** -- ANSI colors, phase icons, level filtering
 - **File** -- buffered JSONL, rotation by size/age/count, optional gzip compression
+- **OpenTelemetry** -- OTLP export for observability platforms
+- **Syslog** -- RFC 5424 syslog protocol
 
 ## The Loop
 

@@ -103,7 +103,7 @@ OrgLoop has five building blocks. That's it.
 | **Sources** | Things that emit events. A GitHub repo, a Linear project, a Claude Code session. Anything that changes state. |
 | **Actors** | Things that do work when woken. An OpenClaw agent, a Claude Code team, a human via notification. |
 | **Routes** | Declarative wiring. When source X emits event Y, wake actor Z with context C. Pure routing, no business logic. |
-| **Transforms** | Optional pipeline steps. Filter noise, scan for prompt injection, deduplicate. Mechanical -- actors handle reasoning, transforms handle plumbing. |
+| **Transforms** | Optional pipeline steps. Filter noise, deduplicate, enrich with metadata. Mechanical -- actors handle reasoning, transforms handle plumbing. |
 | **Loggers** | Passive observers. Every event, every transform, every delivery -- captured for debugging and audit. |
 
 For a deep dive, see [Five Primitives](/concepts/five-primitives/).
@@ -164,7 +164,7 @@ Same actor, different prompts per route. The routing layer decides which SOP is 
 
 **Composable workflows.** Connectors, transforms, and loggers are independently publishable packages. Anyone can build and share a connector for their platform.
 
-**Installable organizations.** Modules are entire operational workflows, packaged as code. The engineering org -- sources, routes, transforms, SOPs, and a manifest declaring every dependency -- is a module you can install. `orgloop add module engineering` gives you a functioning autonomous engineering department.
+**Installable organizations.** Modules are entire operational workflows, packaged as code. The engineering org -- sources, routes, transforms, SOPs, and a manifest declaring every dependency -- is a module you can install. `orgloop add module @orgloop/module-engineering` gives you a functioning autonomous engineering department.
 
 **Observability built in.** Every event flows through OrgLoop with a trace ID. What's in flight, what's stalled, what's completing, what's failing -- across every business process.
 

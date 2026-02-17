@@ -135,7 +135,7 @@ orgctl bootstrap @orgloop/module-engineering --github-repo my-org/my-repo
 # 3. Wait for health checks
 # 4. Broker credentials (GitHub OAuth, OpenClaw token generation)
 # 5. Write .env
-# 6. orgloop add module engineering --non-interactive
+# 6. orgloop add module @orgloop/module-engineering --non-interactive
 # 7. orgloop start
 ```
 

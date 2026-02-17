@@ -7,7 +7,7 @@ A module is a bundled workflow -- connectors, routes, transforms, and prompt fil
 
 ```bash
 npm install @orgloop/module-code-review
-orgloop add module code-review
+orgloop add module @orgloop/module-code-review
 ```
 
 This scaffolds connector configs, routes, recommended transforms, and launch prompt SOPs -- a working org spec that the user configures with their repos, agents, and credentials.
@@ -219,7 +219,7 @@ Modules do not touch credentials. They declare connector dependencies. The user 
 Modules support degraded mode -- they install and run immediately even when some dependencies are missing:
 
 ```
-$ orgloop add module monitoring
+$ orgloop add module @orgloop/module-monitoring
 
   Checking dependencies...
     ✓ @orgloop/connector-webhook

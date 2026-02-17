@@ -247,7 +247,7 @@ routes:
 
     transforms:
       - ref: drop-bot-noise
-      - ref: injection-scanner
+      - ref: dedup
 
     then:
       actor: openclaw-engineering-agent

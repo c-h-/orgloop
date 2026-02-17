@@ -20,7 +20,7 @@ This is the starting point for understanding OrgLoop's config format.
 ```bash
 orgloop init    # select "webhook" when prompted for connectors
 cd my-project
-orgloop add module minimal
+orgloop add module @orgloop/module-minimal
 orgloop validate
 orgloop start
 ```

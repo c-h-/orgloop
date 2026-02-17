@@ -48,6 +48,7 @@ Additional first-party connectors are installed separately:
 npm install @orgloop/connector-linear
 npm install @orgloop/connector-openclaw
 npm install @orgloop/connector-claude-code
+npm install @orgloop/connector-cron
 ```
 
 Or via the CLI:

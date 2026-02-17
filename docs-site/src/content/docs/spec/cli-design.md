@@ -108,7 +108,7 @@ $ orgloop validate
 ✓ connectors/github.yaml — valid source definition
 ✓ connectors/openclaw.yaml — valid actor definition
 ✗ routes/engineering.yaml — error at routes[0].transforms[1]:
-    Transform "injection-scanner" not found. Did you mean "injection-scan"?
+    Transform "my-filter" not found.
 ✓ loggers/default.yaml — valid logger group
 
 1 error, 0 warnings
@@ -144,7 +144,7 @@ OrgLoop Plan — my-org
 
   Transforms:
     + drop-bot-noise              (new — script)
-    + injection-scanner           (new — script)
+    + dedup                       (new — package)
 
   Loggers:
     = file-log                    (unchanged)
@@ -307,7 +307,7 @@ $ orgloop test event.json
 Injecting test event: resource.changed (source: github)
 
   ✓ Transform: drop-bot-noise — PASS (2ms)
-  ✓ Transform: injection-scanner — PASS (15ms)
+  ✓ Transform: dedup — PASS (1ms)
   ✓ Route match: github-to-engineering
   ✓ Delivery: openclaw-engineering-agent — 200 OK (89ms)
 
@@ -508,7 +508,7 @@ Events:     47 (24h), 312 (7d)
 # Inspect a route
 $ orgloop inspect route github-pr-review
 Name:       github-pr-review
-Source:     github → [drop-bot-noise, injection-scanner] → openclaw-engineering-agent
+Source:     github → [drop-bot-noise, dedup] → openclaw-engineering-agent
 Prompt:     ./sops/pr-review.md
 Matched:    45 (24h)
 Dropped:    2 (24h) — all by drop-bot-noise

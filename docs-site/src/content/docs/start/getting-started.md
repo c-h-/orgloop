@@ -48,7 +48,7 @@ cd my-org
 ### Add a workflow module
 
 ```bash
-orgloop add module minimal
+orgloop add module @orgloop/module-minimal
 ```
 
 This adds a webhook source, a console logger, and a single route.
@@ -195,10 +195,10 @@ cd my-org
 ### Add the engineering module
 
 ```bash
-orgloop add module engineering
+orgloop add module @orgloop/module-engineering
 ```
 
-This adds 5 pre-built routes: PR review, CI failure triage, Linear ticket routing, Claude Code supervision, and a feedback loop.
+This adds 5 pre-built routes: PR review, PR comment response, CI failure triage, Linear ticket routing, and Claude Code supervision.
 
 ### Check your environment
 

@@ -10,7 +10,7 @@ The [manifesto](/vision/manifesto/) ends with a compelling demo:
 ```bash
 npm install -g @orgloop/cli
 npm install @orgloop/module-engineering
-orgloop add module engineering
+orgloop add module @orgloop/module-engineering
 orgloop start
 ```
 
@@ -145,7 +145,7 @@ orgctl calls `orgloop doctor --json` to verify the environment state after boots
 orgctl invokes OrgLoop's CLI to install the module without prompts:
 
 ```bash
-orgloop add module engineering \
+orgloop add module @orgloop/module-engineering \
   --non-interactive \
   --param github_source=github \
   --param agent_actor=engineering \

@@ -78,7 +78,7 @@ Next: run `orgloop add module <name>` to install a workflow module, or `orgloop 
 Modules are pre-built workflow packages that add routes, transforms, SOPs, and connectors to your project. They are the primary way to install workflows.
 
 ```bash
-orgloop add module engineering
+orgloop add module @orgloop/module-engineering
 ```
 
 ```
@@ -123,7 +123,7 @@ Available modules:
 Non-interactive mode:
 
 ```bash
-orgloop add module engineering --no-interactive --params '{"github_source":"github","agent_actor":"openclaw-engineering-agent"}'
+orgloop add module @orgloop/module-engineering --no-interactive --params '{"github_source":"github","agent_actor":"openclaw-engineering-agent"}'
 ```
 
 ## 4. Configure your environment

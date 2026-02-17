@@ -123,11 +123,14 @@ orgloop/
 │
 ├── transforms/                  # First-party transforms
 │   ├── filter/                  # @orgloop/transform-filter (match/exclude + jq)
-│   └── dedup/                   # @orgloop/transform-dedup (SHA-256, time window)
+│   ├── dedup/                   # @orgloop/transform-dedup (SHA-256, time window)
+│   └── enrich/                  # @orgloop/transform-enrich (add, copy, compute fields)
 │
 ├── loggers/                     # First-party loggers
 │   ├── file/                    # @orgloop/logger-file (buffered JSONL, rotation)
-│   └── console/                 # @orgloop/logger-console (ANSI colors, phase icons)
+│   ├── console/                 # @orgloop/logger-console (ANSI colors, phase icons)
+│   ├── otel/                    # @orgloop/logger-otel (OpenTelemetry OTLP export)
+│   └── syslog/                  # @orgloop/logger-syslog (RFC 5424 syslog protocol)
 │
 ├── modules/                     # First-party modules (workflow bundles)
 │   ├── engineering/             # @orgloop/module-engineering

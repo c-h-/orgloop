@@ -43,9 +43,12 @@ connectors/
 transforms/
   filter/       — Event filter (match/exclude/jq)
   dedup/        — SHA-256 deduplication
+  enrich/       — Add, copy, and compute fields
 loggers/
   console/      — Console logger (ANSI colors)
   file/         — File logger (JSONL, rotation, gzip)
+  otel/         — OpenTelemetry OTLP export
+  syslog/       — RFC 5424 syslog protocol
 modules/
   engineering/  — Engineering org workflow module
 ```

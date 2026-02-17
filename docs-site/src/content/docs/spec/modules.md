@@ -11,7 +11,7 @@ A **module** is a bundled workflow: connectors + routes + transforms + prompt fi
 
 ```bash
 npm install @orgloop/module-code-review
-orgloop add module code-review
+orgloop add module @orgloop/module-code-review
 ```
 
 This scaffolds: GitHub connector config, OpenClaw actor config, routes for PR review -> agent supervision, recommended transforms (injection scanner, bot noise filter), and launch prompt SOPs — a working org spec that you configure with your repo, agent, and credentials.
@@ -137,7 +137,7 @@ routes:
           - pull_request_review_comment
     transforms:
       - ref: drop-bot-noise
-      - ref: injection-scanner
+      - ref: dedup
     then:
       actor: "{{ params.agent_actor }}"
       config:
@@ -190,7 +190,7 @@ Each module adds its own routes. Routes don't conflict because multi-route match
 Modules support **degraded mode** — they install and run immediately even when some dependencies are missing. This follows OrgLoop's core philosophy: *you don't need reliable actors if you have a reliable system around them.*
 
 ```bash
-$ orgloop add module code-review
+$ orgloop add module @orgloop/module-code-review
 
   Checking dependencies...
     ✓ @orgloop/connector-github
