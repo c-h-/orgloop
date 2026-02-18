@@ -11,6 +11,7 @@ import { GitHubSource } from '../source.js';
 function createMockOctokit() {
 	const pulls = {
 		list: vi.fn(),
+		get: vi.fn(),
 		listReviews: vi.fn(),
 		listReviewComments: vi.fn(),
 		listReviewCommentsForRepo: vi.fn(),
@@ -345,6 +346,91 @@ describe('GitHubSource', () => {
 			expect(result.events[0].provenance.platform_event).toBe('pull_request_review_comment');
 			expect(result.events[0].payload.comment_body).toBe('Needs a fix here');
 			expect(result.events[0].payload.path).toBe('src/index.ts');
+		});
+
+		it('fetches PR data when comment references a PR not in cache', async () => {
+			const mock = createMockOctokit();
+			// No PRs returned by fetchUpdatedPulls (simulates PR not in recent cache)
+			mock.pulls.list.mockResolvedValue({ data: [] });
+
+			// Comment references PR #42 which isn't in the pulls list
+			const comment = makeReviewComment({
+				pull_request_url: 'https://api.github.com/repos/owner/repo/pulls/42',
+			});
+			mock.pulls.listReviewCommentsForRepo.mockResolvedValue({ data: [comment] });
+
+			// pulls.get returns the full PR with user data
+			const fetchedPR = makePR({
+				number: 42,
+				title: 'Fetched PR',
+				user: { login: 'alice', type: 'User' },
+			});
+			mock.pulls.get.mockResolvedValue({ data: fetchedPR });
+
+			const source = await createSource(['pull_request_review_comment'], mock);
+			const result = await source.poll('2024-01-15T09:00:00Z');
+
+			expect(result.events).toHaveLength(1);
+			expect(result.events[0].provenance.pr_author).toBe('alice');
+			expect(mock.pulls.get).toHaveBeenCalledWith(expect.objectContaining({ pull_number: 42 }));
+		});
+
+		it('caches fetched PR so subsequent comments skip the API call', async () => {
+			const mock = createMockOctokit();
+			mock.pulls.list.mockResolvedValue({ data: [] });
+
+			// Two comments on the same uncached PR #42
+			const comment1 = makeReviewComment({
+				id: 201,
+				pull_request_url: 'https://api.github.com/repos/owner/repo/pulls/42',
+				updated_at: '2024-01-15T10:00:00Z',
+			});
+			const comment2 = makeReviewComment({
+				id: 202,
+				pull_request_url: 'https://api.github.com/repos/owner/repo/pulls/42',
+				updated_at: '2024-01-15T11:00:00Z',
+			});
+			mock.pulls.listReviewCommentsForRepo.mockResolvedValue({
+				data: [comment1, comment2],
+			});
+
+			const fetchedPR = makePR({
+				number: 42,
+				user: { login: 'alice', type: 'User' },
+			});
+			mock.pulls.get.mockResolvedValue({ data: fetchedPR });
+
+			const source = await createSource(['pull_request_review_comment'], mock);
+			const result = await source.poll('2024-01-15T09:00:00Z');
+
+			expect(result.events).toHaveLength(2);
+			// Both events should have the correct pr_author
+			expect(result.events[0].provenance.pr_author).toBe('alice');
+			expect(result.events[1].provenance.pr_author).toBe('alice');
+			// pulls.get should only have been called once (cached for second comment)
+			expect(mock.pulls.get).toHaveBeenCalledTimes(1);
+		});
+
+		it('falls back to unknown pr_author when fetch fails', async () => {
+			const mock = createMockOctokit();
+			mock.pulls.list.mockResolvedValue({ data: [] });
+
+			const comment = makeReviewComment({
+				pull_request_url: 'https://api.github.com/repos/owner/repo/pulls/99',
+			});
+			mock.pulls.listReviewCommentsForRepo.mockResolvedValue({ data: [comment] });
+
+			// Simulate API failure
+			mock.pulls.get.mockRejectedValue(new Error('Not found'));
+
+			const source = await createSource(['pull_request_review_comment'], mock);
+			const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+			const result = await source.poll('2024-01-15T09:00:00Z');
+
+			expect(result.events).toHaveLength(1);
+			expect(result.events[0].provenance.pr_author).toBe('unknown');
+			expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Failed to fetch PR #99'));
+			consoleSpy.mockRestore();
 		});
 	});
 

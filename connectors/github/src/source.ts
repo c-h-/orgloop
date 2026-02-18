@@ -483,14 +483,46 @@ export class GitHubSource implements SourceConnector {
 			const prUrl = c.pull_request_url as string | undefined;
 			const prNumber = prUrl ? Number(prUrl.split('/').pop()) : null;
 
-			// Look up PR data from our pulls list, or use a minimal fallback
-			const pr = prNumber ? prByNumber.get(prNumber) : undefined;
-			const prData = pr ?? { number: prNumber ?? 0, title: '' };
+			// Look up PR data from our pulls list; if missing, fetch the individual PR
+			// so the normalizer can extract the pr_author (user.login) field
+			let prData = prNumber ? prByNumber.get(prNumber) : undefined;
+			if (!prData && prNumber) {
+				prData = await this.fetchSinglePull(prNumber);
+				if (prData) {
+					prByNumber.set(prNumber, prData);
+				}
+			}
 
-			events.push(normalizePullRequestReviewComment(this.sourceId, c, prData, repoData));
+			events.push(
+				normalizePullRequestReviewComment(
+					this.sourceId,
+					c,
+					prData ?? { number: prNumber ?? 0, title: '' },
+					repoData,
+				),
+			);
 		}
 
 		return events;
+	}
+
+	/**
+	 * Fetch a single PR by number. Used when a review comment references a PR
+	 * not in the recent pulls cache, so we can enrich with pr_author.
+	 */
+	private async fetchSinglePull(prNumber: number): Promise<GitHubPull | undefined> {
+		try {
+			this.pollBudget.apiCalls++;
+			const { data } = await this.octokit.pulls.get({
+				owner: this.owner,
+				repo: this.repo,
+				pull_number: prNumber,
+			});
+			return data as unknown as GitHubPull;
+		} catch {
+			console.warn(`[github] Failed to fetch PR #${prNumber} for author enrichment`);
+			return undefined;
+		}
 	}
 
 	private async pollIssueComments(since: string): Promise<OrgLoopEvent[]> {
