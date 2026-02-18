@@ -27,7 +27,7 @@ description: "OrgLoop engineering specification — the complete design document
 13. [Scope Boundaries & DX Vision](./scope-boundaries/)
 14. [Runtime Lifecycle](./runtime-lifecycle/)
 
-> **Note (v0.1.9):** The module system (manifests, parameterized templates, `orgloop add module`) was removed in v0.1.9 in favor of a package-native project model. Section 11 has been rewritten as "Project Model" to reflect the current design.
+> Section 11 describes the package-native project model (`package.json` + `orgloop.yaml`).
 
 ### Appendices
 

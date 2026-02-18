@@ -38,7 +38,7 @@ security/                       # Security team project
 └── sops/
 ```
 
-Each project runs its own `orgloop start` (or shares a runtime in a future multi-project mode). This provides natural isolation -- each team owns their config, dependencies, and event routing. Composition is handled by sharing connector packages across projects via npm, not by bundling configs into modules.
+Each project runs its own `orgloop start` (or shares a runtime in a future multi-project mode). This provides natural isolation -- each team owns their config, dependencies, and event routing. Composition is handled by sharing connector packages across projects via npm.
 
 #### Workspaces (Future)
 

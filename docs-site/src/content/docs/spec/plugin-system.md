@@ -92,7 +92,7 @@ export default function register(): ConnectorRegistration {
 ```
 
 4. For each source/actor in config, `resolveConnectors()` instantiates `new reg.source()` or `new reg.target()`, building `sources: Map<string, SourceConnector>` and `actors: Map<string, ActorConnector>`
-5. These Maps are passed to the runtime via `runtime.loadModule()` (an internal API that loads the project config as a single unit). The `OrgLoop` wrapper class accepts `new OrgLoop(config, { sources, actors })` for programmatic use -- it creates a `Runtime` internally.
+5. These Maps are passed to the runtime via `runtime.loadModule()` (an internal API). The `OrgLoop` wrapper class accepts `new OrgLoop(config, { sources, actors })` for programmatic use -- it creates a `Runtime` internally.
 6. If a connector import fails, the CLI suggests `npm install <package>` to the user
 
 **Plugin resolution order:**

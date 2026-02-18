@@ -95,7 +95,7 @@ Non-interactive mode:
 orgloop init --name my-org --connectors github,linear,openclaw --no-interactive
 ```
 
-For the project config schema and YAML file formats, see [Project Model](./modules/).
+For the project config schema and YAML file formats, see the [Project Model](./modules/) spec.
 
 #### `orgloop validate`
 

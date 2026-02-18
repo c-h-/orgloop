@@ -3,7 +3,7 @@ title: "Project Model"
 description: "Package-native project structure, orgloop.yaml schema, plugin resolution, YAML file formats, environment variable substitution, and route auto-discovery."
 ---
 
-> **Status: Implemented (v0.1.9).** Projects are package-native. A project is a directory with `orgloop.yaml` + `package.json`. Connectors, transforms, and loggers are npm packages installed via `npm install`. Routes are auto-discovered from the `routes/` directory. The module system (manifests, parameterized templates, `orgloop add module`) was removed in v0.1.9 in favor of this simpler, npm-native model.
+> **Status: Implemented (v0.1.9).** Projects are package-native. A project is a directory with `orgloop.yaml` + `package.json`. Connectors, transforms, and loggers are npm packages installed via `npm install`. Routes are auto-discovered from the `routes/` directory.
 
 ### What Is a Project?
 
@@ -33,7 +33,7 @@ my-org/
 └── node_modules/             # Installed packages (gitignored)
 ```
 
-This is the entire model. No module manifests, no parameterized templates, no composition layer. A project is a flat, explicit directory of YAML files and npm packages. `orgloop init` scaffolds it. `orgloop start` runs it.
+This is the entire model. A project is a flat, explicit directory of YAML files and npm packages. `orgloop init` scaffolds it. `orgloop start` runs it.
 
 ### Project Config (`orgloop.yaml`)
 
@@ -317,6 +317,6 @@ Run `orgloop plan` to see exactly what the resolved config looks like before sta
 
 ### Relationship to Internal Architecture
 
-Internally, the runtime uses `ModuleInstance` and `ModuleRegistry` classes to manage workload lifecycle. The CLI loads the project config as a single "module" via `runtime.loadModule()`. These are implementation details -- the user-facing model is a project, not a module. The internal abstraction exists to support potential future capabilities (multi-project runtimes, dynamic workload management) without breaking the current single-project model.
+Internally, the runtime uses `ModuleInstance` and `ModuleRegistry` classes to manage workload lifecycle. The CLI loads the project config via `runtime.loadModule()`. These are implementation details -- the user-facing model is a project. The internal abstraction exists to support potential future capabilities (multi-project runtimes, dynamic workload management) without breaking the current single-project model.
 
 For the runtime architecture, see [Runtime Lifecycle](./runtime-lifecycle/). For CLI commands, see [CLI Design](./cli-design/).

@@ -193,9 +193,9 @@ Implemented as `@orgloop/connector-cron`. Supports standard 5-field cron express
 
 ---
 
-### ~~FE-15: Installable Organization Modules~~ **Resolved then Removed (v0.1.9)**
+### ~~FE-15: Installable Organization Packages~~ **Resolved then Removed (v0.1.9)**
 
-The module system (manifests, parameterized templates, `orgloop add module`) was implemented in v0.1.8 and removed in v0.1.9 in favor of a simpler package-native project model. Projects now use `package.json` + `orgloop.yaml` with standard npm dependency management. See [Project Model](./modules/) for the current design.
+The module system was removed in v0.1.9 in favor of a package-native project model. Projects use `package.json` + `orgloop.yaml` with standard npm dependency management. See the [Project Model](./modules/) spec for the current design.
 
 ---
 
@@ -284,9 +284,9 @@ Configurable at both the transform definition level (global default) and the rou
 
 ---
 
-### ~~FE-22: Module Trust & Permissions~~ **Superseded (v0.1.9)**
+### ~~FE-22: Plugin Trust & Permissions~~ **Superseded (v0.1.9)**
 
-The module system was removed in v0.1.9 in favor of package-native projects. Trust and permissions for third-party connectors and transforms are handled through standard npm security practices (package provenance, audit, lockfiles). SOP review remains a human responsibility -- routes and SOPs are plain files in the project directory, fully inspectable before use.
+Trust and permissions for third-party connectors and transforms are handled through standard npm security practices (package provenance, audit, lockfiles). SOP review remains a human responsibility -- routes and SOPs are plain files in the project directory, fully inspectable before use.
 
 ---
 

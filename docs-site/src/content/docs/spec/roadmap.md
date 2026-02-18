@@ -51,9 +51,9 @@ The manifesto ends with that promise. Everything below is the path to making it 
 
 **Exit criteria:** 30 days of stable, unattended operation. Zero dropped events. Recovery from process crashes without manual intervention.
 
-### ~~Phase 4: Implement Modules~~ **Superseded**
+### ~~Phase 4: Package-Native Project Model~~ **Complete**
 
-A module system was implemented in v0.1.8 and removed in v0.1.9 in favor of a simpler **package-native project model**. Projects now use `package.json` + `orgloop.yaml` with standard npm dependency management — no custom module manifests or template expansion.
+The project model is package-native. Projects use `package.json` + `orgloop.yaml` with standard npm dependency management. A module system was briefly implemented in v0.1.8 and removed in v0.1.9 in favor of this simpler approach.
 
 - `examples/engineering-org/` — the reference project (GitHub, Linear, Claude Code, OpenClaw)
 - `examples/minimal/` — simplest possible project (webhook -> webhook)
