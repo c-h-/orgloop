@@ -191,9 +191,9 @@ Same actor, different prompts per route. The routing layer decides which SOP is 
 
 Infrastructure as Code didn't just make servers easier to manage. It created an entirely new category of tooling, visibility, and capability. Organization as Code does the same.
 
-**Installable Autonomous Organizations.** This is where it gets interesting. Think about what a module actually is: it's an entire operational workflow, packaged as code. My engineering org -- the sources, routes, transforms, SOPs, and a manifest declaring every dependency down to the API tokens and external services -- is a module you can install. The module doesn't just give you YAML files. It declares the full truth about what it needs, and OrgLoop tells you exactly what's missing and how to get it. Install the module, follow the guidance, start. You just cloned a functioning autonomous engineering department.
+**Installable Autonomous Organizations.** This is where it gets interesting. Think about what an OrgLoop project actually is: it's an entire operational topology, defined as code. My engineering org -- the sources, routes, transforms, SOPs, and a `package.json` declaring every connector dependency -- is a project you can clone and run. The project doesn't just give you YAML files. It declares the full truth about what it needs via `orgloop.yaml` and connector setup metadata, and OrgLoop tells you exactly what's missing and how to get it. Clone the project, install packages, follow the guidance, start. You just replicated a functioning autonomous engineering department.
 
-These aren't templates. They're complete operational topologies with declared dependencies — installable autonomous organizations. Your org config is code: version it, diff it, clone it, deploy it. And if a dependency isn't ready yet — an actor isn't running, a service isn't installed — the system doesn't break. Events queue. The routing layer keeps working. You add the missing piece when you're ready, and everything catches up.
+These aren't templates. They're complete operational topologies with declared dependencies -- installable autonomous organizations. Your org config is code: version it, diff it, clone it, deploy it. And if a dependency isn't ready yet -- an actor isn't running, a service isn't installed -- the system doesn't break. Events queue. The routing layer keeps working. You add the missing piece when you're ready, and everything catches up.
 
 **A foundation for observability.** Every event flows through OrgLoop with a trace ID. What's in flight, what's stalled, what's completing, what's failing, across every business process. This is the foundation for the oversight layer that lets you manage at the level of objectives, not individual agent sessions.
 
@@ -222,7 +222,7 @@ These aren't templates. They're complete operational topologies with declared de
   with: { prompt_file: "./sops/p1-triage.md" }
 ```
 
-Same five primitives. Different connectors. The engineering org is the proof case, not the ceiling. Someone builds a customer support flow — Zendesk + Intercom + triage routes + escalation SOPs — and publishes it as a module. Someone else packages an entire DevOps org: PagerDuty + Datadog + runbook agents + incident response routes. Install, configure, run.
+Same five primitives. Different connectors. The engineering org is the proof case, not the ceiling. Someone builds a customer support flow -- Zendesk + Intercom + triage routes + escalation SOPs -- and shares it as a project template. Someone else packages an entire DevOps org: PagerDuty + Datadog + runbook agents + incident response routes. Clone, install, configure, run.
 
 ## The Autonomy Ladder
 
@@ -236,7 +236,7 @@ Organization as Code is what closes that gap. Not by making actors smarter, but 
 
 ## Where We Are
 
-Alpha. The framework is extracted from the production system described above. Module packaging works — `@orgloop/module-engineering` is on npm and installs with `orgloop add module engineering`. Single-process, single-machine runtime today. Distributed execution is on the roadmap, but a single machine handles a real engineering org's event volume fine.
+Alpha. The framework is extracted from the production system described above. Projects are package-native -- a directory with `orgloop.yaml` and a `package.json` listing connector dependencies. Connectors, transforms, and loggers are npm packages installed with `npm install`. Single-process, single-machine runtime today. Distributed execution is on the roadmap, but a single machine handles a real engineering org's event volume fine.
 
 ## OrgLoop
 
@@ -250,11 +250,12 @@ The agents aren't the problem. The system around them is.
 
 ```bash
 npm install -g @orgloop/cli
-npm install @orgloop/module-engineering
-orgloop add module @orgloop/module-engineering
+orgloop init --connectors github,linear,openclaw,claude-code
+cd my-org
+npm install
 # orgloop doctor tells you what's needed and how to get it
 orgloop start
 ```
 
-You just installed my engineering organization. The routes are running. Events are flowing. Your actors are waking with focused SOPs. The org loops. 🧬
+You just set up an engineering organization. The routes are running. Events are flowing. Your actors are waking with focused SOPs. The org loops.
 

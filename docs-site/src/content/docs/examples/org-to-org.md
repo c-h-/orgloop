@@ -11,7 +11,7 @@ This example uses only `@orgloop/connector-webhook` (available today) and `@orgl
 
 What happens when two organizations both run OrgLoop? They can communicate through webhooks -- one org's actor delivers to another org's source. Organizations become protocol endpoints.
 
-This is the natural endpoint of the module model. A department is a module. An organization is a composition of modules. Org-to-org communication is just another route.
+This is the natural endpoint of the project model. A department is a project with its own connectors, routes, and SOPs. An organization is a composition of projects. Org-to-org communication is just another route.
 
 ## Architecture
 
@@ -161,7 +161,7 @@ loggers:
 
 **Full auditability.** Both sides log every event. The file logger captures every inbound request, every routing decision, every delivery. If there's a dispute about what was sent or received, the audit trail is complete on both sides.
 
-**Composable with everything else.** The org-to-org route is just another route. It composes with department modules, supervisor loops, transforms, and any other OrgLoop feature. A support department can escalate to an external vendor's OrgLoop instance the same way it escalates to an internal engineering team -- the route structure is identical.
+**Composable with everything else.** The org-to-org route is just another route. It composes with department projects, supervisor loops, transforms, and any other OrgLoop feature. A support department can escalate to an external vendor's OrgLoop instance the same way it escalates to an internal engineering team -- the route structure is identical.
 
 ## Variations
 

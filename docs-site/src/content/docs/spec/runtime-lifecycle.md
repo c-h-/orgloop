@@ -1,276 +1,200 @@
 ---
-title: "Runtime & Module Lifecycle"
-description: "Runtime as a long-lived host process, modules as dynamically loadable workloads, identity model, state isolation, and the path to networked runtimes."
+title: "Runtime Lifecycle"
+description: "Runtime as a long-lived host process, project loading, daemon and supervised daemon modes, signal handling, state management, and the path to networked runtimes."
 ---
 
-> **Status: Implemented.** The core architecture described here is implemented in `packages/core/src/runtime.ts`, `packages/core/src/module-instance.ts`, and `packages/core/src/registry.ts`. The `OrgLoop` engine class (`packages/core/src/engine.ts`) is a backward-compatible wrapper that creates a single "default" module within a Runtime. CLI support via `orgloop module` commands. Phase 1 (backwards compatible) and Phase 3 (dynamic module management) are live. Phase 2 (boot manifest with `modules:` section) is config-only — not yet implemented.
+> **Status: Implemented.** The runtime architecture is implemented in `packages/core/src/runtime.ts`, `packages/core/src/module-instance.ts`, and `packages/core/src/registry.ts`. The CLI operates in single-project mode -- `orgloop start` loads your project config into the runtime. Daemon mode (`--daemon`) and supervised daemon mode (`--daemon --supervised`) are implemented.
 
 ### Core Insight: Separate the Runtime from the Workload
 
-Today, OrgLoop conflates two concerns:
+OrgLoop separates two concerns:
 
-1. **Runtime infrastructure** — the event bus, scheduler, logger fanout, checkpoint store, HTTP listener
-2. **Workloads** — the sources, routes, transforms, and actors that do actual work
+1. **Runtime infrastructure** -- the event bus, scheduler, logger fanout, checkpoint store, HTTP listener
+2. **Workloads** -- the sources, routes, transforms, and actors that do actual work
 
-These have different lifecycles. The runtime is long-lived infrastructure. Workloads (modules) are added, removed, updated, and restarted independently. Tying them together via a single config file means every module change requires a full runtime restart — disrupting all running modules, creating event gaps, and forcing every source to replay from its last checkpoint.
+The runtime is long-lived infrastructure. Workloads are the project's configuration -- sources, routes, transforms, and actors defined in YAML. The runtime owns the shared infrastructure; the project config defines what work flows through it.
 
-**The design:** the runtime is an independent, long-lived process. Modules are dynamically loaded and unloaded within it.
-
-### Three Abstractions
+### Runtime Architecture
 
 | Concept | What it is | Lifetime |
 |---------|-----------|----------|
-| **Runtime** | The OrgLoop process. Event bus, scheduler, logger fanout, module registry. One per host (for now). | Host uptime |
-| **Module** | A named collection of sources, routes, transforms, actors. The logical unit of management. | Independent — loaded/unloaded without affecting other modules |
-| **Registry** | Maps module names to loaded instances. Enforces singleton semantics per name. | Runtime lifetime |
-
-The runtime is infrastructure. Modules are workloads. The registry is the control plane.
+| **Runtime** | The OrgLoop process. Event bus, scheduler, logger fanout, HTTP control server. One per host. | Host uptime |
+| **Project** | A directory with `orgloop.yaml` + `package.json`. Defines sources, routes, transforms, actors. | Loaded at startup |
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                          Runtime                                 │
-│                                                                  │
-│  ┌──────────┐  ┌──────────┐  ┌────────────┐  ┌──────────────┐  │
-│  │ EventBus │  │Scheduler │  │Logger Mgr  │  │  Registry    │  │
-│  │          │  │          │  │            │  │              │  │
-│  │  shared  │  │  shared  │  │  shared    │  │ name → mod   │  │
-│  └──────────┘  └──────────┘  └────────────┘  └──────────────┘  │
-│                                                                  │
-│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────┐  │
-│  │ Module:          │  │ Module:          │  │ Module:      │  │
-│  │ "engineering"    │  │ "ops-alerts"     │  │ "personal"   │  │
-│  │                  │  │                  │  │              │  │
-│  │ sources: 2      │  │ sources: 1      │  │ sources: 1   │  │
-│  │ routes: 4       │  │ routes: 2       │  │ routes: 1    │  │
-│  │ actors: 1       │  │ actors: 1       │  │ actors: 1    │  │
-│  └──────────────────┘  └──────────────────┘  └──────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
++-----------------------------------------------------------------+
+|                          Runtime                                |
+|                                                                 |
+|  +----------+  +----------+  +------------+  +--------------+  |
+|  | EventBus |  |Scheduler |  |Logger Mgr  |  | HTTP Server  |  |
+|  |          |  |          |  |            |  |              |  |
+|  |  shared  |  |  shared  |  |  shared    |  | control API  |  |
+|  +----------+  +----------+  +------------+  +--------------+  |
+|                                                                 |
+|  +----------------------------------------------------------+  |
+|  | Project: "engineering-org"                                |  |
+|  |                                                           |  |
+|  | sources: github, linear, claude-code                      |  |
+|  | routes: github-pr-review, linear-to-eng, cc-supervisor    |  |
+|  | actors: openclaw-engineering-agent                         |  |
+|  | transforms: drop-bot-noise, dedup                         |  |
+|  +----------------------------------------------------------+  |
++-----------------------------------------------------------------+
 ```
 
-### Module Identity
+### Project Loading
 
-**Named modules are singletons.** A module's `name` (from its manifest `metadata.name`) is its identity within the runtime. The registry enforces: one instance per name. Attempting to load a second module with the same name is rejected (or triggers a reload — see [Hot Reload](#hot-reload-future)).
+When `orgloop start` runs:
 
-This solves the **git worktree problem.** If the same project exists at `/work/orgloop` and `/work/orgloop-2` (worktrees), and both declare `name: engineering`, only one can be loaded. The name is the singleton lock, not the filesystem path.
+1. Read `orgloop.yaml` and all referenced YAML files
+2. Auto-discover routes from `routes/` directory
+3. Resolve environment variables (`${VAR}` substitution)
+4. Dynamically import connector/transform/logger packages from `node_modules/`
+5. Create a `Runtime` instance and start shared infrastructure (bus, scheduler, HTTP server)
+6. Load the resolved project config via `runtime.loadModule()` (internal API)
+7. Sources begin polling, routes are registered, actors are ready
 
-**Unnamed modules** derive identity from a hash of their resolved config file path. They work, but lack singleton protection across paths. Named modules are the encouraged default.
+Internally, the project is loaded as a `ModuleInstance` -- this is an implementation detail. The user-facing concept is a project, not a module. The internal abstraction exists to keep the door open for future multi-project runtimes without breaking the current model.
 
-```yaml
-# orgloop-module.yaml — the name is the identity
-apiVersion: orgloop/v1alpha1
-kind: Module
-metadata:
-  name: engineering       # Singleton within the runtime
-  description: "Engineering org workflows"
+### Runtime Modes
+
+#### Foreground (development)
+
+```bash
+orgloop start
 ```
 
-### Module Lifecycle
+Runs in the foreground. Ctrl+C sends SIGINT for graceful shutdown. Ideal for development and debugging -- logs stream to the console.
 
-Modules have four lifecycle states:
+#### Daemon (production)
 
-```
-loading → active → unloading → removed
-                ↑               │
-                └───── reload ──┘
+```bash
+orgloop start --daemon
 ```
 
-| State | Meaning |
-|-------|---------|
-| `loading` | Sources initializing, routes registering, transforms wiring |
-| `active` | Sources polling, routes matching, events flowing |
-| `unloading` | Sources stopping, in-flight events draining, checkpoints flushing |
-| `removed` | Fully unloaded, state preserved on disk for next load |
+Forks to background. PID written to `~/.orgloop/orgloop.pid`. Stdout/stderr redirected to `~/.orgloop/logs/daemon.stdout.log` and `daemon.stderr.log`. Use `orgloop stop` to shut down.
 
-**Loading a module:**
-1. Validate manifest and config
-2. Resolve connectors (sources, actors)
-3. Register routes in the router (namespaced with module name)
-4. Initialize sources (start polling via shared scheduler)
-5. Mark module `active` in registry
+Before forking, the daemon checks for an already-running instance via the PID file. If one is found, it reports the error and exits.
 
-**Unloading a module:**
-1. Stop source polling (graceful — finish current poll cycle)
+#### Supervised Daemon (production, auto-restart)
+
+```bash
+orgloop start --daemon --supervised
+```
+
+Wraps the daemon in a `Supervisor` process that automatically restarts it on crash. Uses exponential backoff. Crash loop detection: if the process restarts more than 10 times within 5 minutes, the supervisor gives up.
+
+The supervisor writes a heartbeat file (`~/.orgloop/heartbeat`) every 30 seconds with timestamp, PID, and uptime. This enables external monitoring tools to detect wedged processes.
+
+### Signal Handling
+
+| Signal | Behavior |
+|--------|----------|
+| `SIGINT` (Ctrl+C) | Graceful shutdown: flush loggers, save checkpoints, drain in-flight events, exit |
+| `SIGTERM` | Same as SIGINT -- graceful shutdown |
+| `uncaughtException` | Log error, attempt graceful shutdown, exit with code 1 |
+| `unhandledRejection` | Log error, attempt graceful shutdown, exit with code 1 |
+
+Graceful shutdown sequence:
+
+1. Stop source polling (finish current poll cycle)
 2. Drain in-flight events (deliver or timeout)
-3. Flush checkpoints to disk
-4. Remove routes from router
-5. Mark module `removed` in registry
+3. Flush log buffers
+4. Save checkpoints to disk
+5. Clean up PID and port files
+6. Exit
 
-Other modules are unaffected. The event bus keeps running. Sources from other modules keep polling.
+### Shutdown via Control API
 
-### State Isolation
+`orgloop stop` first attempts to shut down via the HTTP control API (`POST /control/shutdown`). If the control API is unreachable, it falls back to sending SIGTERM to the PID from the PID file. Either path triggers the graceful shutdown sequence.
 
-Each module owns its state. Shared infrastructure routes to the right namespace.
+### State Management
 
 ```
 ~/.orgloop/
-├── runtime.pid              # Runtime PID (one per host)
+├── orgloop.pid              # Runtime PID
 ├── runtime.port             # HTTP listener port
-├── modules/
-│   ├── engineering/
-│   │   ├── checkpoints/     # Per-source checkpoint files
-│   │   ├── state.json       # Module-specific state
-│   │   └── queue/           # Queued events (degraded actors)
-│   ├── ops-alerts/
-│   │   ├── checkpoints/
-│   │   ├── state.json
-│   │   └── queue/
-│   └── personal/
-│       ├── checkpoints/
-│       ├── state.json
-│       └── queue/
-├── logs/                    # Shared log directory (module name in entries)
+├── heartbeat                # Supervisor health heartbeat
+├── state.json               # Runtime state snapshot (sources, routes, actors)
+├── logs/
+│   ├── orgloop.log          # Application logs
+│   ├── daemon.stdout.log    # Daemon stdout
+│   └── daemon.stderr.log    # Daemon stderr
 └── data/
-    └── wal/                 # Shared WAL (events tagged with module)
+    ├── checkpoints/         # Per-source checkpoint files
+    ├── wal/                 # Write-ahead log (event durability)
+    └── queue/               # Queued events (degraded actors)
 ```
 
-**Shared resources:**
-- Event bus — one bus, events tagged with `module` origin
-- Scheduler — one scheduler, polls tagged with module
-- Logger fanout — one pipeline, module name in every log entry
-- WAL — one log, module name in every entry
+**Shared resources owned by the runtime:**
+- Event bus -- events flow through the bus to the router
+- Scheduler -- manages poll intervals for all sources
+- Logger fanout -- distributes log entries to all configured loggers
+- HTTP server -- control API + webhook listener (localhost, default port 4800)
+- WAL -- write-ahead log for event durability
 
-**Per-module resources:**
-- Checkpoints — each module's sources track their own position independently
-- Queue — degraded actors store events per-module
-- State — module-specific metadata
+**Per-project resources:**
+- Checkpoints -- each source tracks its own position independently
+- Queue -- degraded actors store events locally until available
+- State -- project metadata snapshot
 
 ### CLI Surface
 
 ```bash
 # Runtime lifecycle
-orgloop start                          # Start runtime, load modules from boot config
-orgloop stop                           # Stop runtime (gracefully unloads all modules)
-orgloop status                         # Runtime health + all loaded modules summary
-
-# Module lifecycle
-orgloop module load <name-or-path>     # Load a module into the running runtime
-orgloop module unload <name>           # Unload a module (preserves state on disk)
-orgloop module reload <name>           # Unload + load (picks up config changes)
-orgloop module list                    # List loaded modules with status
-orgloop module status <name>           # Detailed status for one module
+orgloop start                          # Start in foreground (development)
+orgloop start --daemon                 # Start as background daemon
+orgloop start --daemon --supervised    # Start as supervised daemon (auto-restart)
+orgloop start --force                  # Skip doctor pre-flight checks
+orgloop stop                           # Stop runtime gracefully
+orgloop status                         # Runtime health + source/route/actor summary
 ```
 
-**Boot config.** `orgloop start` reads `orgloop.yaml` in CWD (or `--config`) as a **boot manifest** — the initial set of modules to load. This is a convenience, not a constraint. Once the runtime is running, the registry is the source of truth. Modules can be loaded and unloaded dynamically without touching the boot config.
+**Pre-flight checks.** Before starting, `orgloop start` runs `orgloop doctor` checks. If critical errors are found, startup is blocked (use `--force` to bypass). If the environment is degraded (e.g., missing optional credentials), a warning is shown and startup proceeds.
 
-```yaml
-# orgloop.yaml — boot manifest
-modules:
-  - package: "@orgloop/module-engineering"
-    params:
-      github_source: github
-      agent_actor: engineering
-
-  - package: "@orgloop/module-ops-alerts"
-    params:
-      pagerduty_source: pagerduty
-      agent_actor: ops
-```
-
-Running `orgloop start` with this config starts the runtime and loads both modules. Later, `orgloop module load ./personal` adds a third module without restarting.
-
-### Shared-Host Scenario
-
-Multiple people on a shared host, each developing different OrgLoop modules:
-
-```bash
-# Alice, developing an engineering workflow
-alice$ orgloop module load ./engineering
-# Loaded "engineering" into runtime (PID 42)
-
-# Bob, developing an ops workflow
-bob$ orgloop module load ./ops-alerts
-# Loaded "ops-alerts" into runtime (PID 42)
-
-# Alice updates her module
-alice$ orgloop module reload engineering
-# Unloaded "engineering", reloaded with updated config
-# Bob's "ops-alerts" never interrupted
-
-# Charlie checks what's running
-charlie$ orgloop module list
-# NAME           STATUS   SOURCES  ROUTES  UPTIME
-# engineering    active   2        4       2h 15m
-# ops-alerts     active   1        2       45m
-```
-
-One runtime, multiple modules, independent lifecycles. No restarts. No event gaps.
-
-### Event Flow with Modules
-
-Events carry their module origin. The router matches within and (eventually) across modules.
+### Event Flow
 
 ```
-Source.poll() ──[tagged: module=engineering]──► EventBus
-                                                   │
-                        ┌──────────────────────────┤
-                        ▼                          ▼
-              Route: engineering-*          Route: ops-*
-              (matches module's routes)    (does NOT match — different module)
-                        │
-                        ▼
-              Transform pipeline ──► Actor.deliver()
+Source.poll() --> EventBus --> matchRoutes() --> Transform pipeline --> Actor.deliver()
+                                                                           |
+                                                                 actor.stopped --> EventBus (loops back)
 ```
 
-**Current scope:** routes match only within their own module. A module's sources only trigger that module's routes.
-
-**Future scope (cross-module routing):** explicit opt-in. A route could declare `when: { source: "engineering:github" }` to listen to another module's source. This enables composition patterns like a supervision module that observes all `actor.stopped` events across modules. But this is explicitly deferred — it requires careful thought about module isolation boundaries.
-
-### Migration Path
-
-**From current (single config, single process) to multi-module runtime:**
-
-1. **Phase 1 (backwards compatible):** `orgloop start` with a flat config (no `modules:` section) loads everything as a single implicit module named `"default"`. Existing setups work unchanged.
-
-2. **Phase 2:** Users can add `modules:` to their config, splitting their flat config into named modules. The runtime loads them independently.
-
-3. **Phase 3:** Dynamic module management via CLI. `orgloop module load/unload/reload` for live module lifecycle.
-
-Each phase is additive. No breaking changes. A user who never touches modules gets the same behavior as today.
+Events carry their source origin. The router matches events against all routes in the project. Multi-route matching is supported -- one event can trigger multiple routes. Transform pipelines run sequentially per route.
 
 ### Networking: Future Design Space
 
-The runtime/module separation is designed with a networked future in mind, but explicitly defers building it.
+The runtime architecture is designed with a networked future in mind, but explicitly defers building it.
 
-**The BEAM analogy.** In Erlang/OTP, the VM hosts many applications (modules). Each application is a supervision tree of processes. The VM can join a cluster — processes become location-transparent, addressable by name regardless of which node hosts them. The runtime handles routing, the applications don't know or care.
+**The BEAM analogy.** In Erlang/OTP, the VM hosts many applications. Each application is a supervision tree of processes. The VM can join a cluster -- processes become location-transparent, addressable by name regardless of which node hosts them. The runtime handles routing; the applications don't know or care.
 
 **How this maps to OrgLoop:**
 
 | BEAM concept | OrgLoop equivalent |
 |---|---|
 | VM (node) | Runtime |
-| Application | Module |
+| Application | Project workload |
 | Process | Source / Route / Actor |
 | Distributed Erlang | Networked runtime (future) |
-| Process registry | Module registry |
-| `{:global, :name}` | Module name (singleton) |
+| Process registry | Internal module registry |
 
 **What we design for now:**
-- Module names are globally meaningful (not just host-local)
-- Events carry module origin metadata
-- The registry interface doesn't assume locality (could back onto a distributed store)
-- State isolation is per-module, not per-host
+- Project names are globally meaningful (not just host-local)
+- Events carry source origin metadata
+- The internal registry interface doesn't assume locality (could back onto a distributed store)
 
 **What we explicitly defer:**
 - Multi-host runtime clustering
-- Cross-host module placement / scheduling
+- Cross-host workload placement / scheduling
 - Distributed event bus (Tier 2/3 from [Scale Design](./scale-design/))
-- Module migration (moving a running module between hosts)
+- Workload migration (moving a running project between hosts)
 - Consensus / split-brain handling
 
-The key constraint: **don't make decisions now that close the door on networking later.** Module names as identity (not PIDs or paths), events with module metadata, and a registry abstraction that could back onto etcd/NATS — these keep the door open.
-
-### Relationship to Existing Spec
-
-| Spec section | How this relates |
-|---|---|
-| [Modules](./modules/) | Modules define the workload contract (manifest, parameters, composition). This spec defines how those modules are managed at runtime. |
-| [Runtime Modes](./runtime-modes/) | CLI/library/server modes are the *interface* to the runtime. This spec defines the runtime's *internal architecture*. |
-| [Scale Design](./scale-design/) | Tier 1/2/3 scaling applies to the event bus and delivery fleet within the runtime. This spec is orthogonal — it's about module lifecycle, not event throughput. |
-| [Scope Boundaries](./scope-boundaries/) | OrgLoop still doesn't install software or broker credentials. The runtime is still just the routing layer — now with explicit module lifecycle management. |
+**Future multi-project runtime.** The internal `ModuleInstance` and `ModuleRegistry` abstractions support loading multiple projects into a single runtime. This capability is architecturally present but not exposed via the CLI. A future version could allow multiple people on a shared host to each load different OrgLoop projects into a single runtime -- one runtime, multiple projects, independent lifecycles, no restarts, no event gaps. This is explicitly deferred until there is a real need.
 
 ### Hot Reload (Future)
 
-When a module's config changes, the runtime should be able to reload it without affecting other modules. The sequence:
+When a project's config changes, the runtime could reload it without stopping. The sequence:
 
 1. Load new config alongside old
 2. Diff: which sources/routes/actors changed?
@@ -278,4 +202,13 @@ When a module's config changes, the runtime should be able to reload it without 
 4. For changed sources: flush checkpoint, reinit with new config
 5. For unchanged sources: keep polling (no gap)
 
-This is `orgloop module reload <name>`. It's a clean unload-then-load with the optimization of preserving unchanged sources. Deferred to Phase 3.
+This is deferred. Currently, config changes require `orgloop stop` + `orgloop start`.
+
+### Relationship to Existing Spec
+
+| Spec section | How this relates |
+|---|---|
+| [Project Model](./modules/) | The project model defines the config structure. This spec defines how that config is loaded and managed at runtime. |
+| [Runtime Modes](./runtime-modes/) | CLI/library/server modes are the *interface* to the runtime. This spec defines the runtime's *internal architecture*. |
+| [Scale Design](./scale-design/) | Tier 1/2/3 scaling applies to the event bus and delivery fleet within the runtime. This spec is orthogonal -- it's about runtime lifecycle, not event throughput. |
+| [Scope Boundaries](./scope-boundaries/) | OrgLoop still doesn't install software or broker credentials. The runtime is still just the routing layer -- now with explicit lifecycle management. |

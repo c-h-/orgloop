@@ -7,31 +7,42 @@ description: "Spec management at scale, runtime architecture tiers, event persis
 
 **Problem:** A Fortune 50 with 2,000 sources, 500 actors, and 10,000 routes can't manage a single directory of YAML files.
 
-**Solution:** Learn from Terraform. Introduce **modules** and **workspaces**.
+**Solution:** Projects per org, with workspaces for environment isolation.
 
-#### Modules
+#### Project-per-Org Pattern
 
-> For the full module design, see [Section 12: Modules](./modules/).
+Each organizational unit (team, department, org) gets its own OrgLoop project -- a directory with `orgloop.yaml` + `package.json`. Projects are self-contained: they declare their own connectors, routes, transforms, and loggers. See [Project Model](./modules/) for the current design.
 
-A module is a reusable, parameterized bundle: connectors + routes + transforms + prompt files — a complete workflow installable as a single package. Modules compose by **instantiation, not merging** — they declare connector dependencies and the user wires them up.
+At scale, a large organization runs multiple independent OrgLoop projects:
 
-```yaml
-# Usage: two modules sharing one GitHub source
-modules:
-  - package: "@orgloop/module-code-review"
-    params:
-      github_source: github
-      agent_actor: platform-agent
+```
+engineering/                    # Engineering org project
+├── orgloop.yaml
+├── package.json
+├── connectors/
+├── routes/
+└── sops/
 
-  - package: "@orgloop/module-ci-monitor"
-    params:
-      github_source: github
-      agent_actor: platform-agent
+platform-ops/                   # Platform ops project
+├── orgloop.yaml
+├── package.json
+├── connectors/
+├── routes/
+└── sops/
+
+security/                       # Security team project
+├── orgloop.yaml
+├── package.json
+├── connectors/
+├── routes/
+└── sops/
 ```
 
-#### Workspaces
+Each project runs its own `orgloop start` (or shares a runtime in a future multi-project mode). This provides natural isolation -- each team owns their config, dependencies, and event routing. Composition is handled by sharing connector packages across projects via npm, not by bundling configs into modules.
 
-Workspaces provide isolated state and configuration for different environments or organizational units.
+#### Workspaces (Future)
+
+Workspaces provide isolated state and configuration for different environments within a single project.
 
 ```bash
 $ orgloop workspace list
@@ -49,19 +60,15 @@ Each workspace has its own:
 - Variable overrides
 
 ```
-orgloop-enterprise/
+engineering/
 ├── orgloop.yaml              # Base config
+├── package.json
 ├── workspaces/
 │   ├── staging.yaml          # Override: staging endpoints, faster polling
 │   └── production.yaml       # Override: production endpoints, slower polling
-├── modules/
-│   ├── team-standard/
-│   └── compliance-audit/
-└── teams/
-    ├── platform/
-    ├── frontend/
-    ├── ml-infra/
-    └── security/
+├── connectors/
+├── routes/
+└── sops/
 ```
 
 #### Plan/Apply Model

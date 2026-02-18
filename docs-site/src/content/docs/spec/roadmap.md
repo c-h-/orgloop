@@ -51,18 +51,14 @@ The manifesto ends with that promise. Everything below is the path to making it 
 
 **Exit criteria:** 30 days of stable, unattended operation. Zero dropped events. Recovery from process crashes without manual intervention.
 
-### ~~Phase 4: Implement Modules~~ **Done**
+### ~~Phase 4: Implement Modules~~ **Superseded**
 
-Module system implemented in the MVP:
+A module system was implemented in v0.1.8 and removed in v0.1.9 in favor of a simpler **package-native project model**. Projects now use `package.json` + `orgloop.yaml` with standard npm dependency management — no custom module manifests or template expansion.
 
-- `kind: Module` manifest with `orgloop-module.yaml`, validated via AJV against `moduleManifestSchema`
-- `orgloop add module <name>` installs and wires up modules
-- Module composition: namespaced routes, parameter substitution (`{{ params.X }}`, `{{ module.name }}`, `{{ module.path }}`)
-- Module resolution: local paths (`./`) and npm packages
-- `modules/engineering/` — the reference module (GitHub, Linear, Claude Code, OpenClaw)
-- `modules/minimal/` — simplest possible module (webhook -> webhook)
+- `examples/engineering-org/` — the reference project (GitHub, Linear, Claude Code, OpenClaw)
+- `examples/minimal/` — simplest possible project (webhook -> webhook)
 
-**Exit criteria:** Met. `orgloop add module @orgloop/module-engineering` scaffolds a working engineering org.
+**Exit criteria:** Met. `orgloop init` scaffolds a working project. Connectors install via `npm install`.
 
 ### Phase 5: Launch
 
@@ -73,7 +69,7 @@ The killer demo: the manifesto ends with a live demonstration. You read the mani
 ```bash
 npm install -g @orgloop/cli
 orgloop init --name my-org --connectors github,linear,openclaw,claude-code --no-interactive
-orgloop add module @orgloop/module-engineering
+cd my-org && npm install
 # Set env vars: GITHUB_TOKEN, LINEAR_API_KEY, OPENCLAW_WEBHOOK_TOKEN
 orgloop env                     # Verify credentials
 orgloop validate                # Check config
@@ -86,7 +82,6 @@ That's the launch. That's what we're racing toward.
 
 **Launch artifacts:**
 - Published npm packages: `@orgloop/cli`, `@orgloop/core`, `@orgloop/sdk`, all first-party connectors and transforms
-- Published modules: `@orgloop/module-engineering`, `@orgloop/module-code-review`
 - Documentation site at orgloop.ai
 - The manifesto, updated with the live demo
 - Content series: blog posts, social, community launch
@@ -109,11 +104,11 @@ Each first-party connector matures at its own pace. GitHub (well-established OAu
 
 **Track B: Environment Orchestrator (sister project)**
 
-`orgctl` reads the same module manifest and handles what OrgLoop doesn't: service installation, credential brokering, cross-system configuration.
+`orgctl` reads the project config and connector setup metadata to handle what OrgLoop doesn't: service installation, credential brokering, cross-system configuration.
 
 ```bash
-orgctl bootstrap @orgloop/module-engineering --github-repo my-org/my-repo
+orgctl bootstrap --template engineering-org --github-repo my-org/my-repo
 # Blank machine → running autonomous engineering org
 ```
 
-See the [orgctl RFP](https://orgloop.ai/vision/orgctl/) for the full project specification. orgctl depends on OrgLoop's stable interfaces (manifest schema, `orgloop doctor --json`, `--non-interactive` flags) but has its own release cadence and project scope.
+See the [orgctl RFP](https://orgloop.ai/vision/orgctl/) for the full project specification. orgctl depends on OrgLoop's stable interfaces (`orgloop doctor --json`, `--non-interactive` flags, connector setup metadata) but has its own release cadence and project scope.

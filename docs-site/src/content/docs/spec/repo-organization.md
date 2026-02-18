@@ -31,9 +31,9 @@ orgloop/
 │   ├── core/                    # @orgloop/core — runtime engine
 │   │   └── src/
 │   │       ├── runtime.ts       # Runtime: long-lived host process (bus, scheduler, loggers, registry)
-│   │       ├── module-instance.ts # ModuleInstance: per-module resources and lifecycle
-│   │       ├── registry.ts      # ModuleRegistry: name → instance mapping, singleton enforcement
-│   │       ├── engine.ts        # OrgLoop: backward-compatible wrapper around Runtime
+│   │       ├── module-instance.ts # ModuleInstance: internal workload container (project loaded as single instance)
+│   │       ├── registry.ts      # ModuleRegistry: internal name → instance mapping
+│   │       ├── engine.ts        # OrgLoop: single-project convenience wrapper around Runtime
 │   │       ├── router.ts        # Route matching + dispatch
 │   │       ├── transform.ts     # Transform pipeline executor
 │   │       ├── logger.ts        # Logger fan-out manager
@@ -61,7 +61,6 @@ orgloop/
 │   │       │   ├── doctor.ts
 │   │       │   ├── routes.ts
 │   │       │   ├── hook.ts
-│   │       │   ├── module.ts
 │   │       │   ├── inspect.ts
 │   │       │   ├── install-service.ts
 │   │       │   ├── service.ts
@@ -75,7 +74,6 @@ orgloop/
 │   │       ├── transform.ts     # Transform interface + context
 │   │       ├── logger.ts        # Logger interface + registration
 │   │       ├── event.ts         # Event builder + validators
-│   │       ├── module.ts        # Module manifest types + template expansion
 │   │       └── testing.ts       # Test harness for plugin authors
 │   │
 │   └── server/                  # @orgloop/server — HTTP API server (placeholder)
@@ -115,33 +113,32 @@ orgloop/
 │   │       ├── index.ts
 │   │       └── source.ts        # Cron-based event emission
 │   │
-│   └── webhook/                 # @orgloop/connector-webhook
-│       └── src/
-│           ├── index.ts
-│           ├── source.ts        # Generic inbound webhook receiver
-│           └── target.ts        # Generic outbound webhook sender
+│   ├── webhook/                 # @orgloop/connector-webhook
+│   │   └── src/
+│   │       ├── index.ts
+│   │       ├── source.ts        # Generic inbound webhook receiver
+│   │       └── target.ts        # Generic outbound webhook sender
+│   │
+│   ├── agent-ctl/               # @orgloop/connector-agent-ctl
+│   │   └── src/                 # Poll: AI agent session lifecycle events
+│   │
+│   ├── docker/                  # @orgloop/connector-docker
+│   │   └── src/                 # Target: Docker container + Kind cluster control
+│   │
+│   └── gog/                     # @orgloop/connector-gog
+│       └── src/                 # Poll: Gmail via gog CLI
 │
 ├── transforms/                  # First-party transforms
 │   ├── filter/                  # @orgloop/transform-filter (match/exclude + jq)
 │   ├── dedup/                   # @orgloop/transform-dedup (SHA-256, time window)
-│   └── enrich/                  # @orgloop/transform-enrich (add, copy, compute fields)
+│   ├── enrich/                  # @orgloop/transform-enrich (add, copy, compute fields)
+│   └── agent-gate/              # @orgloop/transform-agent-gate (gate on running agents)
 │
 ├── loggers/                     # First-party loggers
 │   ├── file/                    # @orgloop/logger-file (buffered JSONL, rotation)
 │   ├── console/                 # @orgloop/logger-console (ANSI colors, phase icons)
 │   ├── otel/                    # @orgloop/logger-otel (OpenTelemetry OTLP export)
 │   └── syslog/                  # @orgloop/logger-syslog (RFC 5424 syslog protocol)
-│
-├── modules/                     # First-party modules (workflow bundles)
-│   ├── engineering/             # @orgloop/module-engineering
-│   │   ├── orgloop-module.yaml  # Module manifest
-│   │   ├── connectors/          # Connector config templates
-│   │   ├── templates/           # Route templates (parameterized)
-│   │   └── transforms/          # Transform config
-│   └── minimal/                 # @orgloop/module-minimal
-│       ├── orgloop-module.yaml
-│       ├── connectors/
-│       └── templates/
 │
 ├── docs-site/                   # Documentation (Astro Starlight)
 │
@@ -157,8 +154,8 @@ orgloop/
 
 | Aspect | First-Party | Community |
 |--------|-------------|-----------|
-| Location | Monorepo (`connectors/`, `transforms/`, `loggers/`, `modules/`) | Separate repos |
-| npm scope | `@orgloop/connector-*`, `@orgloop/transform-*`, `@orgloop/logger-*`, `@orgloop/module-*` | `orgloop-connector-*`, `orgloop-transform-*`, `orgloop-logger-*`, `orgloop-module-*` |
+| Location | Monorepo (`connectors/`, `transforms/`, `loggers/`) | Separate repos |
+| npm scope | `@orgloop/connector-*`, `@orgloop/transform-*`, `@orgloop/logger-*` | `orgloop-connector-*`, `orgloop-transform-*`, `orgloop-logger-*` |
 | Versioned with | Core runtime | Independently |
 | CI | Monorepo CI | Connector author's CI |
 | Compatibility | Guaranteed with current core | Declares `@orgloop/sdk` peer dependency |

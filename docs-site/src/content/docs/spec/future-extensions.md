@@ -134,9 +134,9 @@ Implemented:
 
 **Gap:** Running multiple orgs or composing one org from pieces of another.
 
-**Intended solution:** Explore later. Possible directions: multiple config roots per instance, cross-org event routing, credential isolation between orgs, module composition with overrides.
+**Intended solution:** Explore later. Possible directions: multiple config roots per instance, cross-org event routing, credential isolation between orgs.
 
-**Affects:** Core architecture, config schema, module system
+**Affects:** Core architecture, config schema, project model
 
 ---
 
@@ -193,9 +193,9 @@ Implemented as `@orgloop/connector-cron`. Supports standard 5-field cron express
 
 ---
 
-### ~~FE-15: Installable Organization Modules~~ **Resolved (MVP)**
+### ~~FE-15: Installable Organization Modules~~ **Resolved then Removed (v0.1.9)**
 
-Implemented. See [spec 12 (Modules)](./modules/) for the design. Module manifest validation via AJV, `{{ params.X }}` / `{{ module.name }}` / `{{ module.path }}` template expansion, module resolution (local paths and npm packages), namespaced route composition, and `modules/engineering/` as the first built-in module.
+The module system (manifests, parameterized templates, `orgloop add module`) was implemented in v0.1.8 and removed in v0.1.9 in favor of a simpler package-native project model. Projects now use `package.json` + `orgloop.yaml` with standard npm dependency management. See [Project Model](./modules/) for the current design.
 
 ---
 
@@ -211,9 +211,9 @@ Implemented. See [spec 12 (Modules)](./modules/) for the design. Module manifest
 
 **Gap:** OrgLoop declares what an organization needs but doesn't install services, broker credentials, or configure hooks across systems. The "blank machine -> running org" story requires tooling outside OrgLoop's scope.
 
-**Intended solution:** `orgctl` — a sister project that reads the same module manifest and handles Tier 4 (local service installation) and Tier 5 (cross-system configuration). See the [orgctl RFP](https://orgloop.ai/vision/orgctl/) for the full project specification and [spec 14 (Scope Boundaries)](./scope-boundaries/) for the shared contract model.
+**Intended solution:** `orgctl` — a sister project that reads project config and handles Tier 4 (local service installation) and Tier 5 (cross-system configuration). See the [orgctl RFP](https://orgloop.ai/vision/orgctl/) for the full project specification and [spec 14 (Scope Boundaries)](./scope-boundaries/) for the shared contract model.
 
-**Depends on:** OrgLoop Phase 4 (stable module manifest schema), `orgloop doctor --json`, `--non-interactive` CLI flags.
+**Depends on:** Stable project config schema, `orgloop doctor --json`, `--non-interactive` CLI flags.
 
 ---
 
@@ -284,24 +284,9 @@ Configurable at both the transform definition level (global default) and the rou
 
 ---
 
-### FE-22: Module Trust & Permissions
+### ~~FE-22: Module Trust & Permissions~~ **Superseded (v0.1.9)**
 
-**Gap:** Modules are "installable organizations" — they bundle routes, SOPs, transforms, and dependency declarations. The moment third-party modules exist, trust becomes critical: a module's SOPs can instruct actors to do arbitrary things (merge PRs, close tickets, provision resources). Users need to understand what a module will do before installing it.
-
-**Solution direction:**
-- Module manifest declares **permissions** (what event types it routes, what actor capabilities it assumes, what env vars it requires)
-- `orgloop add module <name>` shows a permission summary before installing (similar to mobile app permission prompts)
-- Optional module signing (npm provenance, cosign, or similar) for verified publishers
-- `orgloop inspect module <name>` shows all routes, SOPs, transforms — full transparency before install
-- Scoped credentials: modules cannot access env vars they don't declare in their manifest
-
-**Design considerations:**
-- SOPs are markdown files — they're inspectable but not machine-verifiable for safety
-- The real risk is social engineering: a malicious SOP could instruct an actor to exfiltrate data or take destructive actions
-- Mitigation layers: manifest-declared permissions, human review of SOPs, actor-side guardrails (OrgLoop routes, actors enforce)
-- This intersects with FE-17 (orgctl) for credential scoping
-
-**Affects:** `packages/sdk/src/module.ts` (manifest schema), `packages/cli/src/commands/add.ts` (install flow), `packages/core/src/module.ts` (permission enforcement)
+The module system was removed in v0.1.9 in favor of package-native projects. Trust and permissions for third-party connectors and transforms are handled through standard npm security practices (package provenance, audit, lockfiles). SOP review remains a human responsibility -- routes and SOPs are plain files in the project directory, fully inspectable before use.
 
 ---
 

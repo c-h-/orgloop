@@ -46,10 +46,14 @@ Three sources emit events. Two transforms clean them. Five routes wire specific 
 ## Setup
 
 ```bash
-# Scaffold
+# Scaffold the project
 orgloop init    # select github, linear, openclaw, claude-code
 cd my-org
-orgloop add module @orgloop/module-engineering
+
+# Install connector packages
+npm install @orgloop/connector-github @orgloop/connector-linear \
+  @orgloop/connector-claude-code @orgloop/connector-openclaw \
+  @orgloop/transform-filter @orgloop/transform-dedup
 
 # Install Claude Code hook (emits actor.stopped on session exit)
 orgloop hook claude-code-stop

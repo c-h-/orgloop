@@ -22,10 +22,12 @@ description: "OrgLoop engineering specification — the complete design document
 8. [API/SDK Runtime Modes](./runtime-modes/)
 9. [Built-in Transforms](./transforms/)
 10. [Built-in Loggers](./loggers/)
-11. [Modules](./modules/)
+11. [Project Model](./modules/)
 12. [Maturity Roadmap](./roadmap/)
 13. [Scope Boundaries & DX Vision](./scope-boundaries/)
-14. [Runtime & Module Lifecycle](./runtime-lifecycle/)
+14. [Runtime Lifecycle](./runtime-lifecycle/)
+
+> **Note (v0.1.9):** The module system (manifests, parameterized templates, `orgloop add module`) was removed in v0.1.9 in favor of a package-native project model. Section 11 has been rewritten as "Project Model" to reflect the current design.
 
 ### Appendices
 

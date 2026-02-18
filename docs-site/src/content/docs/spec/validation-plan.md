@@ -26,7 +26,7 @@ description: "Migration map, MVP scope, testing strategy, and success criteria f
 - Checkpoint persistence: file-based
 - Config: YAML schema + JSON Schema validation
 - Launch prompts: `with.prompt_file` route property for situational SOPs
-- Modules: `kind: Module` manifest, parameterized templates, `orgloop add module`
+- Package-native project model: `package.json` + `orgloop.yaml`, connectors resolve from `node_modules/`
 - Webhook server: lightweight HTTP listener for hook-based sources (port 4800)
 
 **Out of scope for MVP:**

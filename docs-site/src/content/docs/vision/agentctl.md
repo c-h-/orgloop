@@ -191,7 +191,7 @@ agentctl handles locking, lifecycle hooks, and output capture. The connector sta
 
 ```bash
 # Bootstrap the environment
-orgctl bootstrap @orgloop/module-engineering --github-repo my-org/my-repo
+orgctl bootstrap --project ./my-org --github-repo my-org/my-repo
 
 # Start the routing layer
 orgloop start

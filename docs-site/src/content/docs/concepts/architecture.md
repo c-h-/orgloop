@@ -22,21 +22,21 @@ orgloop/
     openclaw/     @orgloop/connector-openclaw          Target: delivers to OpenClaw agents
     webhook/      @orgloop/connector-webhook           Generic HTTP source + target
     cron/         @orgloop/connector-cron              Scheduled: cron + interval syntax
+    agent-ctl/    @orgloop/connector-agent-ctl        Poll: AI agent session lifecycle
+    docker/       @orgloop/connector-docker            Target: Docker container + Kind cluster control
+    gog/          @orgloop/connector-gog               Poll: Gmail via gog CLI
 
   transforms/
     filter/       @orgloop/transform-filter           Match/exclude by field patterns
     dedup/        @orgloop/transform-dedup            SHA-256 hash, time window
     enrich/       @orgloop/transform-enrich           Add, copy, and compute fields
+    agent-gate/   @orgloop/transform-agent-gate       Gate events on running agent sessions
 
   loggers/
     console/      @orgloop/logger-console             ANSI colors, phase icons
     file/         @orgloop/logger-file                Buffered JSONL, rotation, gzip
     otel/         @orgloop/logger-otel                OpenTelemetry OTLP export
     syslog/       @orgloop/logger-syslog              RFC 5424 syslog protocol
-
-  modules/
-    engineering/  @orgloop/module-engineering          Full engineering org workflow
-    minimal/      @orgloop/module-minimal              Simplest starter workflow
 ```
 
 ## Dependency Chain
@@ -79,7 +79,7 @@ pnpm typecheck    # tsc --noEmit across all packages
 
 ## Event Flow
 
-The `Runtime` owns the shared infrastructure (bus, scheduler, loggers, HTTP server). Each `ModuleInstance` owns its sources, actors, routes, and transforms. Events flow through module-scoped routing -- each module only matches against its own routes.
+The `Runtime` owns the shared infrastructure (bus, scheduler, loggers, HTTP server) and manages sources, actors, routes, and transforms loaded from your project config.
 
 The end-to-end path of a single event through the system:
 
@@ -90,7 +90,7 @@ The end-to-end path of a single event through the system:
 2. Connector normalizes raw data into OrgLoopEvent
        |
        v
-3. ModuleInstance receives PollResult.events
+3. Runtime receives PollResult.events
        |
        v
 4. Event enriched with trace_id (trc_ prefix)
@@ -125,10 +125,8 @@ The bus is the spine. Routes are explicit allow-lists -- actors only see events 
 
 | Class | File | Role |
 |-------|------|------|
-| `Runtime` | `packages/core/src/runtime.ts` | Multi-module runtime. Owns bus, scheduler, registry, HTTP control server. |
-| `ModuleInstance` | `packages/core/src/module-instance.ts` | Per-module resource container. Sources, actors, transforms, lifecycle (loading/active/unloading/removed). |
-| `ModuleRegistry` | `packages/core/src/registry.ts` | Singleton module name registry. Prevents conflicts. |
-| `OrgLoop` | `packages/core/src/engine.ts` | Backward-compatible wrapper around Runtime. Single-module convenience API. |
+| `Runtime` | `packages/core/src/runtime.ts` | Core runtime. Owns bus, scheduler, loggers, HTTP control server. |
+| `OrgLoop` | `packages/core/src/engine.ts` | Convenience wrapper around Runtime for single-project use. |
 | `matchRoutes()` | `packages/core/src/router.ts` | Dot-path filtering, multi-route matching. Returns all routes an event matches. |
 | `executeTransformPipeline()` | `packages/core/src/transform.ts` | Runs transforms sequentially. Fail-open default. |
 | `Scheduler` | `packages/core/src/scheduler.ts` | Manages poll intervals for all sources. Graceful start/stop. |
@@ -177,17 +175,17 @@ interface LoggerRegistration {
 }
 ```
 
-The CLI dynamically imports packages and calls `register()` during `orgloop start`. The returned instances are passed to `Runtime.loadModule()`.
+The CLI dynamically imports packages and calls `register()` during `orgloop start`. The returned instances are passed to the runtime for initialization.
 
 ### Plugin Wiring Chain
 
 Every plugin must be wired through the full chain. Missing any step causes silent failure at runtime.
 
 ```
-1. package.json dep        -- CLI must list the package as a dependency
+1. package.json dep        -- project must list the package as a dependency
 2. Dynamic import          -- start.ts imports the package and calls register()
-3. Runtime.loadModule()    -- resolved instance passed via module options
-4. ModuleInstance.initialize() -- init() called with config from YAML
+3. Runtime loading         -- resolved instance passed to the runtime
+4. Plugin init             -- init() called with config from YAML
 ```
 
 ## Config Loading Pipeline
@@ -205,9 +203,6 @@ AJV validates against JSON Schema
 ${VAR_NAME} patterns substituted with env var values
        |
        v
-Module templates expanded ({{ params.X }} resolved)
-       |
-       v
 Fully resolved config passed to engine
 ```
 
@@ -219,11 +214,11 @@ OrgLoop supports three runtime modes:
 
 | Mode | Entry Point | Use Case |
 |------|-------------|----------|
-| **CLI** | `orgloop start` | Primary. Interactive and daemon operation. |
-| **Library** | `import { Runtime } from '@orgloop/core'` | Programmatic embedding. Multi-module capable. |
+| **CLI** | `orgloop start` | Primary. Interactive, daemon, and supervised daemon modes. |
+| **Library** | `import { Runtime } from '@orgloop/core'` | Programmatic embedding. |
 | **Server** | `orgloop serve` / `@orgloop/server` | HTTP API for remote control (placeholder). |
 
-The CLI is the primary interface. The library mode exposes the `Runtime` class (or the backward-compatible `OrgLoop` wrapper) for programmatic use. The server mode wraps the runtime with an HTTP API. The built-in HTTP control API (`/control/*`) enables dynamic module management at runtime.
+The CLI is the primary interface. The library mode exposes the `Runtime` class (or the `OrgLoop` wrapper) for programmatic use. The server mode wraps the runtime with an HTTP API.
 
 ## Further Reading
 

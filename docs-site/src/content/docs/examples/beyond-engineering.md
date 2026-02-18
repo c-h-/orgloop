@@ -173,4 +173,4 @@ OrgLoop is not an engineering tool. It is an organizational tool. The engineerin
 
 That is every department. That is every organization.
 
-As connectors are built for more domains, the same `orgloop.yaml` that runs your engineering team can run your entire company. Each department is a module. Modules compose. The [org-to-org example](/examples/org-to-org/) takes this one step further.
+As connectors are built for more domains, the same `orgloop.yaml` that runs your engineering team can run your entire company. Each department is a project with its own connectors, routes, and SOPs. Projects compose. The [org-to-org example](/examples/org-to-org/) takes this one step further.

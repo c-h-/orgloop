@@ -40,17 +40,23 @@ connectors/
   claude-code/  — Claude Code hook-based connector
   openclaw/     — OpenClaw actor connector
   webhook/      — Generic webhook source/actor
+  cron/         — Scheduled source (cron + interval syntax)
+  agent-ctl/    — Agent session lifecycle source
+  docker/       — Docker container + Kind cluster actor
+  gog/          — Gmail via gog CLI source
 transforms/
   filter/       — Event filter (match/exclude/jq)
   dedup/        — SHA-256 deduplication
   enrich/       — Add, copy, and compute fields
+  agent-gate/   — Gate events on running agent sessions
 loggers/
   console/      — Console logger (ANSI colors)
   file/         — File logger (JSONL, rotation, gzip)
   otel/         — OpenTelemetry OTLP export
   syslog/       — RFC 5424 syslog protocol
-modules/
-  engineering/  — Engineering org workflow module
+examples/
+  minimal/      — Simplest possible setup
+  engineering-org/ — Full engineering org example
 ```
 
 **Dependency chain:** `sdk` -> `core` -> everything else. Turborepo handles build order via `"dependsOn": ["^build"]`.

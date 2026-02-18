@@ -13,7 +13,7 @@ This is the most important architectural decision for long-term flexibility. Don
 
 ```typescript
 // The core library — this is the foundation
-// Option A: OrgLoop wrapper (single-module, backward-compatible)
+// Option A: OrgLoop wrapper (single-project convenience API)
 import { OrgLoop, OrgLoopConfig, OrgLoopOptions } from '@orgloop/core';
 
 const loop = new OrgLoop(config, {
@@ -22,14 +22,13 @@ const loop = new OrgLoop(config, {
 });
 await loop.start();
 
-// Option B: Runtime (multi-module, full control)
+// Option B: Runtime (full control over lifecycle)
 import { Runtime } from '@orgloop/core';
 
 const runtime = new Runtime();
 await runtime.start();
-await runtime.loadModule(moduleConfig, { sources, actors });
-// Load more modules dynamically...
-await runtime.loadModule(anotherModuleConfig, { sources: otherSources, actors: otherActors });
+await runtime.loadModule(projectConfig, { sources, actors });
+// runtime.loadModule() is an internal API — the project config is loaded as a single unit
 ```
 
 ### Mode 1: CLI Mode (MVP)
@@ -71,10 +70,10 @@ await runtime.loadModule(
   { name: config.project.name, sources: config.sources, actors: config.actors, routes: config.routes, ... },
   { sources, actors }
 );
-// Runtime is running. Modules can be loaded/unloaded dynamically.
+// Runtime is running with the project loaded as a single unit.
 ```
 
-The CLI creates a `Runtime` instance and loads the config as a module. `resolveConnectors()` handles the bridge between declarative YAML config and instantiated connector objects. All runtime logic lives in `@orgloop/core`.
+The CLI creates a `Runtime` instance and loads the project config as a single unit via `runtime.loadModule()` (an internal API). `resolveConnectors()` handles the bridge between declarative YAML config and instantiated connector objects. All runtime logic lives in `@orgloop/core`.
 
 ### Mode 2: Library/SDK Mode
 
@@ -188,13 +187,12 @@ POST   /api/v1/webhooks/:source    Receive webhook from a source platform
 │  └──────────┘  └──────────┘  └────────┘  └───────────────────┘ │
 │                                                                  │
 │  Public API:                                                     │
-│    new Runtime() — multi-module runtime                          │
-│    runtime.start() / runtime.stop()                              │
-│    runtime.loadModule(config, connectors)                        │
-│    runtime.unloadModule(name) / runtime.reloadModule(name)       │
-│                                                                  │
-│    new OrgLoop(config) — backward-compatible single-module       │
+│    new OrgLoop(config) — single-project convenience wrapper      │
 │    loop.start() / loop.stop() / loop.inject(event)               │
+│                                                                  │
+│    new Runtime() — full lifecycle control (used by CLI)           │
+│    runtime.start() / runtime.stop()                              │
+│    runtime.loadModule(config, connectors) — internal API         │
 └───────────┬──────────────────────┬───────────────────┬──────────┘
             │                      │                   │
    ┌────────▼────────┐   ┌────────▼────────┐  ┌───────▼────────┐

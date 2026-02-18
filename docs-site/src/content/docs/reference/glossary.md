@@ -65,13 +65,9 @@ A passive observer that records pipeline activity. Every event ingestion, transf
 
 One of three [event types](#event-type). Represents a human or system message -- direct messages, chat commands, manual triggers, and notifications that represent intent rather than a state change.
 
-### Module
+### Project
 
-A packaged, reusable organizational workflow. Contains sources, actors, routes, transforms, launch prompts, and a manifest declaring all dependencies. Modules are expanded at config time -- the engine never sees them, only their expanded routes and connectors. See [Modules](/concepts/modules/).
-
-### Module Manifest
-
-The `orgloop-module.yaml` file in a module package. A shared contract read by OrgLoop (for routing config) and external tools like [orgctl](/vision/orgctl/) (for service installation and credential brokering). Declares connectors, routes, parameters, required services, credentials, and hooks.
+A directory containing an `orgloop.yaml` config file and a `package.json` listing connector, transform, and logger dependencies. Projects are the unit of deployment in OrgLoop -- each project defines a complete organizational topology (sources, actors, routes, transforms, loggers, and SOPs). Projects are package-native: connectors are npm packages installed via `npm install`, not module manifests. See [User Guide](/start/user-guide/).
 
 ### Organization as Code (OaC)
 

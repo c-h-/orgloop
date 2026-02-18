@@ -14,7 +14,7 @@ npm install -g @orgloop/cli
 | Command | Description |
 |---------|-------------|
 | [`orgloop init`](#init) | Scaffold a new project |
-| [`orgloop add`](#add) | Add connectors, transforms, loggers, routes, or modules |
+| [`orgloop add`](#add) | Add connectors, transforms, loggers, or routes |
 | [`orgloop validate`](#validate) | Validate configuration files and references |
 | [`orgloop env`](#env) | Check environment variable configuration |
 | [`orgloop doctor`](#doctor) | Full environment health check |
@@ -22,7 +22,6 @@ npm install -g @orgloop/cli
 | [`orgloop routes`](#routes) | Visualize the routing topology |
 | [`orgloop start`](#start) | Start the runtime |
 | [`orgloop status`](#status) | Show runtime status and recent events |
-| [`orgloop module`](#module) | Manage runtime modules (list, status, load, unload, reload) |
 | [`orgloop logs`](#logs) | Tail or query the event log |
 | [`orgloop test`](#test) | Inject a test event and trace its path |
 | [`orgloop stop`](#stop) | Stop the runtime gracefully |
@@ -92,7 +91,7 @@ Created:
   transforms/transforms.yaml
   sops/example.md
 
-Next: run `orgloop add module <name>` to install a workflow, or `orgloop doctor` to check your environment.
+Next: run `npm install` to install dependencies, then `orgloop doctor` to check your environment.
 ```
 
 If Claude Code is selected, `init` offers to install the OrgLoop stop hook into your Claude Code settings (global or project scope).
@@ -107,7 +106,7 @@ orgloop init --name my-org --connectors github,linear,openclaw --no-interactive
 
 ## add
 
-Scaffold new components or install workflow modules.
+Scaffold new components.
 
 ### add connector
 
@@ -166,34 +165,6 @@ orgloop add route <name> [options]
 orgloop add route my-route --source github --actor engineering
 ```
 
-### add module
-
-Install a composable workflow module.
-
-```
-orgloop add module <name> [options]
-```
-
-| Flag | Description |
-|------|-------------|
-| `--path <dir>` | Install from a local directory |
-| `--no-interactive` | Skip parameter prompts, use defaults |
-| `--params <json>` | Parameter values as JSON string |
-
-```bash
-# Install from npm registry
-orgloop add module @orgloop/module-engineering
-
-# Install from a local path
-orgloop add module my-workflow --path ./modules/my-workflow
-
-# Non-interactive with explicit params
-orgloop add module @orgloop/module-engineering --no-interactive \
-  --params '{"github_source":"github","agent_actor":"engineering"}'
-```
-
-See [Modules](/concepts/modules/) for details on the module system.
-
 ---
 
 ## validate
@@ -225,7 +196,6 @@ What gets validated:
 - Connector config completeness (required fields present)
 - Transform script existence and permissions (executable bit)
 - Launch prompt file existence (routes with `with.prompt_file`)
-- Module manifest validation and route expansion
 - Environment variable references
 
 ---
@@ -422,7 +392,7 @@ Shows sources, routes with filter criteria and transform chains, and target acto
 
 Start the runtime. Events begin flowing.
 
-Internally, `start` creates a Runtime instance, loads your config as a module, and starts an HTTP control API. The control API port is written to `~/.orgloop/runtime.port` so that other commands (`status`, `stop`, `module`) can communicate with the running runtime.
+Internally, `start` creates a Runtime instance, loads your project config, and starts an HTTP control API. The control API port is written to `~/.orgloop/runtime.port` so that other commands (`status`, `stop`) can communicate with the running runtime.
 
 ```
 orgloop start [options]
@@ -431,6 +401,7 @@ orgloop start [options]
 | Flag | Description |
 |------|-------------|
 | `--daemon` | Run as background daemon |
+| `--supervised` | Enable supervisor for auto-restart on crash (requires `--daemon`) |
 | `--force` | Skip doctor pre-flight checks |
 
 ### Foreground (development)
@@ -460,11 +431,20 @@ Press Ctrl+C to stop in foreground mode.
 orgloop start --daemon
 # PID written to ~/.orgloop/orgloop.pid
 # Control API port written to ~/.orgloop/runtime.port
+
+# Supervised daemon (auto-restarts on crash)
+orgloop start --daemon --supervised
 ```
 
 One long-running process manages all source polling internally. Poll intervals are declared in YAML -- no external schedulers, no separate LaunchAgents, no cron jobs.
 
-Once the runtime is running, use `orgloop module list` to see loaded modules and `orgloop module load` to hot-load additional modules without restarting.
+### Supervised daemon mode (production)
+
+```bash
+orgloop start --daemon --supervised
+```
+
+Adds a supervisor process that automatically restarts the runtime on crash. Exponential backoff with crash loop detection (max 10 restarts in 5 minutes). Recommended for production deployments.
 
 ### Pre-flight validation
 
@@ -485,7 +465,7 @@ Environment Variables:
 
 ## status
 
-Show runtime status and recent events. Queries the running runtime's control API (`GET /control/status`) for module-aware status. Falls back to PID-based status if the control API is not reachable.
+Show runtime status and recent events. Queries the running runtime's control API. Falls back to PID-based status if the control API is not reachable.
 
 ```
 orgloop status [options]
@@ -502,10 +482,7 @@ OrgLoop Runtime
   Status: running (PID 42891)
   Uptime: 3h 22m
   Control API: http://127.0.0.1:9801
-  Modules: 1
 
-Module: my-org
-  State: running | Uptime: 3h 22m
   Sources: 3 | Actors: 1 | Routes: 4
 
   SOURCE           TYPE      HEALTH
@@ -520,105 +497,6 @@ Recent Events (last 5):
   20:42:08      linear    resource.changed  linear-to-engineering      delivered
   20:18:33      cc        actor.stopped     claude-code-to-supervisor  delivered
   20:15:01      github    resource.changed  github-pr-review           delivered
-```
-
-When multiple modules are loaded, each module is displayed as its own section with independent health tables. Use `orgloop module status <name>` for a detailed view of a single module.
-
----
-
-## module
-
-Manage modules in a running runtime. All subcommands communicate with the runtime via its HTTP control API (port read from `~/.orgloop/runtime.port`). The runtime must be running (`orgloop start`) before using these commands.
-
-### module list
-
-List all loaded modules.
-
-```
-orgloop module list
-```
-
-```bash
-$ orgloop module list
-
-Modules
-  NAME                      STATE         SOURCES     ROUTES      ACTORS      UPTIME
-  my-org                    running       3           4           1           3h 22m
-  monitoring                running       1           2           1           1h 05m
-```
-
-### module status
-
-Show detailed status for a loaded module, including per-source health.
-
-```
-orgloop module status <name>
-```
-
-```bash
-$ orgloop module status my-org
-
-Module: my-org
-  State:  running
-  Uptime: 3h 22m
-
-  SOURCE                    TYPE      HEALTH
-  github                    poll      healthy
-  linear                    poll      healthy
-  claude-code               hook      —
-
-  Routes: 4
-```
-
-### module load
-
-Load a module into the running runtime. The module is resolved, validated, and started without restarting the runtime.
-
-```
-orgloop module load <path> [options]
-```
-
-| Flag | Description |
-|------|-------------|
-| `--params <json>` | Module parameters as JSON string |
-| `--params-file <path>` | Path to JSON file with module parameters |
-
-```bash
-# Load a local module
-orgloop module load ./modules/monitoring
-
-# Load with parameters
-orgloop module load ./modules/engineering \
-  --params '{"github_source":"github","agent_actor":"engineering"}'
-
-# Load with parameters from a file
-orgloop module load ./modules/engineering --params-file params.json
-```
-
-### module unload
-
-Unload a module from the running runtime. Stops all sources, routes, and actors owned by the module.
-
-```
-orgloop module unload <name>
-```
-
-```bash
-$ orgloop module unload monitoring
-  ✓ Module monitoring unloaded.
-```
-
-### module reload
-
-Reload a module (unload + load). Useful after changing module configuration or code.
-
-```
-orgloop module reload <name>
-```
-
-```bash
-$ orgloop module reload my-org
-  ✓ Module my-org reloaded.
 ```
 
 ---
@@ -737,7 +615,7 @@ echo '{"type":"resource.changed","source":"github","payload":{}}' | orgloop test
 
 ## stop
 
-Stop the runtime gracefully. Tries the control API first (`POST /control/shutdown`) for a clean shutdown of all modules and the HTTP server. Falls back to `SIGTERM` via PID file if the control API is not reachable.
+Stop the runtime gracefully. Tries the control API first (`POST /control/shutdown`) for a clean shutdown. Falls back to `SIGTERM` via PID file if the control API is not reachable.
 
 ```
 orgloop stop [options]

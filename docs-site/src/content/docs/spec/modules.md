@@ -1,240 +1,322 @@
 ---
-title: "Module System"
-description: "Module manifest, parameterized templates, composition model, and progressive onboarding for installable workflow bundles."
+title: "Project Model"
+description: "Package-native project structure, orgloop.yaml schema, plugin resolution, YAML file formats, environment variable substitution, and route auto-discovery."
 ---
 
-> **Status: Implemented.** The module system is live. `orgloop add module <name>` installs workflow bundles with parameterized route definitions. Modules are the only mechanism for installing pre-built workflows.
+> **Status: Implemented (v0.1.9).** Projects are package-native. A project is a directory with `orgloop.yaml` + `package.json`. Connectors, transforms, and loggers are npm packages installed via `npm install`. Routes are auto-discovered from the `routes/` directory. The module system (manifests, parameterized templates, `orgloop add module`) was removed in v0.1.9 in favor of this simpler, npm-native model.
 
-### What Is a Module?
+### What Is a Project?
 
-A **module** is a bundled workflow: connectors + routes + transforms + prompt files — a complete autonomous process installable as a single package. Think of it as "install this business process."
+A **project** is a directory that contains an OrgLoop configuration. It has two required files:
 
-```bash
-npm install @orgloop/module-code-review
-orgloop add module @orgloop/module-code-review
-```
-
-This scaffolds: GitHub connector config, OpenClaw actor config, routes for PR review -> agent supervision, recommended transforms (injection scanner, bot noise filter), and launch prompt SOPs — a working org spec that you configure with your repo, agent, and credentials.
-
-### Module Structure
-
-A module is an npm package that exports:
+- **`orgloop.yaml`** -- the project manifest. Declares metadata, defaults, and file paths to connector, transform, and logger YAML files.
+- **`package.json`** -- the dependency manifest. Lists `@orgloop/*` packages (connectors, transforms, loggers) as dependencies.
 
 ```
-@orgloop/module-code-review/
-├── package.json          # npm package metadata
-├── orgloop-module.yaml   # Module manifest
-├── templates/
-│   ├── routes.yaml       # Route templates (parameterized)
-│   └── transforms.yaml   # Transform recommendations
-├── sops/                 # Launch prompt files bundled with the module
+my-org/
+├── orgloop.yaml              # Project manifest
+├── package.json              # npm dependencies (@orgloop/connector-*, etc.)
+├── connectors/
+│   ├── github.yaml           # ConnectorGroup: sources and actors
+│   ├── linear.yaml
+│   ├── claude-code.yaml
+│   └── openclaw.yaml
+├── routes/
+│   └── engineering.yaml      # RouteGroup: auto-discovered from routes/
+├── transforms/
+│   └── transforms.yaml       # TransformGroup: filter, dedup, etc.
+├── loggers/
+│   └── default.yaml          # LoggerGroup: file, console, etc.
+├── sops/                     # Launch prompt files (markdown)
 │   ├── pr-review.md
 │   └── ci-failure.md
-└── README.md
+└── node_modules/             # Installed packages (gitignored)
 ```
 
-### Module Manifest
+This is the entire model. No module manifests, no parameterized templates, no composition layer. A project is a flat, explicit directory of YAML files and npm packages. `orgloop init` scaffolds it. `orgloop start` runs it.
 
-The manifest declares the **full truth** about what a module needs. It is designed for multiple consumers: OrgLoop reads connectors, routes, and parameters; external tools like `orgctl` (see [orgctl RFP](https://orgloop.ai/vision/orgctl/)) read services, credentials, and hooks. See [Scope Boundaries](./scope-boundaries/) for the shared contract model.
+### Project Config (`orgloop.yaml`)
+
+The root configuration file declares the project identity, defaults, and references to YAML files that define the project's connectors, transforms, and loggers.
 
 ```yaml
-# orgloop-module.yaml
+# orgloop.yaml
 apiVersion: orgloop/v1alpha1
-kind: Module
+kind: Project
 metadata:
-  name: code-review
-  description: "Automated code review workflow"
-  version: 1.0.0
+  name: engineering-org
+  description: "Engineering organization event routing"
 
-requires:
-  # Connectors (OrgLoop reads these)
-  connectors:
-    - type: source
-      id: github
-      connector: "@orgloop/connector-github"
-      required: true
+defaults:
+  poll_interval: 5m
+  event_retention: 7d
+  log_level: info
 
-    - type: actor
-      id: agent
-      connector: "@orgloop/connector-openclaw"
-      required: false        # Can run in queue mode without it
-      fallback: queue         # Events queue locally until actor is available
+connectors:
+  - connectors/github.yaml
+  - connectors/linear.yaml
+  - connectors/claude-code.yaml
+  - connectors/openclaw.yaml
 
-    - type: source
-      id: claude-code
-      connector: "@orgloop/connector-claude-code"
-      required: false
-      fallback: skip          # Module works without session tracking
+transforms:
+  - transforms/transforms.yaml
 
-  # Services (orgloop doctor reports; external tools install)
-  services:
-    - name: openclaw
-      detect:
-        http: "http://127.0.0.1:18789/health"
-      install:
-        brew: "openclaw"
-        docs: "https://docs.openclaw.dev/install"
-      provides_credentials:
-        - OPENCLAW_WEBHOOK_TOKEN
-
-  # Credentials (orgloop doctor reports; external tools broker)
-  credentials:
-    - name: GITHUB_TOKEN
-      description: "GitHub personal access token (repo scope)"
-      required: true
-      create_url: "https://github.com/settings/tokens/new?scopes=repo,read:org"
-      validate: "github.whoami"
-
-    - name: OPENCLAW_WEBHOOK_TOKEN
-      description: "OpenClaw webhook authentication token"
-      required: false           # Not required if actor is in queue mode
-
-  # Hooks (orgloop doctor reports; external tools configure)
-  hooks:
-    - type: claude-code-stop
-      required: false
-      scope: global
-
-# Parameters the user must provide
-parameters:
-  - name: github_source
-    description: "Name of your GitHub source"
-    type: string
-    required: true
-  - name: agent_actor
-    description: "Name of your agent actor"
-    type: string
-    required: true
-
-# What this module provides
-provides:
-  routes: 2
-  transforms: 0
-  sops: 2
+loggers:
+  - loggers/default.yaml
 ```
 
-**Key design decisions:**
+**Schema:**
 
-- **`required: false` with `fallback`** enables degraded mode. Actors can use `queue` (events stored locally until available) or `skip` (silently omitted).
-- **`services`, `credentials`, `hooks`** are informational for OrgLoop. It uses them for `orgloop doctor` reporting. External tools use them for installation and credential brokering.
-- **OrgLoop functions correctly if `services`, `credentials`, and `hooks` are absent.** They are an enrichment, not a requirement.
-- **Parameters vs. credentials.** Parameters are config choices (which repo?). Credentials are secrets (API tokens). Different lifecycles, different storage.
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `apiVersion` | string | Yes | API version (`orgloop/v1alpha1`) |
+| `kind` | `"Project"` | Yes | Must be `Project` |
+| `metadata.name` | string | Yes | Project name (used for runtime identity) |
+| `metadata.description` | string | No | Human-readable description |
+| `defaults.poll_interval` | string | No | Default poll interval for sources |
+| `defaults.event_retention` | string | No | Event retention period |
+| `defaults.log_level` | string | No | Default log level |
+| `connectors` | string[] | No | Paths to ConnectorGroup YAML files |
+| `transforms` | string[] | No | Paths to TransformGroup YAML files |
+| `loggers` | string[] | No | Paths to LoggerGroup YAML files |
 
-### Parameterized Templates
+All file paths are resolved relative to the directory containing `orgloop.yaml`.
 
-Route templates use parameter substitution, expanded at `orgloop plan` time:
+Routes are NOT listed in `orgloop.yaml`. They are auto-discovered from the `routes/` directory (see [Route Auto-Discovery](#route-auto-discovery)).
+
+### `package.json` as Dependency Manifest
+
+Connectors, transforms, and loggers are npm packages. The project's `package.json` declares them as dependencies:
+
+```json
+{
+  "name": "my-org",
+  "private": true,
+  "dependencies": {
+    "@orgloop/connector-github": "^0.1.0",
+    "@orgloop/connector-linear": "^0.1.0",
+    "@orgloop/connector-claude-code": "^0.1.0",
+    "@orgloop/connector-openclaw": "^0.1.0",
+    "@orgloop/connector-cron": "^0.1.0",
+    "@orgloop/transform-filter": "^0.1.0",
+    "@orgloop/transform-dedup": "^0.1.0",
+    "@orgloop/transform-enrich": "^0.1.0",
+    "@orgloop/logger-file": "^0.1.0",
+    "@orgloop/logger-console": "^0.1.0"
+  }
+}
+```
+
+Install everything with `npm install` (or `pnpm install`). The CLI resolves packages from the project's `node_modules/` at startup.
+
+### Plugin Resolution
+
+When `orgloop start` runs, the CLI dynamically imports each connector, transform, and logger package referenced in the YAML config. The resolution order:
+
+1. **Project `node_modules/`** -- packages installed in the project directory (preferred)
+2. **CLI `node_modules/`** -- packages bundled with or installed alongside `@orgloop/cli` (fallback)
+
+If a package is not found in either location, the CLI reports the error and suggests the install command:
+
+```
+  Error: Connector "@orgloop/connector-linear" not found.
+  Fix: npm install @orgloop/connector-linear
+```
+
+Resolution uses Node's standard `import()` with `createRequire()` scoped to the project directory, so the project's `node_modules/` takes priority. This means a project can pin specific versions of connectors independently of the CLI version.
+
+### YAML File Formats
+
+Each YAML file has a `kind` field that identifies its type. All share the same `apiVersion`.
+
+#### ConnectorGroup
+
+Defines sources (poll-based or hook-based) and actors (delivery targets).
 
 ```yaml
-# templates/routes.yaml
+apiVersion: orgloop/v1alpha1
+kind: ConnectorGroup
+
+sources:
+  - id: github
+    description: GitHub PR and CI activity
+    connector: "@orgloop/connector-github"
+    config:
+      repo: "${GITHUB_REPO}"
+      token: "${GITHUB_TOKEN}"
+      events:
+        - "pull_request.review_submitted"
+        - "pull_request_review_comment"
+        - "workflow_run.completed"
+    poll:
+      interval: 5m
+    emits:
+      - resource.changed
+
+actors:
+  - id: openclaw-engineering-agent
+    description: OpenClaw agent delivery
+    connector: "@orgloop/connector-openclaw"
+    config:
+      agent: "${OPENCLAW_AGENT}"
+      webhook_url: "http://127.0.0.1:18789/hooks/agent"
+      token: "${OPENCLAW_WEBHOOK_TOKEN}"
+```
+
+#### RouteGroup
+
+Defines event routing rules: which source events match, what transforms to apply, and which actor receives the event.
+
+```yaml
+apiVersion: orgloop/v1alpha1
+kind: RouteGroup
+metadata:
+  name: engineering-routes
+  description: "Engineering event routing"
+
 routes:
-  - name: "{{ module.name }}-pr-review"
+  - name: github-pr-review
+    description: "PR review submitted -> Engineering agent"
     when:
-      source: "{{ params.github_source }}"
-      events: [resource.changed]
+      source: github
+      events:
+        - resource.changed
       filter:
-        provenance.platform_event:
-          - pull_request.review_submitted
-          - pull_request_review_comment
+        provenance.platform_event: pull_request.review_submitted
     transforms:
       - ref: drop-bot-noise
       - ref: dedup
     then:
-      actor: "{{ params.agent_actor }}"
+      actor: openclaw-engineering-agent
       config:
-        session_key: "hook:github:pr-review:{{ params.agent_actor }}"
+        session_key: "hook:github:pr-review:engineering"
     with:
-      prompt_file: "{{ module.path }}/sops/pr-review.md"
-
-  - name: "{{ module.name }}-ci-failure"
-    when:
-      source: "{{ params.github_source }}"
-      events: [resource.changed]
-      filter:
-        provenance.platform_event: workflow_run.completed
-    then:
-      actor: "{{ params.agent_actor }}"
-      config:
-        session_key: "hook:github:ci-failure:{{ params.agent_actor }}"
-    with:
-      prompt_file: "{{ module.path }}/sops/ci-failure.md"
+      prompt_file: "./sops/pr-review.md"
 ```
 
-### Composition Model: Instantiation, Not Merging
+#### TransformGroup
 
-**Modules don't create connectors. They reference them.** This is the critical insight from Terraform.
-
-A module declares what connectors it needs, and the user wires them up via parameters. Two modules that both need a GitHub source can point to the same one — no conflict, because neither module owns the source.
+Defines transforms (package-based or script-based) that filter, deduplicate, or enrich events in the pipeline.
 
 ```yaml
-# orgloop.yaml — Two modules, one GitHub source
-modules:
-  - package: "@orgloop/module-code-review"
-    params:
-      github_source: github
-      agent_actor: engineering
+apiVersion: orgloop/v1alpha1
+kind: TransformGroup
 
-  - package: "@orgloop/module-ci-monitor"
-    params:
-      github_source: github        # Same source, no conflict
-      agent_actor: engineering
+transforms:
+  - name: drop-bot-noise
+    type: "@orgloop/transform-filter"
+    config:
+      exclude:
+        provenance.author: "/\\[bot\\]$/"
+
+  - name: dedup
+    type: "@orgloop/transform-dedup"
+    config:
+      window: 1h
+      key_fields:
+        - source
+        - type
+        - provenance.platform_event_id
 ```
 
-Each module adds its own routes. Routes don't conflict because multi-route matching is already supported — one event can match multiple routes. The modules compose additively.
+#### LoggerGroup
 
-**Namespacing:** Module routes are namespaced with the module name as a prefix: `code-review-pr-review` vs `ci-monitor-ci-failure`.
+Defines loggers that observe the event pipeline.
 
-**Credential isolation:** Modules don't touch credentials. They declare connector dependencies. The user configures the connectors (with credentials via env vars) independently.
+```yaml
+apiVersion: orgloop/v1alpha1
+kind: LoggerGroup
 
-### Progressive Onboarding
+loggers:
+  - name: file-log
+    type: "@orgloop/logger-file"
+    config:
+      path: "~/.orgloop/logs/orgloop.log"
+      format: jsonl
+      rotate:
+        max_size: 10mb
+        max_age: 7d
+        max_files: 5
 
-Modules support **degraded mode** — they install and run immediately even when some dependencies are missing. This follows OrgLoop's core philosophy: *you don't need reliable actors if you have a reliable system around them.*
+  - name: console-log
+    type: "@orgloop/logger-console"
+    config:
+      level: info
+```
+
+### Environment Variable Substitution
+
+YAML config files support `${VAR_NAME}` syntax for environment variable substitution. Variables are resolved at config load time (during `orgloop start`, `orgloop validate`, `orgloop plan`).
+
+```yaml
+config:
+  repo: "${GITHUB_REPO}"
+  token: "${GITHUB_TOKEN}"
+```
+
+If a referenced variable is not set, config loading fails with an error identifying the missing variable and the file that references it.
+
+Use `orgloop env` to check which variables are required and which are set:
 
 ```bash
-$ orgloop add module @orgloop/module-code-review
+$ orgloop env
 
-  Checking dependencies...
-    ✓ @orgloop/connector-github
-    ✗ OpenClaw not detected at localhost:18789
+Environment Variables:
 
-  OpenClaw is required for live actor delivery.
-  Without it, events will queue locally.
+  ok GITHUB_TOKEN       connectors/github.yaml
+  !! LINEAR_API_KEY     connectors/linear.yaml
+    -> Linear personal API key
+    -> https://linear.app/settings/api
+  ok OPENCLAW_WEBHOOK_TOKEN  connectors/openclaw.yaml
 
-  ? Continue without OpenClaw? (Y/n): Y
-
-  Module "code-review" installed (degraded).
-    Actor "openclaw-engineering-agent" in queue mode.
-    When ready: orgloop doctor && orgloop upgrade
+2 of 3 variables set. 1 missing.
 ```
 
-Later, when the dependency is available:
+### Route Auto-Discovery
 
-```bash
-$ orgloop upgrade
-  ✓ OpenClaw detected at localhost:18789
-  ✓ Actor "openclaw-engineering-agent" upgraded: queue → live
-  ✓ 12 queued events delivered.
+Routes are auto-discovered from the `routes/` directory relative to `orgloop.yaml`. The CLI scans for all `.yaml` and `.yml` files in this directory and loads them as RouteGroup files.
+
+```
+my-org/
+├── orgloop.yaml
+└── routes/
+    ├── engineering.yaml     # Loaded automatically
+    ├── supervision.yaml     # Loaded automatically
+    └── experimental.yaml    # Loaded automatically
 ```
 
-The queue actor implements `ActorConnector`, storing events as JSONL in `~/.orgloop/queue/<actor-id>/`. When the real actor becomes available, queued events drain in order with original timestamps preserved.
+This means adding a new route is as simple as creating a new YAML file in `routes/`. No changes to `orgloop.yaml` required.
 
-### Runtime Integration
+Routes are NOT listed in `orgloop.yaml`. The `connectors`, `transforms`, and `loggers` arrays are explicit file references. Routes use directory-based auto-discovery. This asymmetry is intentional: routes change frequently (new workflows, new event patterns), while connectors and loggers are stable infrastructure.
 
-Modules are first-class runtime citizens. The `Runtime` class (`packages/core/src/runtime.ts`) manages module lifecycle directly:
+Prompt file paths in routes (`with.prompt_file`) are resolved relative to the route YAML file, not the project root. This allows routes to reference SOPs in a co-located `sops/` directory:
 
-```typescript
-import { Runtime } from '@orgloop/core';
-
-const runtime = new Runtime();
-await runtime.start();
-
-// Load a module into the running runtime
-await runtime.loadModule(moduleConfig, { sources, actors });
-
-// Manage modules dynamically
-await runtime.unloadModule('engineering');
-await runtime.reloadModule('engineering', updatedConfig, { sources, actors });
+```yaml
+# routes/engineering.yaml
+routes:
+  - name: github-pr-review
+    # ...
+    with:
+      prompt_file: "../sops/pr-review.md"  # Relative to routes/
 ```
 
-Each module becomes a `ModuleInstance` with its own lifecycle states (`loading` -> `active` -> `unloading` -> `removed`), health tracking, and per-module resources (sources, actors, transforms, loggers). Shared infrastructure (event bus, scheduler, logger manager) is owned by the Runtime and shared across all loaded modules.
+### How It Works at Runtime
 
-The CLI exposes this via `orgloop module load|unload|reload|list|status` commands that communicate with the running Runtime through its HTTP control API. See [Runtime & Module Lifecycle](./runtime-lifecycle/) for the full architecture and [CLI Design](./cli-design/) for command reference.
+When you run `orgloop start`, the CLI:
+
+1. Reads `orgloop.yaml` from CWD (or `--config` path)
+2. Loads all referenced ConnectorGroup, TransformGroup, and LoggerGroup YAML files
+3. Auto-discovers RouteGroup files from `routes/`
+4. Resolves `${VAR}` references in all loaded YAML
+5. Dynamically imports connector/transform/logger packages from the project's `node_modules/`
+6. Creates a `Runtime` instance and loads the project as a single unit
+
+The runtime receives the fully resolved config -- sources, actors, routes, transforms, loggers -- and starts polling, routing, and delivering events. The project directory structure is a config-time concern; the runtime only sees the resolved primitives.
+
+Run `orgloop plan` to see exactly what the resolved config looks like before starting. Run `orgloop validate` to check config syntax and reference integrity without starting.
+
+### Relationship to Internal Architecture
+
+Internally, the runtime uses `ModuleInstance` and `ModuleRegistry` classes to manage workload lifecycle. The CLI loads the project config as a single "module" via `runtime.loadModule()`. These are implementation details -- the user-facing model is a project, not a module. The internal abstraction exists to support potential future capabilities (multi-project runtimes, dynamic workload management) without breaking the current single-project model.
+
+For the runtime architecture, see [Runtime Lifecycle](./runtime-lifecycle/). For CLI commands, see [CLI Design](./cli-design/).

@@ -45,17 +45,10 @@ The wizard prompts for a project name and which connectors to include. Select **
 cd my-org
 ```
 
-### Add a workflow module
+### Install dependencies and run
 
 ```bash
-orgloop add module @orgloop/module-minimal
-```
-
-This adds a webhook source, a console logger, and a single route.
-
-### Validate and run
-
-```bash
+npm install
 orgloop validate
 orgloop start
 ```
@@ -138,12 +131,6 @@ orgloop start
 
 OrgLoop now polls your GitHub repo every 5 minutes. When a PR review comes in or CI fails, you'll see it in the console. Events from GitHub flow through the same routing system as the webhook — sources are interchangeable.
 
-Check what's running:
-
-```bash
-orgloop module list
-```
-
 **You now have a real integration.** GitHub events are being polled, routed, and logged. Ready for the full autonomous engineering org? One more tier.
 
 ---
@@ -190,15 +177,10 @@ Select **github**, **linear**, **openclaw**, and **claude-code** in the connecto
 
 ```bash
 cd my-org
+npm install
 ```
 
-### Add the engineering module
-
-```bash
-orgloop add module @orgloop/module-engineering
-```
-
-This adds 5 pre-built routes: PR review, PR comment response, CI failure triage, Linear ticket routing, and Claude Code supervision.
+The scaffolded project includes pre-built routes for PR review, PR comment response, CI failure triage, Linear ticket routing, and Claude Code supervision. You can customize routes, transforms, and SOPs in the project files as needed.
 
 ### Check your environment
 
@@ -250,6 +232,14 @@ orgloop start
 
 Events are now flowing. Sources poll on their configured intervals, routes match incoming events, transforms filter noise, and actors receive focused work with situational launch prompts.
 
+For production, run as a supervised daemon:
+
+```bash
+orgloop start --daemon --supervised
+```
+
+This runs in the background with automatic restart on crash.
+
 ### Check status
 
 ```bash
@@ -261,10 +251,7 @@ OrgLoop Runtime
   Status: running (PID 42831)
   Uptime: 2m 14s
   Control API: http://127.0.0.1:9801
-  Modules: 1
 
-Module: my-org
-  State: running | Uptime: 2m 14s
   Sources: 3 | Actors: 1 | Routes: 4
 
   SOURCE           TYPE      HEALTH
@@ -273,15 +260,15 @@ Module: my-org
   claude-code      hook      —
 ```
 
-Use `orgloop module list` to see all loaded modules, or `orgloop module status my-org` for a detailed view with per-source health.
+Use `orgloop status` for a detailed view with per-source health.
 
 ---
 
 ## Next steps
 
-- [User Guide](/start/user-guide/) -- day-to-day operations: logs, testing, customization, modules
+- [User Guide](/start/user-guide/) -- day-to-day operations: logs, testing, customization
 - [What is OrgLoop?](/start/what-is-orgloop/) -- deeper introduction to Organization as Code
 - [Five Primitives](/concepts/five-primitives/) -- understand Sources, Actors, Routes, Transforms, Loggers
-- [Modules](/concepts/modules/) -- composable workflow modules, hot-loading, runtime management
+- [Projects](/concepts/projects/) -- project structure and configuration
 - [Engineering Org example](/examples/engineering-org/) -- full production setup walkthrough
 - [CLI Command Reference](/cli/command-reference/) -- all available commands

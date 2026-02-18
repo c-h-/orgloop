@@ -22,7 +22,8 @@ Set up a webhook source and a console logger, route an event between them.
 ```bash
 npm install -g @orgloop/cli
 orgloop init    # select "webhook" when prompted for connectors
-cd my-org && orgloop add module @orgloop/module-minimal
+cd my-org
+npm install
 orgloop validate && orgloop start
 ```
 
@@ -67,8 +68,8 @@ When an actor finishes work, that completion is itself an event — routed back 
 	<Card title="The Loop" icon="sync">
 		Actor completion feeds back as events. A dev agent finishes, the supervisor evaluates, relaunches if needed. The org loops.
 	</Card>
-	<Card title="Modules" icon="puzzle">
-		Install entire workflows as packages. `orgloop add module @orgloop/module-engineering` gives you PR review, CI triage, ticket routing, and Claude Code supervision in one command.
+	<Card title="Package-Native" icon="puzzle">
+		Standard npm projects with `package.json`. Install connectors, transforms, and loggers as npm packages. No custom module system -- just YAML config and `npm install`.
 	</Card>
 </CardGrid>
 

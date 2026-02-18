@@ -45,7 +45,6 @@ kind: Project  # or ConnectorGroup, RouteGroup, TransformGroup, LoggerGroup
 | `RouteGroup` | Route definitions |
 | `TransformGroup` | Transform definitions |
 | `LoggerGroup` | Logger definitions |
-| `Module` | Module manifest (`orgloop-module.yaml`) |
 
 ## Project Manifest
 
@@ -82,13 +81,6 @@ transforms:
 # Logger definition files
 loggers:
   - loggers/default.yaml
-
-# Module references
-modules:
-  - package: "@orgloop/module-engineering"
-    params:
-      github_repo: "my-org/my-repo"
-      agent_actor: engineering
 ```
 
 ### Metadata Fields
@@ -433,24 +425,6 @@ loggers:
 |-------|------|-------------|
 | `level` | string | Minimum log level: `debug`, `info`, `warn`, `error`. |
 | `color` | boolean | Enable ANSI color output. |
-
-## Module References
-
-Modules are declared in the project manifest. They are expanded at config time into sources, actors, routes, transforms, and loggers. The engine never sees modules -- only their expanded output.
-
-```yaml
-modules:
-  - package: "@orgloop/module-engineering"
-    params:
-      github_repo: "my-org/my-repo"
-      agent_actor: engineering
-      github_source: github
-```
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `package` | string | Yes | Module package name or local path (e.g., `./modules/engineering`). |
-| `params` | object | No | Parameters passed to the module for template expansion. |
 
 ## Environment Variable Substitution
 

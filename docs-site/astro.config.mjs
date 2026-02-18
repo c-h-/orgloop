@@ -23,7 +23,7 @@ export default defineConfig({
 					items: [
 						{ label: 'Five Primitives', slug: 'concepts/five-primitives' },
 						{ label: 'Event Taxonomy', slug: 'concepts/event-taxonomy' },
-						{ label: 'Modules', slug: 'concepts/modules' },
+						{ label: 'Projects', slug: 'concepts/projects' },
 						{ label: 'Architecture', slug: 'concepts/architecture' },
 					],
 				},
@@ -36,7 +36,7 @@ export default defineConfig({
 					items: [
 						{ label: 'Building Connectors', slug: 'guides/connector-authoring' },
 						{ label: 'Building Transforms', slug: 'guides/transform-authoring' },
-						{ label: 'Building Modules', slug: 'guides/module-authoring' },
+						{ label: 'Project Setup', slug: 'guides/project-setup' },
 						{ label: 'Security', slug: 'guides/security' },
 						{ label: 'Contributing', slug: 'guides/contributing' },
 					],
@@ -74,7 +74,8 @@ export default defineConfig({
 						{ label: 'Runtime Modes', slug: 'spec/runtime-modes' },
 						{ label: 'Transforms', slug: 'spec/transforms' },
 						{ label: 'Loggers', slug: 'spec/loggers' },
-						{ label: 'Module System', slug: 'spec/modules' },
+						{ label: 'Project Model', slug: 'spec/modules' },
+						{ label: 'Runtime Lifecycle', slug: 'spec/runtime-lifecycle' },
 						{ label: 'Roadmap', slug: 'spec/roadmap' },
 						{ label: 'Scope Boundaries', slug: 'spec/scope-boundaries' },
 						{ label: 'Event Schema', slug: 'spec/event-schema' },

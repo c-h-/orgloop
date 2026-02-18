@@ -34,7 +34,7 @@ Set up a webhook source and a console logger, then route an event between them.
 npm install -g @orgloop/cli
 orgloop init    # select "webhook" when prompted for connectors
 cd my-org
-orgloop add module @orgloop/module-minimal
+npm install
 orgloop start
 ```
 
@@ -56,7 +56,8 @@ When you're ready to wire up real services, OrgLoop scales to a full engineering
 
 ```bash
 orgloop init    # select github, linear, claude-code, openclaw
-orgloop add module @orgloop/module-engineering
+cd my-org
+npm install
 orgloop doctor        # Check deps + credentials
 orgloop plan          # Preview what will run
 orgloop start         # Start the runtime
@@ -68,10 +69,7 @@ OrgLoop Runtime
   Status: running (PID 42891)
   Uptime: 3h 22m
   Control API: http://127.0.0.1:4800
-  Modules: 1
 
-Module: engineering
-  State: active | Uptime: 3h 22m
   Sources: 3 | Actors: 1 | Routes: 3
 
   SOURCE       HEALTH    LAST POLL   ERRORS  EVENTS
@@ -94,49 +92,44 @@ See the **[Getting Started guide](https://orgloop.ai/start/getting-started/)** f
 
 ## Five Primitives
 
-Your entire org topology in one file:
+Your org topology as a project:
+
+```
+my-org/
+  package.json              # @orgloop/* dependencies
+  orgloop.yaml              # Project config: references connector, route, transform, logger files
+  connectors/
+    github.yaml             # Source: GitHub repository events
+    openclaw.yaml           # Actor: OpenClaw agent delivery
+  routes/
+    engineering.yaml        # Route: events → engineering agent
+  transforms/
+    transforms.yaml         # Transform definitions
+    drop-bot-noise.sh       # Script transform
+  loggers/
+    default.yaml            # File logger config
+  sops/
+    pr-review.md            # Launch prompt for PR review events
+```
 
 ```yaml
 # orgloop.yaml
-sources:
-  - id: github
-    connector: "@orgloop/connector-github"
-    config:
-      repo: "my-org/my-repo"
-      token: "${GITHUB_TOKEN}"
-    poll: { interval: 5m }
+apiVersion: orgloop/v1alpha1
+kind: Project
 
-  - id: claude-code
-    connector: "@orgloop/connector-claude-code"
-    config: { hook_type: post-exit }
+metadata:
+  name: my-org
+  description: "Engineering event routing"
 
-actors:
-  - id: openclaw-engineering-agent
-    connector: "@orgloop/connector-openclaw"
-    config:
-      base_url: "http://127.0.0.1:18789"
-      auth_token_env: "${OPENCLAW_WEBHOOK_TOKEN}"
+connectors:
+  - connectors/github.yaml
+  - connectors/openclaw.yaml
 
-routes:
-  - name: github-to-engineering
-    when:
-      source: github
-      events: [resource.changed]
-    transforms:
-      - transforms/drop-bot-noise.sh
-      - transforms/dedup.sh
-    then: { actor: openclaw-engineering-agent }
-
-  - name: claude-code-to-supervisor
-    when:
-      source: claude-code
-      events: [actor.stopped]
-    then: { actor: openclaw-engineering-agent }
+transforms:
+  - transforms/transforms.yaml
 
 loggers:
-  - name: file-log
-    type: "@orgloop/logger-file"
-    config: { path: ./logs/orgloop.log, format: jsonl }
+  - loggers/default.yaml
 ```
 
 **Sources** emit events. **Actors** do work. **Routes** wire them. **Transforms** filter/enrich. **Loggers** observe everything.
@@ -152,7 +145,7 @@ loggers:
 - **Transforms for security** -- injection scanning, bot noise filtering, rate limiting
 - **Full observability** -- every event, transform, delivery logged and traceable
 - **One process replaces N pollers** -- no more scattered LaunchAgents and cron jobs
-- **Multi-module runtime** -- load, unload, reload modules without restarting
+- **Daemon mode** -- supervised background process with auto-restart
 - **`plan` before `start`** -- see exactly what will change (Terraform-style)
 
 ---
@@ -172,22 +165,17 @@ orgloop inspect route github-to-engineering
 
 # Tail logs with filters
 orgloop logs --source github --since 2h
-
-# Module management (hot-load without restarting)
-orgloop module list
-orgloop module load ./my-module
-orgloop module reload engineering
 ```
 
 ---
 
-## Packages (19)
+## Packages (21)
 
 | Package | Description |
 |---------|-------------|
 | `@orgloop/sdk` | Interfaces, types, test harness |
-| `@orgloop/core` | Runtime, module lifecycle, router, bus, scheduler, schema validation |
-| `@orgloop/cli` | CLI (`init`, `plan`, `start`, `status`, `module`, `doctor`, ...) |
+| `@orgloop/core` | Runtime, router, bus, scheduler, schema validation |
+| `@orgloop/cli` | CLI (`init`, `plan`, `start`, `status`, `doctor`, ...) |
 | `@orgloop/server` | HTTP API server |
 | `@orgloop/connector-github` | Poll-based: PRs, reviews, CI, comments |
 | `@orgloop/connector-linear` | Poll-based: issues, comments, state changes |
@@ -201,9 +189,11 @@ orgloop module reload engineering
 | `@orgloop/logger-console` | ANSI colors, phase icons, level filtering |
 | `@orgloop/logger-file` | Buffered JSONL, rotation, gzip |
 | `@orgloop/logger-otel` | OpenTelemetry OTLP export |
+| `@orgloop/connector-agent-ctl` | Agent lifecycle control (start, stop, signal) |
+| `@orgloop/connector-docker` | Docker container events and management |
+| `@orgloop/connector-gog` | GOG integration connector |
+| `@orgloop/transform-agent-gate` | Agent gating logic for event pipelines |
 | `@orgloop/logger-syslog` | RFC 5424 syslog protocol |
-| `@orgloop/module-engineering` | Engineering workflow: 5 routes, 3 SOPs |
-| `@orgloop/module-minimal` | Minimal starter: 1 source, 1 actor, 1 route |
 
 ---
 

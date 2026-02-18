@@ -1,6 +1,6 @@
 ---
 title: User Guide
-description: Install OrgLoop, add a module, configure your environment, and operate OrgLoop day-to-day.
+description: Install OrgLoop, configure your environment, and operate OrgLoop day-to-day.
 ---
 
 A hands-on guide to setting up and running OrgLoop. This covers everything from installation through day-to-day operations. If you haven't read it yet, [What is OrgLoop?](/start/what-is-orgloop/) provides the conceptual foundation.
@@ -70,61 +70,18 @@ If you selected `claude-code` as a connector, init also offers to install the Cl
 The CLI tells you what to do next:
 
 ```
-Next: run `orgloop add module <name>` to install a workflow module, or `orgloop doctor` to check your environment.
+Next: run `npm install` to install dependencies, then `orgloop doctor` to check your environment.
 ```
 
-## 3. Add a module
+## 3. Install dependencies
 
-Modules are pre-built workflow packages that add routes, transforms, SOPs, and connectors to your project. They are the primary way to install workflows.
+After scaffolding, install the `@orgloop/*` packages listed in `package.json`:
 
 ```bash
-orgloop add module @orgloop/module-engineering
+npm install
 ```
 
-```
-Found module: engineering (1.0.0)
-
-Module parameters:
-? Name of your GitHub source connector: github
-? Name of your Linear source connector: linear
-? Name of your Claude Code source connector: claude-code
-? Name of your agent actor: openclaw-engineering-agent
-
-Created connectors/github.yaml
-Created connectors/linear.yaml
-Created connectors/claude-code.yaml
-Created connectors/openclaw.yaml
-Created transforms/transforms.yaml
-Created sops/pr-review.md
-Created sops/ci-failure.md
-Created sops/linear-ticket.md
-
-Module "engineering" installed
-  5 route(s) will be added at runtime
-  4 connector(s) scaffolded
-
-Next: run `orgloop doctor` to check your environment.
-```
-
-The module:
-
-- Copies connector, transform, logger, and SOP files into your project
-- Adds connector/transform/logger references to `orgloop.yaml`
-- Registers the module in `orgloop.yaml` under `modules:`
-- Route definitions expand at runtime from the module's templates
-
-Available modules:
-
-| Module | Description |
-|--------|-------------|
-| **engineering** | Full engineering org: PR review, CI failure triage, Linear tickets, Claude Code supervision (5 routes) |
-| **minimal** | Simplest starter: 1 webhook source, 1 actor, 1 route |
-
-Non-interactive mode:
-
-```bash
-orgloop add module @orgloop/module-engineering --no-interactive --params '{"github_source":"github","agent_actor":"openclaw-engineering-agent"}'
-```
+This installs connector, transform, and logger packages into `node_modules/`. The CLI resolves plugins from this directory at runtime.
 
 ## 4. Configure your environment
 
@@ -223,8 +180,6 @@ orgloop validate
   ✓ transforms/transforms.yaml    valid transform group
   ✓ transform: drop-bot-noise     valid script transform
   ✓ loggers/default.yaml          valid logger group
-  ✓ module:engineering             valid module (5 routes)
-
 0 errors, 0 warnings ✓
 Next: run `orgloop doctor` for a full health check.
 ```
@@ -235,7 +190,6 @@ Validate checks:
 - Schema conformance (`apiVersion`, `kind`, required fields)
 - Reference integrity (routes reference existing sources, actors, transforms)
 - Transform script existence and permissions
-- Module manifest validation and route expansion
 - Route graph warnings (dead sources, unreachable actors, orphan transforms)
 - Missing environment variables
 
@@ -331,7 +285,7 @@ Logs: orgloop logs | Status: orgloop status | Stop: orgloop stop
 
 What happens when start runs:
 
-1. Loads and validates config (including module expansion)
+1. Loads and validates config
 2. Checks all environment variables (fails fast if any are missing)
 3. Resolves connector packages (`@orgloop/connector-github`, etc.)
 4. Initializes sources, actors, transforms, loggers
@@ -347,6 +301,14 @@ orgloop start --daemon
 ```
 
 Forks to background and writes PID to `~/.orgloop/orgloop.pid`.
+
+### Supervised daemon mode
+
+```bash
+orgloop start --daemon --supervised
+```
+
+Runs as a daemon with an auto-restart supervisor. If the OrgLoop process crashes, the supervisor automatically restarts it. Recommended for production deployments.
 
 ### Pre-flight failures
 
@@ -552,122 +514,11 @@ You can always edit YAML files directly. The structure is:
 
 After editing, run `orgloop validate` to check your work.
 
-## 13. Building your own module
-
-A module is a directory with an `orgloop-module.yaml` manifest and supporting files.
-
-### Module structure
-
-```
-modules/my-workflow/
-  orgloop-module.yaml       # Module manifest
-  package.json              # npm package metadata
-  connectors/               # Connector YAMLs copied to project
-  transforms/               # Transform YAMLs/scripts copied to project
-  loggers/                  # Logger YAMLs copied to project
-  sops/                     # SOP files copied to project
-  templates/
-    routes.yaml             # Route templates (parameterized)
-```
-
-### Module manifest
-
-```yaml
-apiVersion: orgloop/v1alpha1
-kind: Module
-metadata:
-  name: my-workflow
-  description: "Description of what this module does"
-  version: 1.0.0
-
-requires:
-  connectors:
-    - type: source
-      id: github
-      connector: "@orgloop/connector-github"
-      required: true
-    - type: actor
-      id: agent
-      connector: "@orgloop/connector-openclaw"
-      required: true
-
-  credentials:
-    - name: GITHUB_TOKEN
-      description: "GitHub personal access token"
-      required: true
-      create_url: "https://github.com/settings/tokens/new?scopes=repo"
-
-parameters:
-  - name: github_source
-    description: "Name of your GitHub source connector"
-    type: string
-    required: true
-    default: github
-
-  - name: agent_actor
-    description: "Name of your agent actor"
-    type: string
-    required: true
-    default: openclaw-engineering-agent
-
-provides:
-  routes: 2
-  transforms: 1
-  sops: 1
-```
-
-### Route templates
-
-Route templates use `{{ params.X }}` for parameter substitution:
-
-```yaml
-# templates/routes.yaml
-apiVersion: orgloop/v1alpha1
-kind: RouteGroup
-
-routes:
-  - name: "{{ module.name }}-pr-review"
-    when:
-      source: "{{ params.github_source }}"
-      events:
-        - resource.changed
-    then:
-      actor: "{{ params.agent_actor }}"
-    with:
-      prompt_file: "{{ module.path }}/sops/pr-review.md"
-```
-
-### Local development
-
-During development, install from a local directory:
-
-```bash
-orgloop add module my-workflow --path ./modules/my-workflow
-```
-
-### Publish to npm
-
-Package as an npm module and publish:
-
-```bash
-cd modules/my-workflow
-npm publish
-```
-
-Users install with:
-
-```bash
-orgloop add module my-workflow
-```
-
-For a deeper guide, see [Building Modules](/guides/module-authoring/).
-
-## 14. CLI quick reference
+## 13. CLI quick reference
 
 | Command | Description |
 |---------|-------------|
 | `orgloop init` | Scaffold a new project |
-| `orgloop add module <name>` | Install a workflow module |
 | `orgloop add connector <name>` | Add a new connector |
 | `orgloop add route <name>` | Add a new route |
 | `orgloop add transform <name>` | Add a new transform |
@@ -680,6 +531,7 @@ For a deeper guide, see [Building Modules](/guides/module-authoring/).
 | `orgloop routes` | Visualize routing topology |
 | `orgloop start` | Start the runtime |
 | `orgloop start --daemon` | Start as background daemon |
+| `orgloop start --daemon --supervised` | Start as supervised daemon (auto-restart) |
 | `orgloop status` | Show runtime status |
 | `orgloop logs` | Tail the event log |
 | `orgloop test [file]` | Inject a test event |
@@ -703,4 +555,4 @@ For the full reference, see [CLI Command Reference](/cli/command-reference/).
 - [Event Taxonomy](/concepts/event-taxonomy/) -- the three event types and how they compose
 - [Engineering Org example](/examples/engineering-org/) -- full production setup walkthrough
 - [Building Connectors](/guides/connector-authoring/) -- create your own source or target connector
-- [Building Modules](/guides/module-authoring/) -- package and publish reusable workflows
+- [Project Setup](/guides/project-setup/) -- create and configure an OrgLoop project

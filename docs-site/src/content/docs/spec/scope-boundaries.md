@@ -1,6 +1,6 @@
 ---
 title: "Scope Boundaries"
-description: "What OrgLoop does vs. doesn't do, the shared module manifest contract, connector maturity stages, and the orchestrator vision."
+description: "What OrgLoop does vs. doesn't do, connector setup metadata, connector maturity stages, and the orchestrator vision."
 ---
 
 ### OrgLoop's Identity
@@ -11,19 +11,19 @@ This boundary is deliberate. The routing layer must be lightweight, focused, and
 
 But OrgLoop *should* make the path to a fully operational environment as obvious and friction-free as possible. The way it does this: **declare the full truth in a machine-readable contract, and let specialized tools act on it.**
 
-### The Shared Contract: Module Manifest
+### The Shared Contract: Project Config + Connector Metadata
 
-The module manifest (`orgloop-module.yaml`) is designed for **multiple consumers**. OrgLoop reads the parts it needs. External tools read the parts they need. Same file, different audiences.
+OrgLoop's project model (`orgloop.yaml` + `package.json`) combined with connector setup metadata provides a machine-readable contract for **multiple consumers**. OrgLoop reads routing config. External tools read connector setup metadata (env var descriptions, service detectors, credential validators).
 
 ```
 ┌───────────────────────────────────────────────────────────┐
-│                   orgloop-module.yaml                      │
+│          orgloop.yaml + ConnectorRegistration.setup         │
 │                                                           │
 │  ┌─────────────┐  ┌──────────────┐  ┌──────────────────┐ │
-│  │ connectors  │  │ services     │  │ credentials      │ │
-│  │ routes      │  │ install hints│  │ oauth flows      │ │
-│  │ transforms  │  │ health checks│  │ cross-system     │ │
-│  │ parameters  │  │ hooks        │  │ keychain storage │ │
+│  │ routes      │  │ env_vars     │  │ credentials      │ │
+│  │ sources     │  │ service      │  │ validators       │ │
+│  │ actors      │  │ detectors    │  │ acquirers        │ │
+│  │ transforms  │  │              │  │ (future)         │ │
 │  └──────┬──────┘  └──────┬───────┘  └────────┬─────────┘ │
 └─────────┼────────────────┼────────────────────┼───────────┘
           │                │                    │
@@ -32,26 +32,26 @@ The module manifest (`orgloop-module.yaml`) is designed for **multiple consumers
     │  (router) │   │ (sister    │   │ (connector      │
     │           │   │  project)  │   │  maturity or    │
     │ Reads:    │   │            │   │  sister project)│
-    │ connectors│   │ Reads:     │   │                 │
-    │ routes    │   │ services   │   │ Reads:          │
-    │ transforms│   │ install    │   │ credentials     │
-    │ parameters│   │ hooks      │   │ oauth           │
+    │ routes    │   │ Reads:     │   │                 │
+    │ sources   │   │ env_vars   │   │ Reads:          │
+    │ actors    │   │ service    │   │ credential      │
+    │ transforms│   │ detectors  │   │ validators      │
     └───────────┘   └────────────┘   └─────────────────┘
 ```
 
-**Design rule:** OrgLoop MUST function correctly if `services`, `credentials`, and `hooks` are entirely absent from the manifest. They are informational for OrgLoop (used by `orgloop doctor`), actionable for external tools.
+**Design rule:** OrgLoop MUST function correctly with Stage 1 connectors (no setup metadata). Setup metadata is informational for OrgLoop (used by `orgloop doctor` and `orgloop env`), actionable for external tools.
 
 ### What OrgLoop Does
 
 | Capability | How |
 |---|---|
-| Declare full dependency graph | Module manifest with `requires` block |
+| Declare full dependency graph | `package.json` dependencies + `orgloop.yaml` config |
 | Validate environment | `orgloop doctor` reports what's present, missing, degraded |
 | Run in degraded mode | Queue actor stores events when actors are unavailable |
-| Upgrade gracefully | `orgloop upgrade` promotes degraded actors to live |
+| Upgrade gracefully | Restart with `orgloop start` once dependencies are available |
 | Surface connector guidance | Connector `setup` metadata provides per-var help text, URLs |
 | Machine-readable diagnostics | `orgloop doctor --json` for automation and external tools |
-| Non-interactive installation | `orgloop add module --non-interactive --param X=Y` |
+| Non-interactive scaffolding | `orgloop init --no-interactive` for scripted project setup |
 
 ### What OrgLoop Does NOT Do
 
@@ -123,23 +123,23 @@ Each stage is backward-compatible. A Stage 1 connector works fine — it just pr
 
 ### The Orchestrator Vision
 
-A sister project (working name: `orgctl`) reads the same module manifest and handles what OrgLoop doesn't: service installation, credential brokering, cross-system configuration.
+A sister project (working name: `orgctl`) reads the project config and connector setup metadata to handle what OrgLoop doesn't: service installation, credential brokering, cross-system configuration.
 
 ```bash
 # The vision
-orgctl bootstrap @orgloop/module-engineering --github-repo my-org/my-repo
+orgctl bootstrap --template engineering-org --github-repo my-org/my-repo
 
 # orgctl does:
-# 1. npm install (connector deps)
-# 2. Install services (brew install openclaw && openclaw start)
-# 3. Wait for health checks
-# 4. Broker credentials (GitHub OAuth, OpenClaw token generation)
-# 5. Write .env
-# 6. orgloop add module @orgloop/module-engineering --non-interactive
+# 1. orgloop init (scaffold project)
+# 2. npm install (connector deps)
+# 3. Install services (brew install openclaw && openclaw start)
+# 4. Wait for health checks
+# 5. Broker credentials (GitHub OAuth, OpenClaw token generation)
+# 6. Write .env
 # 7. orgloop start
 ```
 
-OrgLoop doesn't know or care that `orgctl` exists. It reads the same YAML it always reads. The orchestrator is a consumer of OrgLoop's stable interfaces: the manifest schema, the `orgloop doctor --json` output, and the `--non-interactive` CLI flags.
+OrgLoop doesn't know or care that `orgctl` exists. It reads the same YAML it always reads. The orchestrator is a consumer of OrgLoop's stable interfaces: `orgloop doctor --json` output, connector setup metadata, and `--non-interactive` CLI flags.
 
 See the [orgctl RFP](https://orgloop.ai/vision/orgctl/) for the full project specification.
 
@@ -147,10 +147,10 @@ See the [orgctl RFP](https://orgloop.ai/vision/orgctl/) for the full project spe
 
 These interfaces are designed for external consumption and should be treated as stable once shipped:
 
-1. **Module manifest schema** — Published as JSON Schema from `@orgloop/sdk`. External tools validate against it.
-2. **`orgloop doctor --json`** — Machine-readable environment diagnostics. The API between OrgLoop and any orchestration tool.
-3. **`--non-interactive` flags** — On `orgloop add module` and `orgloop setup`. Enables scripted/automated installation.
-4. **`ConnectorRegistration` extensions** — `setup`, `service_detector`, `credential_validators`, future `credential_acquirers`. The building blocks for progressive DX.
+1. **`orgloop doctor --json`** — Machine-readable environment diagnostics. The API between OrgLoop and any orchestration tool.
+2. **`--non-interactive` flags** — On `orgloop init` and `orgloop setup`. Enables scripted/automated installation.
+3. **`ConnectorRegistration` extensions** — `setup`, `service_detector`, `credential_validators`, future `credential_acquirers`. The building blocks for progressive DX.
+4. **Config schema** — Published as JSON Schema from `@orgloop/sdk`. External tools validate against it.
 
 ### DX Progression: Today -> Tomorrow -> Vision
 
@@ -168,7 +168,7 @@ Connectors at Stage 2-3 handle credential acquisition. No manual token pasting.
 
 **Vision (orchestrator):**
 ```
-orgctl bootstrap @orgloop/module-engineering → done
+orgctl bootstrap --template engineering-org → done
 ```
 One command. Blank machine to running org.
 
