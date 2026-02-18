@@ -283,11 +283,6 @@ export interface ProjectConfig {
 	connectors?: string[];
 	transforms?: string[];
 	loggers?: string[];
-	/** Installed modules with their parameter values */
-	modules?: Array<{
-		package: string;
-		params: Record<string, string | number | boolean>;
-	}>;
 }
 
 /** Full resolved OrgLoop configuration — everything needed to run */

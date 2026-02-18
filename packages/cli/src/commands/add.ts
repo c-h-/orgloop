@@ -1,15 +1,12 @@
 /**
  * orgloop add — Scaffold new components.
  *
- * Subcommands: connector, transform, logger, route, module.
+ * Subcommands: connector, transform, logger, route.
  */
 
-import { execSync } from 'node:child_process';
-import { access, chmod, cp, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { access, chmod, mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { Command } from 'commander';
-import yaml from 'js-yaml';
-import { expandModuleRoutes, loadModuleManifest, resolveModulePath } from '../module-resolver.js';
 import * as output from '../output.js';
 
 async function fileExists(path: string): Promise<boolean> {
@@ -131,7 +128,7 @@ routes:
 export function registerAddCommand(program: Command): void {
 	const addCmd = program
 		.command('add')
-		.description('Scaffold a new connector, transform, logger, route, or module');
+		.description('Scaffold a new connector, transform, logger, or route');
 
 	// orgloop add connector <name>
 	addCmd
@@ -153,6 +150,9 @@ export function registerAddCommand(program: Command): void {
 				await writeFile(filePath, connectorYaml(name, opts.type), 'utf-8');
 				output.success(`Created connectors/${name}.yaml`);
 				output.info(`Add "connectors/${name}.yaml" to your orgloop.yaml connectors list.`);
+				output.info(
+					'Ensure the connector package is in your package.json: npm install @orgloop/connector-<name>',
+				);
 			} catch (err) {
 				output.error(`Failed: ${err instanceof Error ? err.message : String(err)}`);
 				process.exitCode = 1;
@@ -236,189 +236,6 @@ export function registerAddCommand(program: Command): void {
 
 				await writeFile(filePath, routeYaml(name, opts.source, opts.actor), 'utf-8');
 				output.success(`Created routes/${name}.yaml`);
-			} catch (err) {
-				output.error(`Failed: ${err instanceof Error ? err.message : String(err)}`);
-				process.exitCode = 1;
-			}
-		});
-
-	// orgloop add module <name>
-	addCmd
-		.command('module <name>')
-		.description('Install a workflow module')
-		.option('--path <path>', 'Local module path (for development)')
-		.option('--no-interactive', 'Disable interactive prompts')
-		.option('--params <json>', 'Parameters as JSON (non-interactive)')
-		.action(async (name: string, opts) => {
-			try {
-				const cwd = process.cwd();
-				const configPath = resolve(cwd, 'orgloop.yaml');
-
-				if (!(await fileExists(configPath))) {
-					output.error('No orgloop.yaml found. Run `orgloop init` first.');
-					process.exitCode = 1;
-					return;
-				}
-
-				// Resolve module path
-				let modulePath: string;
-				if (opts.path) {
-					modulePath = resolve(cwd, opts.path);
-				} else if (name.startsWith('.') || name.startsWith('/')) {
-					modulePath = resolveModulePath(name, cwd);
-				} else {
-					// npm package — install it into the project
-					const packageJsonPath = join(cwd, 'package.json');
-					if (!(await fileExists(packageJsonPath))) {
-						await writeFile(
-							packageJsonPath,
-							`${JSON.stringify({ private: true, description: 'OrgLoop project dependencies', dependencies: {} }, null, 2)}\n`,
-							'utf-8',
-						);
-					}
-
-					output.info(`Installing ${name}...`);
-					try {
-						execSync(`npm install ${name}`, {
-							cwd,
-							stdio: 'pipe',
-							timeout: 60_000,
-						});
-					} catch (err) {
-						const msg =
-							err instanceof Error && 'stderr' in err
-								? (err as { stderr: string }).stderr
-								: String(err);
-						throw new Error(`Failed to install module "${name}": ${msg}`);
-					}
-
-					modulePath = resolveModulePath(name, cwd);
-				}
-
-				// Load manifest
-				const manifest = await loadModuleManifest(modulePath);
-				output.success(`Found module: ${manifest.metadata.name} (${manifest.metadata.version})`);
-
-				// Collect parameters
-				let params: Record<string, string | number | boolean> = {};
-
-				if (opts.params) {
-					params = JSON.parse(opts.params);
-				} else if (opts.interactive !== false) {
-					const { default: inquirer } = await import('inquirer');
-					const questions = (manifest.parameters ?? []).map((p) => ({
-						type: 'input' as const,
-						name: p.name,
-						message: `${p.description}:`,
-						default: p.default !== undefined ? String(p.default) : undefined,
-					}));
-
-					if (questions.length > 0) {
-						output.blank();
-						output.heading('Module parameters:');
-						params = await inquirer.prompt(questions);
-					}
-				} else {
-					// Non-interactive: use defaults
-					for (const p of manifest.parameters ?? []) {
-						if (p.default !== undefined) {
-							params[p.name] = p.default;
-						} else if (p.required) {
-							output.error(
-								`Missing required parameter "${p.name}". Use --params or run interactively.`,
-							);
-							process.exitCode = 1;
-							return;
-						}
-					}
-				}
-
-				// Expand routes to validate
-				const routes = await expandModuleRoutes(modulePath, manifest, params);
-
-				// Scaffold bundled files (connectors, transforms, loggers, SOPs)
-				const scaffoldDirs = ['connectors', 'transforms', 'loggers', 'sops'] as const;
-				const connectorFiles: string[] = [];
-				const transformFiles: string[] = [];
-				const loggerFiles: string[] = [];
-
-				for (const dir of scaffoldDirs) {
-					const moduleDir = join(modulePath, dir);
-					if (!(await fileExists(moduleDir))) continue;
-
-					const projectDir = resolve(cwd, dir);
-					await mkdir(projectDir, { recursive: true });
-
-					const { readdir: rd } = await import('node:fs/promises');
-					const files = await rd(moduleDir);
-					for (const file of files) {
-						const destPath = join(projectDir, file);
-						if (await fileExists(destPath)) continue; // Don't overwrite existing
-
-						await cp(join(moduleDir, file), destPath, { recursive: true });
-						output.success(`Created ${dir}/${file}`);
-
-						// Track YAML files for orgloop.yaml references
-						if (file.endsWith('.yaml') || file.endsWith('.yml')) {
-							if (dir === 'connectors') connectorFiles.push(`connectors/${file}`);
-							if (dir === 'transforms') transformFiles.push(`transforms/${file}`);
-							if (dir === 'loggers') loggerFiles.push(`loggers/${file}`);
-						}
-					}
-				}
-
-				// Merge into orgloop.yaml
-				const rawConfig = await readFile(configPath, 'utf-8');
-				const config = yaml.load(rawConfig) as Record<string, unknown>;
-
-				// Add connector/transform/logger refs
-				const existingConnectors = (config.connectors ?? []) as string[];
-				for (const f of connectorFiles) {
-					if (!existingConnectors.includes(f)) existingConnectors.push(f);
-				}
-				if (existingConnectors.length) config.connectors = existingConnectors;
-
-				const existingTransforms = (config.transforms ?? []) as string[];
-				for (const f of transformFiles) {
-					if (!existingTransforms.includes(f)) existingTransforms.push(f);
-				}
-				if (existingTransforms.length) config.transforms = existingTransforms;
-
-				const existingLoggers = (config.loggers ?? []) as string[];
-				for (const f of loggerFiles) {
-					if (!existingLoggers.includes(f)) existingLoggers.push(f);
-				}
-				if (existingLoggers.length) config.loggers = existingLoggers;
-
-				// Add module entry
-				const modules = (config.modules ?? []) as Array<{
-					package: string;
-					params: Record<string, string | number | boolean>;
-				}>;
-
-				const packageRef = opts.path ?? name;
-				const existing = modules.find((m) => m.package === packageRef || m.package === name);
-				if (existing) {
-					output.warn(`Module "${name}" is already installed. Updating parameters.`);
-					existing.params = params;
-				} else {
-					modules.push({
-						package: packageRef,
-						params,
-					});
-				}
-				config.modules = modules;
-
-				await writeFile(configPath, yaml.dump(config, { lineWidth: 100 }), 'utf-8');
-
-				output.blank();
-				output.success(`Module "${manifest.metadata.name}" installed`);
-				output.info(`  ${routes.length} route(s) will be added at runtime`);
-				if (connectorFiles.length) {
-					output.info(`  ${connectorFiles.length} connector(s) scaffolded`);
-				}
-				output.blank();
-				output.info('Next: run `orgloop doctor` to check your environment.');
 			} catch (err) {
 				output.error(`Failed: ${err instanceof Error ? err.message : String(err)}`);
 				process.exitCode = 1;

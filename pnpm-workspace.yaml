@@ -3,5 +3,4 @@ packages:
   - "connectors/*"
   - "transforms/*"
   - "loggers/*"
-  - "modules/*"
   - "!docs-site"

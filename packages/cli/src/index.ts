@@ -18,7 +18,6 @@ import { registerInitCommand } from './commands/init.js';
 import { registerInspectCommand } from './commands/inspect.js';
 import { registerInstallServiceCommand } from './commands/install-service.js';
 import { registerLogsCommand } from './commands/logs.js';
-import { registerModuleCommand } from './commands/module.js';
 import { registerPlanCommand } from './commands/plan.js';
 import { registerRoutesCommand } from './commands/routes.js';
 import { registerServiceCommand } from './commands/service.js';
@@ -84,7 +83,6 @@ async function main(): Promise<void> {
 	registerInspectCommand(program);
 	registerInstallServiceCommand(program);
 	registerServiceCommand(program);
-	registerModuleCommand(program);
 
 	await program.parseAsync(process.argv);
 }

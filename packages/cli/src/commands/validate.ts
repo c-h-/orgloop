@@ -20,7 +20,6 @@ import chalk from 'chalk';
 import type { Command } from 'commander';
 import yaml from 'js-yaml';
 import { resolveConfigPath } from '../config.js';
-import { resolveModules } from '../module-resolver.js';
 import * as output from '../output.js';
 import { createProjectImport } from '../project-import.js';
 import { scanEnvVars } from './env.js';
@@ -538,29 +537,6 @@ export async function runValidation(configPath: string): Promise<{
 					errors: [err instanceof Error ? err.message : String(err)],
 				});
 			}
-		}
-	}
-
-	// 6b. Load module routes
-	if (project.modules?.length) {
-		try {
-			const moduleResult = await resolveModules(project.modules, basePath);
-			allRoutes.push(...moduleResult.routes);
-			for (const mod of moduleResult.resolved) {
-				results.push({
-					file: `module:${mod.manifest.metadata.name}`,
-					valid: true,
-					description: `valid module (${mod.routes.length} routes)`,
-					errors: [],
-				});
-			}
-		} catch (err) {
-			results.push({
-				file: 'modules',
-				valid: false,
-				description: 'failed to resolve modules',
-				errors: [err instanceof Error ? err.message : String(err)],
-			});
 		}
 	}
 

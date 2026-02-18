@@ -33,24 +33,6 @@ export type {
 	Logger,
 	LoggerRegistration,
 } from './logger.js';
-// Module types
-export type {
-	InstalledModule,
-	ModuleActorDefinition,
-	ModuleConnectorRequirement,
-	ModuleConnectors,
-	ModuleCredentialRequirement,
-	ModuleExpansionContext,
-	ModuleHookRequirement,
-	ModuleManifest,
-	ModuleMetadata,
-	ModuleParameter,
-	ModuleProvides,
-	ModuleRequirements,
-	ModuleServiceRequirement,
-	ModuleSourceDefinition,
-} from './module.js';
-export { expandTemplate, expandTemplateDeep, moduleManifestSchema } from './module.js';
 // Test harness
 export {
 	createTestContext,

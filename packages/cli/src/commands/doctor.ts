@@ -10,8 +10,8 @@
  */
 
 import { readFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
-import type { CredentialValidator, ServiceDetector } from '@orgloop/sdk';
+import { dirname, join } from 'node:path';
+import type { CredentialValidator, OrgLoopConfig, ServiceDetector } from '@orgloop/sdk';
 import chalk from 'chalk';
 import type { Command } from 'commander';
 import yaml from 'js-yaml';
@@ -26,7 +26,7 @@ import { runValidation } from './validate.js';
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface DoctorCheck {
-	category: 'credential' | 'config' | 'transform' | 'route-graph' | 'service';
+	category: 'credential' | 'config' | 'transform' | 'route-graph' | 'service' | 'dependency';
 	name: string;
 	status: 'ok' | 'missing' | 'error' | 'warning';
 	detail?: string;
@@ -217,6 +217,73 @@ export async function checkServices(
 	return checks;
 }
 
+/**
+ * Check that all @orgloop/* packages referenced in YAML configs exist in
+ * the project's package.json dependencies or devDependencies.
+ */
+export async function checkDependencies(
+	configPath: string,
+	config?: OrgLoopConfig,
+): Promise<DoctorCheck[]> {
+	const checks: DoctorCheck[] = [];
+	const projectDir = dirname(configPath);
+
+	// Read project package.json
+	let deps: Set<string>;
+	try {
+		const pkgJsonPath = join(projectDir, 'package.json');
+		const content = await readFile(pkgJsonPath, 'utf-8');
+		const pkg = JSON.parse(content) as Record<string, unknown>;
+		const allDeps = {
+			...((pkg.dependencies ?? {}) as Record<string, string>),
+			...((pkg.devDependencies ?? {}) as Record<string, string>),
+		};
+		deps = new Set(Object.keys(allDeps));
+	} catch {
+		// No package.json — can't validate
+		return checks;
+	}
+
+	if (!config) return checks;
+
+	// Collect all referenced packages
+	const referenced = new Map<string, string>(); // package → where referenced
+	for (const s of config.sources) {
+		if (s.connector.startsWith('@')) referenced.set(s.connector, `source:${s.id}`);
+	}
+	for (const a of config.actors) {
+		if (a.connector.startsWith('@')) referenced.set(a.connector, `actor:${a.id}`);
+	}
+	for (const t of config.transforms) {
+		if (t.type === 'package' && t.package?.startsWith('@')) {
+			referenced.set(t.package, `transform:${t.name}`);
+		}
+	}
+	for (const l of config.loggers) {
+		if (l.type.startsWith('@')) referenced.set(l.type, `logger:${l.name}`);
+	}
+
+	for (const [pkg, source] of referenced) {
+		if (deps.has(pkg)) {
+			checks.push({
+				category: 'dependency',
+				name: pkg,
+				status: 'ok',
+				detail: source,
+			});
+		} else {
+			checks.push({
+				category: 'dependency',
+				name: pkg,
+				status: 'error',
+				detail: `Referenced by ${source} — run \`npm install ${pkg}\``,
+			});
+		}
+	}
+
+	return checks;
+}
+
 // ─── Main doctor logic ───────────────────────────────────────────────────────
 
 export async function runDoctor(configPath: string, importFn?: ImportFn): Promise<DoctorResult> {
@@ -266,15 +333,24 @@ export async function runDoctor(configPath: string, importFn?: ImportFn): Promis
 		// Config loading failed (e.g., missing env vars) — proceed without validators
 	}
 
+	// Load config for dependency checks (best-effort, separate from connector loading)
+	let loadedConfig: OrgLoopConfig | undefined;
+	try {
+		loadedConfig = await loadCliConfig({ configPath });
+	} catch {
+		// Config loading may fail (e.g., missing env vars)
+	}
+
 	// Phase 1: Static analysis (validate)
-	// Phase 2: Live checks (credentials, services)
-	const [validationChecks, credentialChecks, serviceChecks] = await Promise.all([
+	// Phase 2: Live checks (credentials, services, dependencies)
+	const [validationChecks, credentialChecks, serviceChecks, dependencyChecks] = await Promise.all([
 		checkValidation(configPath),
 		checkCredentials(configPath, validators),
 		detectors ? checkServices(detectors) : Promise.resolve([]),
+		checkDependencies(configPath, loadedConfig),
 	]);
 
-	checks.push(...credentialChecks, ...validationChecks, ...serviceChecks);
+	checks.push(...dependencyChecks, ...credentialChecks, ...validationChecks, ...serviceChecks);
 
 	// Determine overall status
 	const hasError = checks.some((c) => c.status === 'error');
@@ -303,6 +379,7 @@ export function printDoctorResult(result: DoctorResult): void {
 	}
 
 	const categoryLabels: Record<string, string> = {
+		dependency: 'Dependencies',
 		credential: 'Credentials',
 		config: 'Config',
 		transform: 'Transforms',
@@ -310,7 +387,7 @@ export function printDoctorResult(result: DoctorResult): void {
 		service: 'Services',
 	};
 
-	const categoryOrder = ['credential', 'service', 'config', 'route-graph'];
+	const categoryOrder = ['dependency', 'credential', 'service', 'config', 'route-graph'];
 
 	for (const cat of categoryOrder) {
 		const checks = byCategory.get(cat);

@@ -63,7 +63,7 @@ All four must pass. CI runs these on every PR.
 
 ## Monorepo Structure
 
-pnpm workspaces + Turborepo. Five workspace roots:
+pnpm workspaces + Turborepo. Four workspace roots:
 
 ```
 packages/
@@ -90,10 +90,6 @@ loggers/
   file/         — Buffered JSONL, rotation (size/age/count), gzip
   otel/         — OpenTelemetry OTLP export
   syslog/       — RFC 5424 syslog protocol
-
-modules/
-  engineering/  — Engineering org workflow (PR review, CI failure, Linear, Claude Code)
-  minimal/      — Minimal starter (1 webhook source, 1 actor, 1 route)
 ```
 
 **Dependency chain:** `sdk` → `core` → everything else. Turbo handles this via `"dependsOn": ["^build"]`.
@@ -179,8 +175,6 @@ Every plugin type (connector, transform, logger) must be wired through the **ful
 | Checkpoint store | `packages/core/src/__tests__/store.test.ts` | — |
 | Transform filter | `transforms/filter/src/__tests__/filter.test.ts` | — |
 | Dedup transform | `transforms/dedup/src/__tests__/dedup.test.ts` | — |
-| Module types + expansion | `packages/sdk/src/__tests__/module.test.ts` | 20 |
-| Module E2E (resolution, composition, namespacing) | `packages/cli/src/__tests__/module-e2e.test.ts` | 23 |
 | Daemon lifecycle (PID, signals, stop, logs, state) | `packages/cli/src/__tests__/daemon-lifecycle.test.ts` | 45 |
 | Runtime lifecycle (multi-module, shared infra) | `packages/core/src/__tests__/runtime.test.ts` | 11 |
 | Module registry (name conflicts, lookup) | `packages/core/src/__tests__/registry.test.ts` | 8 |
@@ -217,7 +211,6 @@ Key spec files:
 - [Plugin System](https://orgloop.ai/spec/plugin-system/) — Connector/transform/logger plugin model, setup metadata
 - [CLI Design](https://orgloop.ai/spec/cli-design/) — CLI commands and behavior (including `env`, `doctor`)
 - [Runtime Modes](https://orgloop.ai/spec/runtime-modes/) — Runtime modes (CLI, library, server)
-- [Module System](https://orgloop.ai/spec/modules/) — Module manifest, progressive onboarding, composition
 - [Scope Boundaries](https://orgloop.ai/spec/scope-boundaries/) — What OrgLoop does vs. doesn't do, connector maturity, orchestrator vision
 - [Future Extensions](https://orgloop.ai/spec/future-extensions/) — Design gaps and planned capabilities (FE-XX)
 - [orgctl RFP](https://orgloop.ai/vision/orgctl/) — Sister project specification for environment bootstrapping

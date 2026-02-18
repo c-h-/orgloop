@@ -5,13 +5,17 @@
  * Non-interactive: --name, --connectors, --no-interactive flags.
  */
 
+import { readFileSync } from 'node:fs';
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import chalk from 'chalk';
 import type { Command } from 'commander';
 import { getEnvVarMeta } from '../env-metadata.js';
 import * as output from '../output.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // ─── Connectors ──────────────────────────────────────────────────────────────
 
@@ -36,16 +40,28 @@ const CONNECTOR_PACKAGES: Record<string, string> = {
 	pagerduty: '@orgloop/connector-webhook',
 };
 
+/** Read the CLI's own version to use as a version hint for scaffolded projects. */
+function getVersionRange(): string {
+	try {
+		const pkgPath = resolve(__dirname, '..', '..', 'package.json');
+		const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8')) as { version: string };
+		return `^${pkg.version}`;
+	} catch {
+		return '*';
+	}
+}
+
 /** Collect npm dependencies needed for a set of connectors. */
 function collectProjectDeps(connectors: string[]): Record<string, string> {
+	const version = getVersionRange();
 	const deps: Record<string, string> = {
-		'@orgloop/core': 'latest',
-		'@orgloop/logger-file': 'latest',
+		'@orgloop/core': version,
+		'@orgloop/logger-file': version,
 	};
 
 	for (const conn of connectors) {
 		const pkg = CONNECTOR_PACKAGES[conn];
-		if (pkg) deps[pkg] = 'latest';
+		if (pkg) deps[pkg] = version;
 	}
 
 	return Object.fromEntries(Object.entries(deps).sort(([a], [b]) => a.localeCompare(b)));

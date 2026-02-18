@@ -10,7 +10,6 @@ import { homedir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import type { OrgLoopConfig, ProjectConfig } from '@orgloop/sdk';
 import yaml from 'js-yaml';
-import { resolveModules } from './module-resolver.js';
 
 // ─── Env var substitution ────────────────────────────────────────────────────
 
@@ -182,12 +181,6 @@ export async function loadCliConfig(options: CliConfigOptions = {}): Promise<Org
 		} catch {
 			// ignore user config errors
 		}
-	}
-
-	// Resolve modules and merge their routes
-	if (project.modules?.length) {
-		const moduleResult = await resolveModules(project.modules, basePath);
-		routes.push(...moduleResult.routes);
 	}
 
 	return {

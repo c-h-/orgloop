@@ -51,17 +51,6 @@ const projectSchema = {
 		connectors: { type: 'array', items: { type: 'string' } },
 		transforms: { type: 'array', items: { type: 'string' } },
 		loggers: { type: 'array', items: { type: 'string' } },
-		modules: {
-			type: 'array',
-			items: {
-				type: 'object',
-				required: ['package', 'params'],
-				properties: {
-					package: { type: 'string' },
-					params: { type: 'object' },
-				},
-			},
-		},
 	},
 };
 

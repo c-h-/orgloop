@@ -130,10 +130,6 @@ importers:
         specifier: workspace:*
         version: link:../../packages/sdk
 
-  modules/engineering: {}
-
-  modules/minimal: {}
-
   packages/cli:
     dependencies:
       '@orgloop/core':
