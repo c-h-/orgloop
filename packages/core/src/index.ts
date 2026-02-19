@@ -28,6 +28,9 @@ export type { RuntimeControl } from './http.js';
 export { DEFAULT_HTTP_PORT, WebhookServer } from './http.js';
 // Logger manager
 export { LoggerManager } from './logger.js';
+export type { MetricsServerOptions } from './metrics.js';
+// Prometheus metrics
+export { MetricsServer } from './metrics.js';
 export type { ModuleConfig, ModuleContext } from './module-instance.js';
 // Module system
 export { ModuleInstance } from './module-instance.js';
