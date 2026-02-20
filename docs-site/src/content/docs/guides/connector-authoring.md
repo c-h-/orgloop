@@ -270,4 +270,4 @@ Connectors depend only on `@orgloop/sdk`, never on `@orgloop/core`. This keeps t
 4. Users install: `npm install orgloop-connector-my-service`
 5. Users add to their project: `orgloop add connector my-service --package orgloop-connector-my-service`
 
-See the existing connectors in `connectors/` ([source on GitHub](https://github.com/c-h-/orgloop/tree/main/connectors)) for real-world examples of the pattern.
+See the existing connectors in `connectors/` ([source on GitHub](https://github.com/orgloop/orgloop/tree/main/connectors)) for real-world examples of the pattern.

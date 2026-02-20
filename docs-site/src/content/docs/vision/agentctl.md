@@ -202,4 +202,4 @@ orgloop start
 # The org loops.
 ```
 
-See the full [agentctl RFP](https://github.com/c-h-/orgloop/blob/main/docs/rfp-agentctl.md) for technical details, scope boundaries, and implementation phases.
+See the full [agentctl RFP](https://github.com/orgloop/orgloop/blob/main/docs/rfp-agentctl.md) for technical details, scope boundaries, and implementation phases.

@@ -23,7 +23,7 @@ The Homebrew formula bundles Node.js via Single Executable Application (SEA) —
 
 **Tertiary: Docker**
 ```bash
-docker run -v $(pwd):/config ghcr.io/c-h-/orgloop start
+docker run -v $(pwd):/config ghcr.io/orgloop/orgloop start
 ```
 
 For server deployments where OrgLoop runs as a daemon.

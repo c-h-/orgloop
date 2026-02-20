@@ -4,7 +4,7 @@
 
 **Decision: Personal repo initially, with a path to a GitHub org.**
 
-#### Option A: Personal Repo (`c-h-/orgloop`)
+#### Option A: Personal Repo (`orgloop/orgloop`)
 
 Pros:
 - **Profile visibility.** Pinned repos on a personal profile are the first thing people see. If OrgLoop is Charlie's highest-profile open source project, it's immediately visible to anyone who looks at the GitHub profile.
@@ -31,11 +31,11 @@ Cons:
 
 #### Recommendation
 
-**Start with `c-h-/orgloop` (personal repo).** The profile visibility, personal brand association, and simplicity outweigh the governance benefits of an org at this stage. The project needs attention and credibility more than it needs structure.
+**Start with `orgloop/orgloop` (personal repo).** The profile visibility, personal brand association, and simplicity outweigh the governance benefits of an org at this stage. The project needs attention and credibility more than it needs structure.
 
 **Migration path to org:**
 1. When the project has its first external maintainer (not just contributor — someone with merge rights), create the `orgloop` GitHub org.
-2. Transfer the repo (`c-h-/orgloop` → `orgloop/orgloop`). GitHub handles redirects automatically.
+2. Transfer the repo (`orgloop/orgloop` → `orgloop/orgloop`). GitHub handles redirects automatically.
 3. Charlie remains org owner. Add maintainers as org members with appropriate team permissions.
 4. Pin the org repo on Charlie's personal profile so visibility is maintained.
 

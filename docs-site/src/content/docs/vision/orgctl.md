@@ -168,7 +168,7 @@ orgctl's job is done when `orgloop start` starts successfully. After that, OrgLo
 
 ## Implementation Status
 
-orgctl is **designed but not yet built**. The specification is complete (see the full [RFP](https://github.com/c-h-/orgloop/blob/main/docs/rfp-orgctl.md) in the OrgLoop repository). Implementation begins after OrgLoop's connector setup metadata schema stabilizes.
+orgctl is **designed but not yet built**. The specification is complete (see the full [RFP](https://github.com/orgloop/orgloop/blob/main/docs/rfp-orgctl.md) in the OrgLoop repository). Implementation begins after OrgLoop's connector setup metadata schema stabilizes.
 
 ### Planned Phases
 
@@ -203,6 +203,6 @@ OrgLoop is the routing layer that makes it run. orgctl is the bootstrapper that 
 
 orgctl will be a separate open-source project in the `orgloop` GitHub organization. It shares types with OrgLoop by depending on `@orgloop/sdk` for manifest schema definitions.
 
-If you are interested in contributing to orgctl -- particularly around service detection, credential brokering, or platform-specific package management -- watch the [c-h-/orgloop](https://github.com/c-h-/orgloop) repository for the announcement of the orgctl project.
+If you are interested in contributing to orgctl -- particularly around service detection, credential brokering, or platform-specific package management -- watch the [orgloop/orgloop](https://github.com/orgloop/orgloop) repository for the announcement of the orgctl project.
 
 The technical starting point: read the [project config schema](/reference/config-schema/) and the [scope boundaries](/vision/scope-boundaries/) that define the interface contract between OrgLoop and external tools.

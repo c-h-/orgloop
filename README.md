@@ -1,6 +1,6 @@
 # OrgLoop
 
-[![CI](https://github.com/c-h-/orgloop/actions/workflows/ci.yml/badge.svg)](https://github.com/c-h-/orgloop/actions/workflows/ci.yml)
+[![CI](https://github.com/orgloop/orgloop/actions/workflows/ci.yml/badge.svg)](https://github.com/orgloop/orgloop/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE.md)
 [![Docs](https://img.shields.io/badge/docs-orgloop.ai-blue)](https://orgloop.ai)
 

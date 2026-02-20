@@ -8,7 +8,7 @@ Whether you are fixing a typo, building a connector, or proposing a new feature 
 ## Setup
 
 ```bash
-git clone https://github.com/c-h-/orgloop.git
+git clone https://github.com/orgloop/orgloop.git
 cd orgloop
 
 # Install dependencies (requires pnpm 9+ and Node 22+)

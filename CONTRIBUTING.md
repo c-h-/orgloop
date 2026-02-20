@@ -6,7 +6,7 @@ Hey, thanks for considering contributing to OrgLoop! Whether you're fixing a typ
 
 ```bash
 # Clone the repo
-git clone https://github.com/c-h-/orgloop.git
+git clone https://github.com/orgloop/orgloop.git
 cd orgloop
 
 # Install dependencies (requires pnpm 9+ and Node 22+)
