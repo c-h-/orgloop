@@ -1,6 +1,6 @@
 {
   "name": "@orgloop/core",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "OrgLoop runtime engine — library-first event routing",
   "type": "module",
   "main": "dist/index.js",
