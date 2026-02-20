@@ -201,6 +201,7 @@ chore: bump vitest to v3.1
 4. **Test** -- run `pnpm test` and ensure your changes are covered
 5. **Lint** -- run `pnpm lint` and fix any issues
 6. **Open a PR** against `main` with a clear description
+7. **CI on forks** -- fork PRs require a maintainer to approve the CI workflow run in GitHub Actions before checks will execute. This is a standard GitHub security measure. Once approved, CI runs normally.
 
 ## AI-Assisted PRs Welcome
 
