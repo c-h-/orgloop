@@ -410,6 +410,85 @@ describe('DedupTransform', () => {
 		expect(await dedup.execute(email2, ctx)).not.toBeNull(); // Different message_id = passed
 	});
 
+	// ─── PR review state dedup regression (Fixes #37) ────────────────────────
+
+	it('dedup on provenance.review_id distinguishes different reviews on same PR', async () => {
+		await dedup.init({
+			key: ['source', 'provenance.platform_event', 'provenance.review_id'],
+			window: '10m',
+		});
+
+		const ctx = createTestContext();
+
+		// Bot comment review on PR #1
+		const commentReview = createTestEvent({
+			source: 'github',
+			type: 'resource.changed',
+			provenance: {
+				platform: 'github',
+				platform_event: 'pull_request.review_submitted',
+				review_id: 100,
+				review_state: 'commented',
+				pr_number: 1,
+			},
+		});
+
+		// Human approval review on PR #1 (different review_id)
+		const approvalReview = createTestEvent({
+			source: 'github',
+			type: 'resource.changed',
+			provenance: {
+				platform: 'github',
+				platform_event: 'pull_request.review_submitted',
+				review_id: 101,
+				review_state: 'approved',
+				pr_number: 1,
+			},
+		});
+
+		// Both should pass — different review_ids
+		expect(await dedup.execute(commentReview, ctx)).not.toBeNull();
+		expect(await dedup.execute(approvalReview, ctx)).not.toBeNull();
+	});
+
+	it('dedup on provenance.review_id correctly dedupes same review polled twice', async () => {
+		await dedup.init({
+			key: ['source', 'provenance.platform_event', 'provenance.review_id'],
+			window: '10m',
+		});
+
+		const ctx = createTestContext();
+
+		// Same review (id: 100) polled in two consecutive cycles
+		const firstPoll = createTestEvent({
+			source: 'github',
+			type: 'resource.changed',
+			provenance: {
+				platform: 'github',
+				platform_event: 'pull_request.review_submitted',
+				review_id: 100,
+				review_state: 'approved',
+				pr_number: 1,
+			},
+		});
+
+		const secondPoll = createTestEvent({
+			source: 'github',
+			type: 'resource.changed',
+			provenance: {
+				platform: 'github',
+				platform_event: 'pull_request.review_submitted',
+				review_id: 100,
+				review_state: 'approved',
+				pr_number: 1,
+			},
+		});
+
+		// First passes, second is dropped (same review_id)
+		expect(await dedup.execute(firstPoll, ctx)).not.toBeNull();
+		expect(await dedup.execute(secondPoll, ctx)).toBeNull();
+	});
+
 	// ─── Unknown config key validation (WQ-85 regression) ─────────────────────
 
 	it('throws on unknown config keys to catch field name mismatches', async () => {

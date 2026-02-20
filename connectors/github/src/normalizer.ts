@@ -42,10 +42,12 @@ export function normalizePullRequestReview(
 			repo: (repo.full_name as string) ?? '',
 			pr_number: pr.number as number,
 			url: (review.html_url as string) ?? '',
+			review_id: review.id as number,
 			review_state: review.state as string,
 		},
 		payload: {
 			action: 'review_submitted',
+			review_id: review.id,
 			review_state: review.state,
 			review_body: review.body,
 			pr_title: pr.title,

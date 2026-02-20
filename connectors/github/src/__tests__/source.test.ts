@@ -457,6 +457,95 @@ describe('GitHubSource', () => {
 		});
 	});
 
+	describe('review state dedup — review_id in events (Fixes #37)', () => {
+		it('includes review_id in provenance and payload', async () => {
+			const mock = createMockOctokit();
+			const pr = makePR({ number: 1 });
+			const review = makeReview({
+				id: 555,
+				state: 'approved',
+				submitted_at: '2024-01-15T10:00:00Z',
+			});
+
+			mock.pulls.list.mockResolvedValue({ data: [pr] });
+			mock.pulls.listReviews.mockResolvedValue({ data: [review] });
+
+			const source = await createSource(['pull_request.review_submitted'], mock);
+			const result = await source.poll('2024-01-15T09:00:00Z');
+
+			expect(result.events).toHaveLength(1);
+			expect(result.events[0].provenance.review_id).toBe(555);
+			expect(result.events[0].payload.review_id).toBe(555);
+		});
+
+		it('two reviews on same PR with different states produce different review_ids', async () => {
+			const mock = createMockOctokit();
+			const pr = makePR({ number: 1 });
+			const commentReview = makeReview({
+				id: 100,
+				state: 'commented',
+				body: 'needs work',
+				submitted_at: '2024-01-15T10:00:00Z',
+				user: { login: 'bot[bot]', type: 'Bot' },
+			});
+			const approvalReview = makeReview({
+				id: 101,
+				state: 'approved',
+				body: 'LGTM',
+				submitted_at: '2024-01-15T10:01:00Z',
+				user: { login: 'alice', type: 'User' },
+			});
+
+			mock.pulls.list.mockResolvedValue({ data: [pr] });
+			mock.pulls.listReviews.mockResolvedValue({
+				data: [commentReview, approvalReview],
+			});
+
+			const source = await createSource(['pull_request.review_submitted'], mock);
+			const result = await source.poll('2024-01-15T09:00:00Z');
+
+			expect(result.events).toHaveLength(2);
+			// Different review IDs
+			expect(result.events[0].provenance.review_id).toBe(100);
+			expect(result.events[1].provenance.review_id).toBe(101);
+			// Different review states
+			expect(result.events[0].provenance.review_state).toBe('commented');
+			expect(result.events[1].provenance.review_state).toBe('approved');
+		});
+
+		it('same review polled twice produces same review_id for stable dedup', async () => {
+			const mock = createMockOctokit();
+			const pr = makePR({ number: 1, updated_at: '2024-01-15T10:00:00Z' });
+			const review = makeReview({
+				id: 200,
+				state: 'approved',
+				submitted_at: '2024-01-15T10:00:00Z',
+			});
+
+			mock.pulls.list.mockResolvedValue({ data: [pr] });
+			mock.pulls.listReviews.mockResolvedValue({ data: [review] });
+
+			const source = await createSource(['pull_request.review_submitted'], mock);
+
+			// First poll
+			const result1 = await source.poll('2024-01-15T09:00:00Z');
+			expect(result1.events).toHaveLength(1);
+
+			// Simulate cache miss by updating PR timestamp so it gets re-fetched
+			const pr2 = makePR({ number: 1, updated_at: '2024-01-15T10:05:00Z' });
+			mock.pulls.list.mockResolvedValue({ data: [pr2] });
+			mock.pulls.listReviews.mockResolvedValue({ data: [review] });
+
+			// Second poll with same checkpoint returns same review
+			const result2 = await source.poll('2024-01-15T09:00:00Z');
+			expect(result2.events).toHaveLength(1);
+
+			// Both events carry the same review_id — dedup can use this
+			expect(result1.events[0].provenance.review_id).toBe(200);
+			expect(result2.events[0].provenance.review_id).toBe(200);
+		});
+	});
+
 	describe('pollIssueComments', () => {
 		it('returns issue comment events', async () => {
 			const mock = createMockOctokit();
