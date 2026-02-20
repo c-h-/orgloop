@@ -1,6 +1,6 @@
 {
   "name": "@orgloop/transform-dedup",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "OrgLoop dedup transform — deduplicate events within a time window",
   "type": "module",
   "main": "dist/index.js",
