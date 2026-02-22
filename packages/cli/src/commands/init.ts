@@ -192,8 +192,16 @@ loggers:
 `;
 }
 
-function generateDefaultRouteYaml(): string {
-	return `apiVersion: orgloop/v1alpha1
+function generateRouteYaml(connectors: string[]): string {
+	if (connectors.length === 1 && connectors[0] === 'webhook') {
+		return `apiVersion: orgloop/v1alpha1
+kind: RouteGroup
+
+routes: []
+`;
+	}
+	if (connectors.includes('github') && connectors.includes('openclaw')) {
+		return `apiVersion: orgloop/v1alpha1
 kind: RouteGroup
 
 routes:
@@ -209,6 +217,12 @@ routes:
       actor: openclaw-engineering-agent
     with:
       prompt_file: ../sops/example.md
+`;
+	}
+	return `apiVersion: orgloop/v1alpha1
+kind: RouteGroup
+
+routes: []
 `;
 }
 
@@ -365,7 +379,7 @@ async function scaffoldProject(
 
 	// Route files
 	const routePath = join(targetDir, 'routes', 'example.yaml');
-	await writeFile(routePath, generateDefaultRouteYaml(), 'utf-8');
+	await writeFile(routePath, generateRouteYaml(connectors), 'utf-8');
 	created.push('routes/example.yaml');
 
 	// Logger files
@@ -579,7 +593,7 @@ export function registerInitCommand(program: Command): void {
 							choices: AVAILABLE_CONNECTORS.map((c) => ({
 								name: c.charAt(0).toUpperCase() + c.slice(1),
 								value: c,
-								checked: ['github', 'linear', 'openclaw', 'claude-code'].includes(c),
+								checked: c === 'webhook',
 							})),
 						},
 					]);

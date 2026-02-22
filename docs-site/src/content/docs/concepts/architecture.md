@@ -226,4 +226,4 @@ The CLI is the primary interface. The library mode exposes the `Runtime` class (
 - [Event Taxonomy](/concepts/event-taxonomy/) -- the three event types
 - [Building Connectors](/guides/connector-authoring/) -- implement a source or target
 - [Building Transforms](/guides/transform-authoring/) -- implement a transform
-- Source code: [github.com/c-h-/orgloop](https://github.com/c-h-/orgloop)
+- Source code: [github.com/orgloop/orgloop](https://github.com/orgloop/orgloop)

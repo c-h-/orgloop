@@ -1,6 +1,6 @@
 {
   "name": "@orgloop/connector-github",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "OrgLoop GitHub connector — poll for PR activity, CI status, issues",
   "type": "module",
   "main": "dist/index.js",

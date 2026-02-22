@@ -1,6 +1,6 @@
 # OrgLoop
 
-[![CI](https://github.com/c-h-/orgloop/actions/workflows/ci.yml/badge.svg)](https://github.com/c-h-/orgloop/actions/workflows/ci.yml)
+[![CI](https://github.com/orgloop/orgloop/actions/workflows/ci.yml/badge.svg)](https://github.com/orgloop/orgloop/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE.md)
 [![Docs](https://img.shields.io/badge/docs-orgloop.ai-blue)](https://orgloop.ai)
 
@@ -28,12 +28,12 @@ Source -> [Transform] -> Route -> Actor
 
 ## Try It
 
-Set up a webhook source and a console logger, then route an event between them.
+Set up a webhook source, then send an event.
 
 ```bash
 npm install -g @orgloop/cli
-orgloop init    # select "webhook" when prompted for connectors
-cd my-org
+mkdir my-org && cd my-org
+orgloop init
 npm install
 orgloop start
 ```
@@ -41,12 +41,12 @@ orgloop start
 In another terminal, send an event:
 
 ```bash
-curl -X POST http://localhost:3000/webhook \
+curl -X POST http://localhost:4800/webhook/webhook \
   -H "Content-Type: application/json" \
   -d '{"type": "test", "message": "hello from orgloop"}'
 ```
 
-You should see the event flow through the system and appear in your console log. That's the core loop: source emits, route matches, actor delivers, logger observes.
+Run `orgloop logs` to see the event. That's the core loop: source emits, route matches, actor delivers, logger observes.
 
 ---
 

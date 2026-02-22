@@ -64,6 +64,55 @@ describe('GitHubCredentialValidator', () => {
 		expect(result.error).toContain('500');
 	});
 
+	it('validates GitHub App installation token via fallback probe on 403', async () => {
+		// /user returns 403 for app installation tokens
+		fetchMock.mockResolvedValueOnce({
+			ok: false,
+			status: 403,
+			statusText: 'Forbidden',
+		});
+		// Fallback: /installation/repositories succeeds
+		fetchMock.mockResolvedValueOnce({
+			ok: true,
+			status: 200,
+			json: async () => ({ repositories: [] }),
+			headers: new Headers({}),
+		});
+
+		const result = await validator.validate('ghs_apptoken123');
+
+		expect(result.valid).toBe(true);
+		expect(result.identity).toBe('app: GitHub App installation');
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(fetchMock).toHaveBeenNthCalledWith(1, 'https://api.github.com/user', expect.anything());
+		expect(fetchMock).toHaveBeenNthCalledWith(
+			2,
+			'https://api.github.com/installation/repositories?per_page=1',
+			expect.anything(),
+		);
+	});
+
+	it('returns invalid when 403 on /user and fallback also fails', async () => {
+		// /user returns 403
+		fetchMock.mockResolvedValueOnce({
+			ok: false,
+			status: 403,
+			statusText: 'Forbidden',
+		});
+		// Fallback also fails (e.g. truly forbidden token)
+		fetchMock.mockResolvedValueOnce({
+			ok: false,
+			status: 401,
+			statusText: 'Unauthorized',
+		});
+
+		const result = await validator.validate('ghs_badtoken');
+
+		expect(result.valid).toBe(false);
+		expect(result.error).toContain('403');
+		expect(result.error).toContain('401');
+	});
+
 	it('fails open on network error', async () => {
 		fetchMock.mockRejectedValueOnce(new Error('fetch failed'));
 

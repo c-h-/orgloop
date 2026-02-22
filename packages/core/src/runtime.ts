@@ -25,6 +25,7 @@ import { ConnectorError, DeliveryError, ModuleNotFoundError } from './errors.js'
 import type { RuntimeControl } from './http.js';
 import { DEFAULT_HTTP_PORT, WebhookServer } from './http.js';
 import { LoggerManager } from './logger.js';
+import { MetricsServer } from './metrics.js';
 import type { ModuleConfig } from './module-instance.js';
 import { ModuleInstance } from './module-instance.js';
 import { stripFrontMatter } from './prompt.js';
@@ -62,6 +63,8 @@ export interface RuntimeOptions {
 	heartbeat?: boolean;
 	/** Heartbeat interval in ms (default: 30000) */
 	heartbeatIntervalMs?: number;
+	/** Prometheus metrics port. Metrics only start if ORGLOOP_METRICS_PORT env is set or this is provided. */
+	metricsPort?: number;
 }
 
 export interface LoadModuleOptions {
@@ -115,6 +118,10 @@ class Runtime extends EventEmitter implements RuntimeControl {
 	private readonly heartbeatDir = join(homedir(), '.orgloop');
 	private readonly heartbeatFile = join(homedir(), '.orgloop', 'heartbeat');
 
+	// Prometheus metrics (opt-in via ORGLOOP_METRICS_PORT env or metricsPort option)
+	private readonly metricsServer: MetricsServer | null;
+	private readonly metricsPort: number | undefined;
+
 	constructor(options?: RuntimeOptions) {
 		super();
 		this.bus = options?.bus ?? new InMemoryBus();
@@ -133,6 +140,15 @@ class Runtime extends EventEmitter implements RuntimeControl {
 		this.enableCrashHandlers = options?.crashHandlers ?? true;
 		this.enableHeartbeat = options?.heartbeat ?? !!process.env.ORGLOOP_DAEMON;
 		this.heartbeatIntervalMs = options?.heartbeatIntervalMs ?? 30_000;
+
+		// Prometheus metrics: opt-in via explicit port or ORGLOOP_METRICS_PORT env
+		this.metricsPort = options?.metricsPort;
+		const envPort = process.env.ORGLOOP_METRICS_PORT;
+		if (this.metricsPort != null || envPort) {
+			this.metricsServer = new MetricsServer();
+		} else {
+			this.metricsServer = null;
+		}
 	}
 
 	// ─── Lifecycle ───────────────────────────────────────────────────────────
@@ -154,6 +170,11 @@ class Runtime extends EventEmitter implements RuntimeControl {
 		// Start health heartbeat
 		if (this.enableHeartbeat) {
 			this.startHeartbeat();
+		}
+
+		// Start Prometheus metrics server if configured
+		if (this.metricsServer) {
+			await this.metricsServer.start({ port: this.metricsPort });
 		}
 
 		await this.emitLog('runtime.start', { result: 'started' });
@@ -205,6 +226,11 @@ class Runtime extends EventEmitter implements RuntimeControl {
 
 		// Stop heartbeat
 		this.stopHeartbeat();
+
+		// Stop metrics server
+		if (this.metricsServer?.isStarted()) {
+			await this.metricsServer.stop();
+		}
 
 		// Remove crash handlers
 		this.removeCrashHandlers();
@@ -265,6 +291,9 @@ class Runtime extends EventEmitter implements RuntimeControl {
 			await this.startHttpServer();
 		}
 
+		// Update connected sources gauge
+		this.metricsServer?.connectedSources.set(this.countAllSources());
+
 		// Store config and options for reload
 		this.moduleConfigs.set(config.name, config);
 		if (options) {
@@ -313,6 +342,9 @@ class Runtime extends EventEmitter implements RuntimeControl {
 		// Clean stored config
 		this.moduleConfigs.delete(name);
 		this.moduleLoadOptions.delete(name);
+
+		// Update connected sources gauge
+		this.metricsServer?.connectedSources.set(this.countAllSources());
 
 		await this.emitLog('module.removed', {
 			result: `module "${name}" removed`,
@@ -383,6 +415,7 @@ class Runtime extends EventEmitter implements RuntimeControl {
 		// Process each matched route
 		for (const match of matched) {
 			const { route } = match;
+			const routeStartTime = process.hrtime.bigint();
 
 			await this.emitLog('route.match', {
 				event_id: event.id,
@@ -438,6 +471,13 @@ class Runtime extends EventEmitter implements RuntimeControl {
 
 			// Deliver to actor
 			await this.deliverToActor(transformedEvent, route.name, route.then.actor, route, mod);
+
+			// Record Prometheus metrics
+			if (this.metricsServer) {
+				const elapsed = Number(process.hrtime.bigint() - routeStartTime) / 1e9;
+				this.metricsServer.eventsRouted.inc({ route: route.name, connector: route.then.actor });
+				this.metricsServer.eventProcessingSeconds.observe({ route: route.name }, elapsed);
+			}
 		}
 
 		// Ack the event after all routes processed
@@ -526,6 +566,7 @@ class Runtime extends EventEmitter implements RuntimeControl {
 			const durationMs = Date.now() - startTime;
 			const error = new DeliveryError(actorId, routeName, 'Delivery failed', { cause: err });
 			this.emit('error', error);
+			this.metricsServer?.connectorErrors.inc({ connector: actorId });
 			await this.emitLog('deliver.failure', {
 				event_id: event.id,
 				trace_id: event.trace_id,
@@ -594,6 +635,7 @@ class Runtime extends EventEmitter implements RuntimeControl {
 		} catch (err) {
 			const error = new ConnectorError(sourceId, 'Poll failed', { cause: err });
 			this.emit('error', error);
+			this.metricsServer?.connectorErrors.inc({ connector: sourceId });
 
 			healthState.consecutiveErrors++;
 			healthState.lastError = err instanceof Error ? err.message : String(err);
@@ -650,6 +692,16 @@ class Runtime extends EventEmitter implements RuntimeControl {
 		}, this.circuitBreakerOpts.retryAfterMs);
 
 		this.circuitRetryTimers.set(timerKey, timer);
+	}
+
+	// ─── Helpers ────────────────────────────────────────────────────────────
+
+	private countAllSources(): number {
+		let count = 0;
+		for (const mod of this.registry.list()) {
+			count += mod.config.sources.length;
+		}
+		return count;
 	}
 
 	// ─── Crash Handlers ─────────────────────────────────────────────────────
