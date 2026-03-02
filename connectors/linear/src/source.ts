@@ -164,6 +164,8 @@ export class LinearSource implements SourceConnector {
 							{
 								identifier: issue.identifier,
 								title: issue.title,
+								assignee: issue.assignee,
+								creator: issue.creator,
 							},
 						),
 					);
