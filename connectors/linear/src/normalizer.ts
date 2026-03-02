@@ -54,6 +54,8 @@ export function normalizeComment(
 	issue: {
 		identifier: string;
 		title: string;
+		assignee?: { name: string } | null;
+		creator?: { name: string } | null;
 	},
 ): OrgLoopEvent {
 	return buildEvent({
@@ -65,6 +67,8 @@ export function normalizeComment(
 			author: comment.user?.name ?? 'unknown',
 			author_type: comment.user?.isBot ? 'bot' : 'team_member',
 			issue_id: issue.identifier,
+			issue_assignee: issue.assignee?.name ?? null,
+			issue_creator: issue.creator?.name ?? null,
 			url: comment.url,
 		},
 		payload: {

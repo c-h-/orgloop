@@ -393,6 +393,65 @@ describe('LinearSource', () => {
 			expect(comments[0].payload.comment_body).toBe('Looks good');
 			expect(comments[0].payload.issue_id).toBe('ENG-1');
 		});
+
+		it('includes issue_assignee and issue_creator in comment provenance', async () => {
+			const issue = makeIssueNode({
+				assignee: { name: 'Alice' },
+				creator: { name: 'Bob' },
+				createdAt: '2024-01-01T11:00:00.000Z',
+				updatedAt: '2024-01-01T12:05:00.000Z',
+				comments: [
+					{
+						id: 'comment-1',
+						body: 'Progress update',
+						url: 'https://linear.app/comment/1',
+						createdAt: '2024-01-01T12:02:00.000Z',
+						user: { name: 'Charlie' },
+					},
+				],
+			});
+			mockExecuteBatchQuery.mockResolvedValue(makeBatchResponse([issue]));
+			const source = await createSource();
+
+			const result = await source.poll('2024-01-01T12:00:00.000Z');
+
+			const comments = result.events.filter(
+				(e) => e.provenance.platform_event === 'comment.created',
+			);
+			expect(comments.length).toBe(1);
+			expect(comments[0].provenance.author).toBe('Charlie');
+			expect(comments[0].provenance.issue_assignee).toBe('Alice');
+			expect(comments[0].provenance.issue_creator).toBe('Bob');
+		});
+
+		it('sets issue_assignee to null when issue is unassigned', async () => {
+			const issue = makeIssueNode({
+				assignee: null,
+				creator: { name: 'Bob' },
+				createdAt: '2024-01-01T11:00:00.000Z',
+				updatedAt: '2024-01-01T12:05:00.000Z',
+				comments: [
+					{
+						id: 'comment-1',
+						body: 'Needs triage',
+						url: 'https://linear.app/comment/1',
+						createdAt: '2024-01-01T12:02:00.000Z',
+						user: { name: 'Alice' },
+					},
+				],
+			});
+			mockExecuteBatchQuery.mockResolvedValue(makeBatchResponse([issue]));
+			const source = await createSource();
+
+			const result = await source.poll('2024-01-01T12:00:00.000Z');
+
+			const comments = result.events.filter(
+				(e) => e.provenance.platform_event === 'comment.created',
+			);
+			expect(comments.length).toBe(1);
+			expect(comments[0].provenance.issue_assignee).toBeNull();
+			expect(comments[0].provenance.issue_creator).toBe('Bob');
+		});
 	});
 
 	// ─── State Cache Persistence ────────────────────────────────────────────
