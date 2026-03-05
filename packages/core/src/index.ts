@@ -23,7 +23,10 @@ export {
 	SchemaError,
 	TransformError,
 } from './errors.js';
-export type { RuntimeControl } from './http.js';
+export type { EventHistoryOptions, EventHistoryQuery, EventRecord } from './event-history.js';
+// Event history
+export { EventHistory } from './event-history.js';
+export type { ApiHandler, RuntimeControl } from './http.js';
 // HTTP webhook server
 export { DEFAULT_HTTP_PORT, WebhookServer } from './http.js';
 // Logger manager
@@ -38,10 +41,12 @@ export type { StripFrontMatterResult } from './prompt.js';
 // Prompt utilities
 export { stripFrontMatter } from './prompt.js';
 export { ModuleRegistry } from './registry.js';
+// REST API
+export { registerRestApi } from './rest-api.js';
 export type { MatchedRoute } from './router.js';
 // Router
 export { matchRoutes } from './router.js';
-export type { LoadModuleOptions, RuntimeOptions } from './runtime.js';
+export type { LoadModuleOptions, RouteStats, RuntimeOptions } from './runtime.js';
 // Runtime (new architecture)
 export { Runtime } from './runtime.js';
 // Scheduler

@@ -146,4 +146,14 @@ export class MetricsServer {
 		if (addr && typeof addr === 'object') return addr.port;
 		return null;
 	}
+
+	/** Get Prometheus metrics as text (for embedding in REST API). */
+	async metricsText(): Promise<string> {
+		return this.registry.metrics();
+	}
+
+	/** Get the content type header for metrics response. */
+	contentType(): string {
+		return this.registry.contentType;
+	}
 }

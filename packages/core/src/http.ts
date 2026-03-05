@@ -22,6 +22,8 @@ export interface RuntimeControl {
 	stop(): Promise<void>;
 }
 
+export type ApiHandler = (query: URLSearchParams) => Promise<unknown>;
+
 export class WebhookServer {
 	private readonly handlers: Map<string, WebhookHandler>;
 	private readonly onEvent: (event: OrgLoopEvent) => Promise<void>;
@@ -31,6 +33,7 @@ export class WebhookServer {
 		string,
 		(body: Record<string, unknown>) => Promise<unknown>
 	>();
+	private readonly apiHandlers = new Map<string, ApiHandler>();
 
 	constructor(
 		onEvent: (event: OrgLoopEvent) => Promise<void>,
@@ -46,6 +49,11 @@ export class WebhookServer {
 		handler: (body: Record<string, unknown>) => Promise<unknown>,
 	): void {
 		this.controlHandlers.set(route, handler);
+	}
+
+	/** Register a GET /api/:route handler. */
+	registerApiHandler(route: string, handler: ApiHandler): void {
+		this.apiHandlers.set(route, handler);
 	}
 
 	set runtime(rt: RuntimeControl) {
@@ -96,6 +104,12 @@ export class WebhookServer {
 		// Control API routes
 		if (parts[0] === 'control') {
 			await this.handleControlRequest(req, res, parts.slice(1));
+			return;
+		}
+
+		// REST API routes (GET /api/*)
+		if (parts[0] === 'api') {
+			await this.handleApiRequest(req, res, url, parts.slice(1));
 			return;
 		}
 
@@ -219,6 +233,46 @@ export class WebhookServer {
 
 			res.writeHead(404, { 'Content-Type': 'application/json' });
 			res.end(JSON.stringify({ error: 'Not found' }));
+		} catch (err) {
+			if (!res.headersSent) {
+				res.writeHead(500, { 'Content-Type': 'application/json' });
+				res.end(JSON.stringify({ error: err instanceof Error ? err.message : 'Internal error' }));
+			}
+		}
+	}
+
+	private async handleApiRequest(
+		req: IncomingMessage,
+		res: ServerResponse,
+		url: URL,
+		parts: string[],
+	): Promise<void> {
+		if (req.method !== 'GET') {
+			res.writeHead(405, { 'Content-Type': 'application/json' });
+			res.end(JSON.stringify({ error: 'Method not allowed' }));
+			return;
+		}
+
+		const route = parts.join('/');
+		const handler = this.apiHandlers.get(route);
+
+		if (!handler) {
+			res.writeHead(404, { 'Content-Type': 'application/json' });
+			res.end(JSON.stringify({ error: 'Not found' }));
+			return;
+		}
+
+		try {
+			const result = await handler(url.searchParams);
+
+			// Special case: metrics endpoint returns plain text
+			if (route === 'metrics' && typeof result === 'string') {
+				res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4; charset=utf-8' });
+				res.end(result);
+				return;
+			}
+
+			this.jsonResponse(res, 200, result);
 		} catch (err) {
 			if (!res.headersSent) {
 				res.writeHead(500, { 'Content-Type': 'application/json' });

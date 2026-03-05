@@ -1,8 +1,8 @@
 /**
  * @orgloop/server — OrgLoop HTTP API Server
  *
- * v1.1 scope. This package will expose the OrgLoop engine over HTTP.
- * For now it's a placeholder that re-exports the core types.
+ * Re-exports core engine and REST API registration.
  */
 
-export { OrgLoop } from '@orgloop/core';
+export type { ApiHandler, EventHistoryOptions, EventRecord, RouteStats } from '@orgloop/core';
+export { OrgLoop, registerRestApi } from '@orgloop/core';

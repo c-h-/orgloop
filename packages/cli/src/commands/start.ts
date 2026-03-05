@@ -329,8 +329,19 @@ async function runForeground(configPath?: string, force?: boolean): Promise<void
 		// Start the runtime (scheduler, shared infra)
 		await runtime.start();
 
-		// Start HTTP server for control API and webhooks
+		// Start HTTP server for control API, webhooks, and REST API
 		await runtime.startHttpServer();
+
+		// Register REST API endpoints
+		const { registerRestApi } = await import('@orgloop/core');
+		registerRestApi(runtime);
+
+		// Register /api/doctor endpoint (needs CLI-level config resolution)
+		const resolvedDoctorConfigPath = resolveConfigPath(configPath);
+		runtime.getWebhookServer().registerApiHandler('doctor', async () => {
+			const { runDoctor: runDoctorCheck } = await import('./doctor.js');
+			return runDoctorCheck(resolvedDoctorConfigPath);
+		});
 
 		// Register the project loader handler so other CLI processes can add modules
 		runtime.registerControlHandler('module/load-project', async (body) => {

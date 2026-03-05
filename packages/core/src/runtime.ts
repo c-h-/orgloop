@@ -22,6 +22,8 @@ import { generateTraceId } from '@orgloop/sdk';
 import type { EventBus } from './bus.js';
 import { InMemoryBus } from './bus.js';
 import { ConnectorError, DeliveryError, ModuleNotFoundError } from './errors.js';
+import type { EventHistoryOptions, EventHistoryQuery, EventRecord } from './event-history.js';
+import { EventHistory } from './event-history.js';
 import type { RuntimeControl } from './http.js';
 import { DEFAULT_HTTP_PORT, WebhookServer } from './http.js';
 import { LoggerManager } from './logger.js';
@@ -46,6 +48,14 @@ export interface SourceCircuitBreakerOptions {
 	retryAfterMs?: number;
 }
 
+/** Per-route statistics tracked by the runtime. */
+export interface RouteStats {
+	/** Number of times this route has fired */
+	fireCount: number;
+	/** ISO 8601 timestamp of the last fire, or null if never fired */
+	lastFiredAt: string | null;
+}
+
 export interface RuntimeOptions {
 	/** Custom event bus (default: InMemoryBus) */
 	bus?: EventBus;
@@ -65,6 +75,8 @@ export interface RuntimeOptions {
 	heartbeatIntervalMs?: number;
 	/** Prometheus metrics port. Metrics only start if ORGLOOP_METRICS_PORT env is set or this is provided. */
 	metricsPort?: number;
+	/** Event history ring buffer options */
+	eventHistory?: EventHistoryOptions;
 }
 
 export interface LoadModuleOptions {
@@ -122,6 +134,10 @@ class Runtime extends EventEmitter implements RuntimeControl {
 	private readonly metricsServer: MetricsServer | null;
 	private readonly metricsPort: number | undefined;
 
+	// REST API: event history and route stats
+	private readonly eventHistory: EventHistory;
+	private readonly routeStats = new Map<string, RouteStats>();
+
 	constructor(options?: RuntimeOptions) {
 		super();
 		this.bus = options?.bus ?? new InMemoryBus();
@@ -149,6 +165,9 @@ class Runtime extends EventEmitter implements RuntimeControl {
 		} else {
 			this.metricsServer = null;
 		}
+
+		// Event history ring buffer
+		this.eventHistory = new EventHistory(options?.eventHistory);
 	}
 
 	// ─── Lifecycle ───────────────────────────────────────────────────────────
@@ -385,6 +404,7 @@ class Runtime extends EventEmitter implements RuntimeControl {
 	}
 
 	private async processEvent(event: OrgLoopEvent, mod: ModuleInstance): Promise<void> {
+		const eventStartTime = process.hrtime.bigint();
 		this.emit('event', event);
 
 		await this.emitLog('source.emit', {
@@ -408,14 +428,50 @@ class Runtime extends EventEmitter implements RuntimeControl {
 				source: event.source,
 				module: mod.name,
 			});
+
+			// Record event with no matched routes
+			const elapsedMs = Number(process.hrtime.bigint() - eventStartTime) / 1e6;
+			this.eventHistory.push({
+				event_id: event.id,
+				timestamp: event.timestamp,
+				source: event.source,
+				type: event.type,
+				matched_routes: [],
+				sop_files: [],
+				actors: [],
+				processing_ms: Math.round(elapsedMs * 100) / 100,
+				module: mod.name,
+				trace_id: event.trace_id,
+			});
+
 			await this.bus.ack(event.id);
 			return;
 		}
+
+		const matchedRouteNames: string[] = [];
+		const sopFiles: string[] = [];
+		const actorIds: string[] = [];
+		const now = new Date().toISOString();
 
 		// Process each matched route
 		for (const match of matched) {
 			const { route } = match;
 			const routeStartTime = process.hrtime.bigint();
+
+			matchedRouteNames.push(route.name);
+			actorIds.push(route.then.actor);
+			if (route.with?.prompt_file) {
+				sopFiles.push(route.with.prompt_file);
+			}
+
+			// Update route stats
+			const stats = this.routeStats.get(route.name);
+			if (stats) {
+				stats.fireCount++;
+				stats.lastFiredAt = now;
+			} else {
+				this.routeStats.set(route.name, { fireCount: 1, lastFiredAt: now });
+			}
 
 			await this.emitLog('route.match', {
 				event_id: event.id,
@@ -479,6 +535,21 @@ class Runtime extends EventEmitter implements RuntimeControl {
 				this.metricsServer.eventProcessingSeconds.observe({ route: route.name }, elapsed);
 			}
 		}
+
+		// Record event in history
+		const totalElapsedMs = Number(process.hrtime.bigint() - eventStartTime) / 1e6;
+		this.eventHistory.push({
+			event_id: event.id,
+			timestamp: event.timestamp,
+			source: event.source,
+			type: event.type,
+			matched_routes: matchedRouteNames,
+			sop_files: sopFiles,
+			actors: actorIds,
+			processing_ms: Math.round(totalElapsedMs * 100) / 100,
+			module: mod.name,
+			trace_id: event.trace_id,
+		});
 
 		// Ack the event after all routes processed
 		await this.bus.ack(event.id);
@@ -828,6 +899,115 @@ class Runtime extends EventEmitter implements RuntimeControl {
 	getModuleStatus(name: string): ModuleStatus | undefined {
 		const mod = this.registry.get(name);
 		return mod?.status();
+	}
+
+	// ─── REST API Data Access ────────────────────────────────────────────────
+
+	/** Query the event history ring buffer. */
+	queryEvents(query?: EventHistoryQuery): EventRecord[] {
+		return this.eventHistory.query(query);
+	}
+
+	/** Get route statistics (fire count, last fired). */
+	getRouteStats(): ReadonlyMap<string, RouteStats> {
+		return this.routeStats;
+	}
+
+	/** Get all route definitions across all modules with their stats. */
+	getRouteDetails(): Array<{
+		name: string;
+		module: string;
+		when: { source: string; events: string[]; filter?: Record<string, unknown> };
+		actor: string;
+		sop_file?: string;
+		fire_count: number;
+		last_fired: string | null;
+	}> {
+		const routes: Array<{
+			name: string;
+			module: string;
+			when: { source: string; events: string[]; filter?: Record<string, unknown> };
+			actor: string;
+			sop_file?: string;
+			fire_count: number;
+			last_fired: string | null;
+		}> = [];
+
+		for (const mod of this.registry.list()) {
+			for (const route of mod.getRoutes()) {
+				const stats = this.routeStats.get(route.name);
+				routes.push({
+					name: route.name,
+					module: mod.name,
+					when: {
+						source: route.when.source,
+						events: route.when.events,
+						...(route.when.filter ? { filter: route.when.filter } : {}),
+					},
+					actor: route.then.actor,
+					...(route.with?.prompt_file ? { sop_file: route.with.prompt_file } : {}),
+					fire_count: stats?.fireCount ?? 0,
+					last_fired: stats?.lastFiredAt ?? null,
+				});
+			}
+		}
+
+		return routes;
+	}
+
+	/** Get per-source detail for the REST API. */
+	getSourceDetails(): Array<{
+		id: string;
+		module: string;
+		connector: string;
+		type: 'webhook' | 'polling';
+		status: string;
+		last_event: string | null;
+		event_count: number;
+		poll_interval?: string;
+	}> {
+		const sources: Array<{
+			id: string;
+			module: string;
+			connector: string;
+			type: 'webhook' | 'polling';
+			status: string;
+			last_event: string | null;
+			event_count: number;
+			poll_interval?: string;
+		}> = [];
+
+		for (const mod of this.registry.list()) {
+			for (const srcCfg of mod.config.sources) {
+				const connector = mod.getSource(srcCfg.id);
+				const health = mod.getHealthState(srcCfg.id);
+				const isWebhook = connector && typeof connector.webhook === 'function';
+
+				sources.push({
+					id: srcCfg.id,
+					module: mod.name,
+					connector: srcCfg.connector,
+					type: isWebhook ? 'webhook' : 'polling',
+					status: health?.status ?? 'unknown',
+					last_event: health?.lastSuccessfulPoll ?? null,
+					event_count: health?.totalEventsEmitted ?? 0,
+					...(srcCfg.poll?.interval ? { poll_interval: srcCfg.poll.interval } : {}),
+				});
+			}
+		}
+
+		return sources;
+	}
+
+	/** Get the metrics registry for Prometheus text output. */
+	async getMetricsText(): Promise<string | null> {
+		if (!this.metricsServer) return null;
+		return this.metricsServer.metricsText();
+	}
+
+	/** Get the webhook server for API handler registration. */
+	getWebhookServer(): WebhookServer {
+		return this.webhookServer;
 	}
 
 	// ─── Logging ─────────────────────────────────────────────────────────────
