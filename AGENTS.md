@@ -382,3 +382,27 @@ This takes 30 seconds and prevents hours of re-discovery later.
 - Don't commit `dist/`, `node_modules/`, or `.turbo/`
 - Don't make connectors assume payload shapes from other connectors — payloads are connector-specific
 - Don't interpret `actor.stopped` as success or failure — that's the receiving actor's job
+
+## Quality Gate — MANDATORY Before Declaring Done
+
+**The work is not done until ALL of these pass:**
+
+1. `pnpm run typecheck` — zero errors
+2. `pnpm run lint` — zero errors
+3. `pnpm run build` — succeeds (turbo build across all packages)
+4. `pnpm test` — all tests pass
+5. **New logic requires new tests.** If you added or changed a function, write a test for it.
+6. **If you can't make tests pass, say so explicitly.** Do not silently skip failing tests.
+
+### For UI/web work (docs-site, future dashboards):
+- Start the dev server
+- Use Playwright MCP to screenshot affected pages
+- Visually verify the output matches the intent
+- Iterate until correct — do not declare done without visual evidence
+
+### Anti-Patterns — DO NOT:
+- ❌ Commit without running the full verify suite
+- ❌ Skip writing tests for new functionality
+- ❌ Declare "done" when tests are failing
+- ❌ Assume the code works because it compiles
+- ❌ Ship UI changes without visual verification
