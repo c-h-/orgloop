@@ -517,6 +517,66 @@ describe('CodingAgentSource cwd alias and transcript_path', () => {
 		expect(events[0].payload.transcript_path).toBe('');
 	});
 
+	it('passes meta from webhook payload into event payload and session', async () => {
+		const source = new CodingAgentSource();
+		await source.init({
+			id: 'claude-code',
+			connector: '@orgloop/connector-coding-agent',
+			config: {},
+		});
+
+		const handler = source.webhook();
+		const payload = {
+			session_id: 'sess-meta',
+			working_directory: '/tmp/work',
+			duration_seconds: 60,
+			exit_status: 0,
+			meta: { openclaw_callback_session_key: 'callback:sess-meta', custom_field: 42 },
+		};
+
+		const req = createMockRequest(JSON.stringify(payload));
+		const res = createMockResponse();
+		const events = await handler(req, res);
+
+		expect(res.statusCode).toBe(200);
+		expect(events).toHaveLength(1);
+
+		// meta at payload level
+		const meta = events[0].payload.meta as Record<string, unknown>;
+		expect(meta.openclaw_callback_session_key).toBe('callback:sess-meta');
+		expect(meta.custom_field).toBe(42);
+
+		// meta in session object
+		const session = events[0].payload.session as Record<string, unknown>;
+		const sessionMeta = session.meta as Record<string, unknown>;
+		expect(sessionMeta.openclaw_callback_session_key).toBe('callback:sess-meta');
+	});
+
+	it('omits meta from event when webhook payload has no meta', async () => {
+		const source = new CodingAgentSource();
+		await source.init({
+			id: 'claude-code',
+			connector: '@orgloop/connector-coding-agent',
+			config: {},
+		});
+
+		const handler = source.webhook();
+		const payload = {
+			session_id: 'sess-no-meta',
+			working_directory: '/tmp',
+			duration_seconds: 30,
+			exit_status: 0,
+		};
+
+		const req = createMockRequest(JSON.stringify(payload));
+		const res = createMockResponse();
+		const events = await handler(req, res);
+
+		expect(events[0].payload.meta).toBeUndefined();
+		const session = events[0].payload.session as Record<string, unknown>;
+		expect(session.meta).toBeUndefined();
+	});
+
 	it('defaults working_directory to empty string when neither field present', async () => {
 		const source = new CodingAgentSource();
 		await source.init({

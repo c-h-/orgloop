@@ -274,4 +274,185 @@ describe('OpenClawTarget', () => {
 
 		expect(result.status).toBe('rejected');
 	});
+
+	// ─── #66 — Dynamic threadId ──────────────────────────────────────────────
+
+	it('passes threadId when route config has thread_id', async () => {
+		const event = createTestEvent({
+			source: 'github',
+			type: 'resource.changed',
+			payload: { pr_number: 55 },
+		});
+
+		const routeConfig: RouteDeliveryConfig = {
+			thread_id: 'pr-{{payload.pr_number}}',
+		};
+
+		await target.deliver(event, routeConfig);
+
+		const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+		expect(body.threadId).toBe('pr-55');
+	});
+
+	it('omits threadId when route config has no thread_id', async () => {
+		const event = createTestEvent();
+		await target.deliver(event, {});
+
+		const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+		expect(body).not.toHaveProperty('threadId');
+	});
+
+	it('interpolates provenance fields in thread_id', async () => {
+		const event = createTestEvent({
+			source: 'github',
+			type: 'resource.changed',
+			provenance: {
+				platform: 'github',
+				platform_event: 'pr.review',
+				author: 'alice',
+				author_type: 'team_member',
+			},
+		});
+
+		const routeConfig: RouteDeliveryConfig = {
+			thread_id: '{{source}}:{{provenance.author}}',
+		};
+
+		await target.deliver(event, routeConfig);
+
+		const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+		expect(body.threadId).toBe('github:alice');
+	});
+
+	// ─── #91 — Callback-first delivery ──────────────────────────────────────
+
+	it('uses callback session key from payload.meta when present', async () => {
+		const event = createTestEvent({
+			source: 'coding-agent',
+			type: 'actor.stopped',
+			payload: {
+				meta: { openclaw_callback_session_key: 'callback:sess-abc' },
+			},
+		});
+
+		await target.deliver(event, { session_key: 'normal:key' });
+
+		const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+		expect(body.sessionKey).toBe('callback:sess-abc');
+	});
+
+	it('uses callback session key from payload.session.meta when present', async () => {
+		const event = createTestEvent({
+			source: 'coding-agent',
+			type: 'actor.stopped',
+			payload: {
+				session: {
+					id: 'sess-xyz',
+					meta: { openclaw_callback_session_key: 'callback:sess-xyz' },
+				},
+			},
+		});
+
+		await target.deliver(event, { session_key: 'normal:key' });
+
+		const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+		expect(body.sessionKey).toBe('callback:sess-xyz');
+	});
+
+	it('prefers payload.meta over payload.session.meta for callback key', async () => {
+		const event = createTestEvent({
+			source: 'coding-agent',
+			type: 'actor.stopped',
+			payload: {
+				meta: { openclaw_callback_session_key: 'callback:top-level' },
+				session: {
+					id: 'sess-1',
+					meta: { openclaw_callback_session_key: 'callback:session-level' },
+				},
+			},
+		});
+
+		await target.deliver(event, {});
+
+		const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+		expect(body.sessionKey).toBe('callback:top-level');
+	});
+
+	it('falls back to normal delivery when callback delivery fails', async () => {
+		fetchMock
+			.mockResolvedValueOnce({ ok: false, status: 500, statusText: 'Internal Server Error' })
+			.mockResolvedValueOnce({ ok: true, status: 200, statusText: 'OK' });
+
+		const event = createTestEvent({
+			source: 'coding-agent',
+			type: 'actor.stopped',
+			payload: {
+				meta: { openclaw_callback_session_key: 'callback:fail' },
+			},
+		});
+
+		const result = await target.deliver(event, { session_key: 'normal:fallback' });
+
+		expect(result.status).toBe('delivered');
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+
+		// First call used callback key
+		const firstBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+		expect(firstBody.sessionKey).toBe('callback:fail');
+
+		// Second call used normal key
+		const secondBody = JSON.parse(fetchMock.mock.calls[1][1].body);
+		expect(secondBody.sessionKey).toBe('normal:fallback');
+	});
+
+	it('does not fall back when callback delivery succeeds', async () => {
+		const event = createTestEvent({
+			source: 'coding-agent',
+			type: 'actor.stopped',
+			payload: {
+				meta: { openclaw_callback_session_key: 'callback:ok' },
+			},
+		});
+
+		const result = await target.deliver(event, { session_key: 'normal:unused' });
+
+		expect(result.status).toBe('delivered');
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+
+		const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+		expect(body.sessionKey).toBe('callback:ok');
+	});
+
+	it('uses normal session key when no callback metadata exists', async () => {
+		const event = createTestEvent({
+			source: 'github',
+			type: 'resource.changed',
+			payload: { pr_number: 42 },
+		});
+
+		await target.deliver(event, { session_key: 'normal:key' });
+
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+		expect(body.sessionKey).toBe('normal:key');
+	});
+
+	it('includes threadId in callback delivery', async () => {
+		const event = createTestEvent({
+			source: 'coding-agent',
+			type: 'actor.stopped',
+			payload: {
+				pr_number: 77,
+				meta: { openclaw_callback_session_key: 'callback:with-thread' },
+			},
+		});
+
+		await target.deliver(event, {
+			thread_id: 'pr-{{payload.pr_number}}',
+		});
+
+		const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+		expect(body.sessionKey).toBe('callback:with-thread');
+		expect(body.threadId).toBe('pr-77');
+	});
 });

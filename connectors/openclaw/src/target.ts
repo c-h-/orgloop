@@ -96,17 +96,76 @@ export class OpenClawTarget implements ActorConnector {
 
 		const rawSessionKey =
 			(routeConfig.session_key as string) ?? `orgloop:${event.source}:${event.type}`;
+		const normalSessionKey = interpolateTemplate(rawSessionKey, event);
 
-		const body = {
-			message: this.buildMessage(event, routeConfig),
-			sessionKey: interpolateTemplate(rawSessionKey, event),
+		const message = this.buildMessage(event, routeConfig);
+
+		// #66 — Dynamic threadId from route config
+		const rawThreadId = routeConfig.thread_id as string | undefined;
+		const threadId = rawThreadId ? interpolateTemplate(rawThreadId, event) : undefined;
+
+		// #91 — Callback-first delivery: check event payload for callback metadata
+		const callbackSessionKey = this.resolveCallbackSessionKey(event);
+
+		if (callbackSessionKey) {
+			const callbackResult = await this.postToAgent(url, {
+				message,
+				sessionKey: callbackSessionKey,
+				agentId: this.agentId,
+				wakeMode: (routeConfig.wake_mode as string) ?? 'now',
+				deliver: routeConfig.deliver ?? false,
+				channel: (routeConfig.channel as string) ?? this.defaultChannel,
+				to: (routeConfig.to as string) ?? this.defaultTo,
+				...(threadId !== undefined ? { threadId } : {}),
+			});
+			if (callbackResult.status === 'delivered') {
+				return callbackResult;
+			}
+			// Callback delivery failed — fall back to normal delivery
+		}
+
+		return this.postToAgent(url, {
+			message,
+			sessionKey: normalSessionKey,
 			agentId: this.agentId,
 			wakeMode: (routeConfig.wake_mode as string) ?? 'now',
 			deliver: routeConfig.deliver ?? false,
 			channel: (routeConfig.channel as string) ?? this.defaultChannel,
 			to: (routeConfig.to as string) ?? this.defaultTo,
-		};
+			...(threadId !== undefined ? { threadId } : {}),
+		});
+	}
 
+	/**
+	 * Extract callback session key from event payload metadata.
+	 * Checks: payload.meta.openclaw_callback_session_key, then payload.session.meta.openclaw_callback_session_key
+	 */
+	private resolveCallbackSessionKey(event: OrgLoopEvent): string | undefined {
+		const payload = event.payload as Record<string, unknown>;
+
+		// Check payload.meta.openclaw_callback_session_key
+		const meta = payload.meta as Record<string, unknown> | undefined;
+		if (
+			meta?.openclaw_callback_session_key &&
+			typeof meta.openclaw_callback_session_key === 'string'
+		) {
+			return meta.openclaw_callback_session_key;
+		}
+
+		// Check payload.session.meta.openclaw_callback_session_key
+		const session = payload.session as Record<string, unknown> | undefined;
+		const sessionMeta = session?.meta as Record<string, unknown> | undefined;
+		if (
+			sessionMeta?.openclaw_callback_session_key &&
+			typeof sessionMeta.openclaw_callback_session_key === 'string'
+		) {
+			return sessionMeta.openclaw_callback_session_key;
+		}
+
+		return undefined;
+	}
+
+	private async postToAgent(url: string, body: Record<string, unknown>): Promise<DeliveryResult> {
 		const headers: Record<string, string> = {
 			'Content-Type': 'application/json',
 		};
@@ -126,7 +185,6 @@ export class OpenClawTarget implements ActorConnector {
 			}
 
 			if (response.status === 429) {
-				// Rate limited — treat as error for retry
 				return {
 					status: 'error',
 					error: new Error('OpenClaw rate limited (429)'),

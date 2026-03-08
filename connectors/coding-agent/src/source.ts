@@ -57,6 +57,8 @@ export interface CodingAgentSessionPayload {
 	 * Defaults to 'stop' for backward compatibility.
 	 */
 	hook_type?: 'start' | 'stop';
+	/** Arbitrary metadata from the webhook sender, passed through to event payload. */
+	meta?: Record<string, unknown>;
 }
 
 export interface CodingAgentSourceConfig {
@@ -228,6 +230,7 @@ export class CodingAgentSource implements SourceConnector {
 										exit_status: payload.exit_status ?? 0,
 									}
 								: {}),
+							...(payload.meta ? { meta: payload.meta } : {}),
 						},
 						// Backward-compatible fields
 						session_id: sessionId,
@@ -236,6 +239,7 @@ export class CodingAgentSource implements SourceConnector {
 						exit_status: payload.exit_status ?? 0,
 						summary: payload.summary ?? '',
 						transcript_path: payload.transcript_path ?? '',
+						...(payload.meta ? { meta: payload.meta } : {}),
 					},
 				});
 
