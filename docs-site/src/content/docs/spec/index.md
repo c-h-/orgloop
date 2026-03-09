@@ -3,9 +3,9 @@ title: "Specification Overview"
 description: "OrgLoop engineering specification — the complete design document for the event routing framework."
 ---
 
-**Version:** 0.3.0-draft
-**Date:** 2026-02-08
-**Status:** Proposal
+**Version:** 0.6.0
+**Date:** 2026-03-09
+**Status:** Active
 **Author:** Charlie Hulcher
 
 ---

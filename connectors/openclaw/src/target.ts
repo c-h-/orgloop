@@ -106,12 +106,13 @@ export class OpenClawTarget implements ActorConnector {
 
 		// #91 — Callback-first delivery: check event payload for callback metadata
 		const callbackSessionKey = this.resolveCallbackSessionKey(event);
+		const callbackAgentId = this.resolveCallbackAgentId(event);
 
 		if (callbackSessionKey) {
 			const callbackResult = await this.postToAgent(url, {
 				message,
 				sessionKey: callbackSessionKey,
-				agentId: this.agentId,
+				agentId: callbackAgentId ?? this.agentId,
 				wakeMode: (routeConfig.wake_mode as string) ?? 'now',
 				deliver: routeConfig.deliver ?? false,
 				channel: (routeConfig.channel as string) ?? this.defaultChannel,
@@ -141,25 +142,29 @@ export class OpenClawTarget implements ActorConnector {
 	 * Checks: payload.meta.openclaw_callback_session_key, then payload.session.meta.openclaw_callback_session_key
 	 */
 	private resolveCallbackSessionKey(event: OrgLoopEvent): string | undefined {
+		return this.resolveCallbackField(event, 'openclaw_callback_session_key');
+	}
+
+	/**
+	 * Extract callback agent id from event payload metadata.
+	 * Checks: payload.meta.openclaw_callback_agent_id, then payload.session.meta.openclaw_callback_agent_id
+	 */
+	private resolveCallbackAgentId(event: OrgLoopEvent): string | undefined {
+		return this.resolveCallbackField(event, 'openclaw_callback_agent_id');
+	}
+
+	private resolveCallbackField(event: OrgLoopEvent, field: string): string | undefined {
 		const payload = event.payload as Record<string, unknown>;
 
-		// Check payload.meta.openclaw_callback_session_key
 		const meta = payload.meta as Record<string, unknown> | undefined;
-		if (
-			meta?.openclaw_callback_session_key &&
-			typeof meta.openclaw_callback_session_key === 'string'
-		) {
-			return meta.openclaw_callback_session_key;
+		if (meta?.[field] && typeof meta[field] === 'string') {
+			return meta[field] as string;
 		}
 
-		// Check payload.session.meta.openclaw_callback_session_key
 		const session = payload.session as Record<string, unknown> | undefined;
 		const sessionMeta = session?.meta as Record<string, unknown> | undefined;
-		if (
-			sessionMeta?.openclaw_callback_session_key &&
-			typeof sessionMeta.openclaw_callback_session_key === 'string'
-		) {
-			return sessionMeta.openclaw_callback_session_key;
+		if (sessionMeta?.[field] && typeof sessionMeta[field] === 'string') {
+			return sessionMeta[field] as string;
 		}
 
 		return undefined;

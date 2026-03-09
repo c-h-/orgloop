@@ -39,9 +39,9 @@ sources:
 
   - id: claude-code
     connector: "@orgloop/connector-claude-code"
-    config:
-      hook_type: post-exit
 ```
+
+The `claude-code` connector is a backward-compatible alias for `@orgloop/connector-coding-agent`, which works with any coding harness (Claude Code, Codex, OpenCode, Pi, Pi-rust). All emit [normalized lifecycle events](/spec/lifecycle-contract/).
 
 Secrets never live in YAML. Use `${VAR_NAME}` for environment variable substitution.
 
@@ -179,8 +179,6 @@ sources:
 
   - id: claude-code
     connector: "@orgloop/connector-claude-code"
-    config:
-      hook_type: post-exit
 
 actors:
   - id: engineering

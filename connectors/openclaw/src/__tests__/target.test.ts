@@ -339,6 +339,26 @@ describe('OpenClawTarget', () => {
 
 		const body = JSON.parse(fetchMock.mock.calls[0][1].body);
 		expect(body.sessionKey).toBe('callback:sess-abc');
+		expect(body.agentId).toBe('test-agent');
+	});
+
+	it('uses callback agent id from payload.meta when present', async () => {
+		const event = createTestEvent({
+			source: 'coding-agent',
+			type: 'actor.stopped',
+			payload: {
+				meta: {
+					openclaw_callback_session_key: 'callback:sess-abc',
+					openclaw_callback_agent_id: 'personal',
+				},
+			},
+		});
+
+		await target.deliver(event, { session_key: 'normal:key' });
+
+		const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+		expect(body.sessionKey).toBe('callback:sess-abc');
+		expect(body.agentId).toBe('personal');
 	});
 
 	it('uses callback session key from payload.session.meta when present', async () => {
@@ -357,6 +377,29 @@ describe('OpenClawTarget', () => {
 
 		const body = JSON.parse(fetchMock.mock.calls[0][1].body);
 		expect(body.sessionKey).toBe('callback:sess-xyz');
+		expect(body.agentId).toBe('test-agent');
+	});
+
+	it('uses callback agent id from payload.session.meta when present', async () => {
+		const event = createTestEvent({
+			source: 'coding-agent',
+			type: 'actor.stopped',
+			payload: {
+				session: {
+					id: 'sess-xyz',
+					meta: {
+						openclaw_callback_session_key: 'callback:sess-xyz',
+						openclaw_callback_agent_id: 'personal',
+					},
+				},
+			},
+		});
+
+		await target.deliver(event, { session_key: 'normal:key' });
+
+		const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+		expect(body.sessionKey).toBe('callback:sess-xyz');
+		expect(body.agentId).toBe('personal');
 	});
 
 	it('prefers payload.meta over payload.session.meta for callback key', async () => {
@@ -378,6 +421,32 @@ describe('OpenClawTarget', () => {
 		expect(body.sessionKey).toBe('callback:top-level');
 	});
 
+	it('prefers payload.meta over payload.session.meta for callback agent id', async () => {
+		const event = createTestEvent({
+			source: 'coding-agent',
+			type: 'actor.stopped',
+			payload: {
+				meta: {
+					openclaw_callback_session_key: 'callback:top-level',
+					openclaw_callback_agent_id: 'personal',
+				},
+				session: {
+					id: 'sess-1',
+					meta: {
+						openclaw_callback_session_key: 'callback:session-level',
+						openclaw_callback_agent_id: 'kindo',
+					},
+				},
+			},
+		});
+
+		await target.deliver(event, {});
+
+		const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+		expect(body.sessionKey).toBe('callback:top-level');
+		expect(body.agentId).toBe('personal');
+	});
+
 	it('falls back to normal delivery when callback delivery fails', async () => {
 		fetchMock
 			.mockResolvedValueOnce({ ok: false, status: 500, statusText: 'Internal Server Error' })
@@ -387,7 +456,10 @@ describe('OpenClawTarget', () => {
 			source: 'coding-agent',
 			type: 'actor.stopped',
 			payload: {
-				meta: { openclaw_callback_session_key: 'callback:fail' },
+				meta: {
+					openclaw_callback_session_key: 'callback:fail',
+					openclaw_callback_agent_id: 'personal',
+				},
 			},
 		});
 
@@ -396,13 +468,15 @@ describe('OpenClawTarget', () => {
 		expect(result.status).toBe('delivered');
 		expect(fetchMock).toHaveBeenCalledTimes(2);
 
-		// First call used callback key
+		// First call used callback metadata
 		const firstBody = JSON.parse(fetchMock.mock.calls[0][1].body);
 		expect(firstBody.sessionKey).toBe('callback:fail');
+		expect(firstBody.agentId).toBe('personal');
 
-		// Second call used normal key
+		// Second call used normal routing
 		const secondBody = JSON.parse(fetchMock.mock.calls[1][1].body);
 		expect(secondBody.sessionKey).toBe('normal:fallback');
+		expect(secondBody.agentId).toBe('test-agent');
 	});
 
 	it('does not fall back when callback delivery succeeds', async () => {

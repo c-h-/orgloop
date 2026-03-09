@@ -13,17 +13,22 @@ orgloop/
     sdk/          @orgloop/sdk              Types, interfaces, test harness
     core/         @orgloop/core             Engine, bus, router, scheduler, config
     cli/          @orgloop/cli              The `orgloop` CLI binary
-    server/       @orgloop/server           HTTP API server (placeholder)
+    server/       @orgloop/server           HTTP API server (re-exports core + REST API)
 
   connectors/
     github/       @orgloop/connector-github          Poll: GitHub REST API
     linear/       @orgloop/connector-linear           Poll: Linear GraphQL API
-    claude-code/  @orgloop/connector-claude-code      Hook: session exit receiver
+    coding-agent/ @orgloop/connector-coding-agent      Hook: harness-agnostic session lifecycle
+    claude-code/  @orgloop/connector-claude-code      Backward-compat alias for coding-agent
     openclaw/     @orgloop/connector-openclaw          Target: delivers to OpenClaw agents
     webhook/      @orgloop/connector-webhook           Generic HTTP source + target
     cron/         @orgloop/connector-cron              Scheduled: cron + interval syntax
     agent-ctl/    @orgloop/connector-agent-ctl        Poll: AI agent session lifecycle
     docker/       @orgloop/connector-docker            Target: Docker container + Kind cluster control
+    codex/        @orgloop/connector-codex              Hook: Codex session lifecycle
+    opencode/     @orgloop/connector-opencode           Hook: OpenCode session lifecycle
+    pi/           @orgloop/connector-pi                 Hook: Pi session lifecycle
+    pi-rust/      @orgloop/connector-pi-rust            Hook: Pi-rust session lifecycle
     gog/          @orgloop/connector-gog               Poll: Gmail via gog CLI
 
   transforms/
@@ -135,6 +140,8 @@ The bus is the spine. Routes are explicit allow-lists -- actors only see events 
 | `loadConfig()` | `packages/core/src/schema.ts` | YAML loading, AJV schema validation, env var substitution. |
 | `FileCheckpointStore` | `packages/core/src/store.ts` | Persists source polling checkpoints. Enables resume after restart. |
 | `LoggerManager` | `packages/core/src/logger.ts` | Fan-out to all registered loggers. Non-blocking, error-isolated. |
+| `WebhookServer` | `packages/core/src/http.ts` | Lightweight HTTP server for webhooks, REST API, and control API. |
+| `registerRestApi()` | `packages/core/src/rest-api.ts` | Registers REST API endpoints (`/api/status`, `/api/routes`, `/api/events`, `/api/sources`, `/api/metrics`). |
 
 ## Key Types
 
@@ -216,9 +223,9 @@ OrgLoop supports three runtime modes:
 |------|-------------|----------|
 | **CLI** | `orgloop start` | Primary. Interactive, daemon, and supervised daemon modes. |
 | **Library** | `import { Runtime } from '@orgloop/core'` | Programmatic embedding. |
-| **Server** | `orgloop serve` / `@orgloop/server` | HTTP API for remote control (placeholder). |
+| **Server** | `@orgloop/server` | HTTP REST API for monitoring and control (built into the runtime). |
 
-The CLI is the primary interface. The library mode exposes the `Runtime` class (or the `OrgLoop` wrapper) for programmatic use. The server mode wraps the runtime with an HTTP API.
+The CLI is the primary interface. The library mode exposes the `Runtime` class (or the `OrgLoop` wrapper) for programmatic use. The runtime includes a built-in HTTP server (default port 4800) that exposes both a REST API (`/api/*` for status, routes, events, sources, metrics) and a control API (`/control/*` for module load/unload/reload and shutdown).
 
 ## Further Reading
 

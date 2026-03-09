@@ -55,6 +55,9 @@ npm install @orgloop/connector-github @orgloop/connector-linear \
   @orgloop/connector-claude-code @orgloop/connector-openclaw \
   @orgloop/transform-filter @orgloop/transform-dedup
 
+# Or use the harness-agnostic coding-agent connector (works with Claude Code, Codex, OpenCode, Pi, Pi-rust):
+# npm install @orgloop/connector-coding-agent   (instead of @orgloop/connector-claude-code)
+
 # Install Claude Code hook (emits actor.stopped on session exit)
 orgloop hook claude-code-stop
 
@@ -151,19 +154,19 @@ sources:
 ### `connectors/claude-code.yaml`
 
 ```yaml
-# Claude Code source — session completion events via post-exit hook
+# Claude Code source — session lifecycle events via webhook
+# Uses the backward-compat alias; @orgloop/connector-coding-agent also works here.
 
 apiVersion: orgloop/v1alpha1
 kind: ConnectorGroup
 
 sources:
   - id: claude-code
-    description: Claude Code session completion events
+    description: Claude Code session lifecycle events
     connector: "@orgloop/connector-claude-code"
-    config:
-      hook_type: post-exit
     emits:
       - actor.stopped
+      - resource.changed
 ```
 
 ### `connectors/openclaw.yaml`
@@ -241,7 +244,8 @@ routes:
     then:
       actor: openclaw-engineering-agent
       config:
-        session_key: "hook:github:pr-review:engineering"
+        session_key: "orgloop:github:pr:{{payload.pr_number}}"
+        thread_id: "pr-{{payload.pr_number}}"
         wake_mode: now
         deliver: true
     with:
@@ -261,7 +265,8 @@ routes:
     then:
       actor: openclaw-engineering-agent
       config:
-        session_key: "hook:github:pr-comment:engineering"
+        session_key: "orgloop:github:pr:{{payload.pr_number}}"
+        thread_id: "pr-{{payload.pr_number}}"
         wake_mode: now
         deliver: true
     with:

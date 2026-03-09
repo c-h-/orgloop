@@ -125,7 +125,7 @@ $ orgloop plan
 
   Sources:
     + github          (new — poll every 5m)
-    ~ claude-code     (changed — hook_type: post-exit → exit)
+    ~ claude-code     (changed — secret added)
 
   Transforms:
     + drop-bot-noise     (new — package)

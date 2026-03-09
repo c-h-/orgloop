@@ -317,7 +317,7 @@ OrgLoop Plan — my-org
   Sources:
     + github          (new — poll every 5m)
     + linear          (new — poll every 5m)
-    ~ claude-code     (changed — hook_type: post-exit → exit)
+    ~ claude-code     (changed — secret added)
 
   Actors:
     = engineering     (unchanged)
@@ -481,7 +481,7 @@ $ orgloop status
 OrgLoop Runtime
   Status: running (PID 42891)
   Uptime: 3h 22m
-  Control API: http://127.0.0.1:9801
+  Control API: http://127.0.0.1:4800
 
   Sources: 3 | Actors: 1 | Routes: 4
 

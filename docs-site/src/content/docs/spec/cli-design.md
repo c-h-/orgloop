@@ -131,7 +131,7 @@ OrgLoop Plan — my-org
   Sources:
     + github          (new — poll every 5m)
     + linear          (new — poll every 5m)
-    ~ claude-code     (changed — hook_type: post-exit → exit)
+    ~ claude-code     (changed — secret added)
 
   Actors:
     = openclaw-engineering-agent  (unchanged)

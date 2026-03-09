@@ -76,9 +76,9 @@ orgloop/
 │   │       ├── event.ts         # Event builder + validators
 │   │       └── testing.ts       # Test harness for plugin authors
 │   │
-│   └── server/                  # @orgloop/server — HTTP API server (placeholder)
+│   └── server/                  # @orgloop/server — HTTP API server
 │       └── src/
-│           └── index.ts         # Re-exports @orgloop/core (v1.1 scope)
+│           └── index.ts         # Re-exports @orgloop/core + registerRestApi
 │
 ├── connectors/                  # First-party connectors
 │   ├── github/                  # @orgloop/connector-github
@@ -102,11 +102,27 @@ orgloop/
 │   │       ├── detector.ts      # Service detection (health check)
 │   │       └── validator.ts     # Credential validation
 │   │
-│   ├── claude-code/             # @orgloop/connector-claude-code
+│   ├── coding-agent/            # @orgloop/connector-coding-agent
 │   │   └── src/
-│   │       ├── index.ts
-│   │       ├── source.ts        # Webhook receiver for exit hooks
-│   │       └── hook.sh          # Shell hook script
+│   │       ├── index.ts         # Connector registration
+│   │       └── source.ts        # Harness-agnostic webhook receiver (normalized lifecycle)
+│   │
+│   ├── claude-code/             # @orgloop/connector-claude-code (backward-compat alias)
+│   │   └── src/
+│   │       ├── index.ts         # Re-exports coding-agent with claude-code ID
+│   │       └── source.ts        # Re-exports CodingAgentSource
+│   │
+│   ├── codex/                   # @orgloop/connector-codex
+│   │   └── src/                 # Hook: Codex session lifecycle (delegates to coding-agent)
+│   │
+│   ├── opencode/                # @orgloop/connector-opencode
+│   │   └── src/                 # Hook: OpenCode session lifecycle (delegates to coding-agent)
+│   │
+│   ├── pi/                      # @orgloop/connector-pi
+│   │   └── src/                 # Hook: Pi session lifecycle (delegates to coding-agent)
+│   │
+│   ├── pi-rust/                 # @orgloop/connector-pi-rust
+│   │   └── src/                 # Hook: Pi-rust session lifecycle (delegates to coding-agent)
 │   │
 │   ├── cron/                    # @orgloop/connector-cron
 │   │   └── src/

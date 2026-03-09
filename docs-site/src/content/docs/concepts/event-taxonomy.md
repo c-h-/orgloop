@@ -10,7 +10,7 @@ OrgLoop uses three event types. This taxonomy is minimal by design -- new types 
 | Type | Meaning | Example |
 |------|---------|---------|
 | `resource.changed` | Something changed in an external system | PR opened, ticket moved, CI failed, deploy completed |
-| `actor.stopped` | An actor's session ended | Claude Code exited, OpenClaw agent finished |
+| `actor.stopped` | An actor's session ended | Claude Code exited, Codex finished, OpenClaw agent completed |
 | `message.received` | A human or system sent a message | Slack message, webhook payload, CLI notification |
 
 Routes match on these types using the `events` field:
@@ -126,5 +126,11 @@ Every event receives a `trace_id` (prefixed with `trc_`) when it enters the engi
 ```bash
 orgloop logs --event evt_a1b2c3d4e5
 ```
+
+### Lifecycle Events
+
+Coding harness connectors (Claude Code, Codex, OpenCode, Pi, Pi-rust) emit `actor.stopped` events with a **normalized lifecycle payload**. This payload includes `payload.lifecycle` (phase, terminal, outcome, dedupe_key) and `payload.session` (id, harness, exit_status), enabling harness-agnostic routing and supervision. Non-terminal phases (`started`, `active`) emit `resource.changed` instead.
+
+See the [Lifecycle Contract](/spec/lifecycle-contract/) for the full specification.
 
 See the [Event Schema](/reference/event-schema/) for the full JSON Schema definition, or the [Five Primitives](/concepts/five-primitives/) for how events flow through the system.

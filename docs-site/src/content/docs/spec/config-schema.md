@@ -247,7 +247,13 @@ routes:
 
 **File resolution:** `prompt_file` paths are resolved relative to the route YAML file's directory. `orgloop validate` checks that all referenced prompt files exist.
 
-**Delivery:** When OrgLoop delivers an event, the `RouteDeliveryConfig` includes `launch_prompt` (the resolved text) alongside any actor-specific config from `then.config`. Each actor connector decides how to format the outbound request. For example, the OpenClaw connector builds a `message` string from the event and launch prompt, and maps route config fields to OpenClaw's API format (`sessionKey`, `agentId`, `wakeMode`, `deliver`). The generic webhook connector sends the raw event and launch prompt:
+**Delivery:** When OrgLoop delivers an event, the `RouteDeliveryConfig` includes `launch_prompt` (the resolved text) alongside any actor-specific config from `then.config`. Each actor connector decides how to format the outbound request.
+
+The OpenClaw connector builds a human-readable `message` string from the event context (source, type, provenance, payload highlights) and maps route config fields to OpenClaw's API format (`sessionKey`, `agentId`, `wakeMode`, `deliver`, `threadId`). Route config supports `{{field}}` template interpolation from event fields in `session_key` and `thread_id` (e.g., `session_key: "orgloop:github:pr:{{payload.pr_number}}"`). Missing template values resolve to `"unknown"`.
+
+**Callback-first delivery:** When an event contains callback metadata (`payload.meta.openclaw_callback_session_key` or `payload.session.meta.openclaw_callback_session_key`), the OpenClaw connector delivers to that callback session first. If callback delivery fails, it falls back to normal routing. This enables chained supervision — a sub-agent's completion routes back to its originating supervisor session.
+
+The generic webhook connector sends the raw event and launch prompt:
 
 ```json
 {
@@ -448,6 +454,12 @@ export interface RouteDeliveryConfig {
   launch_prompt?: string;
   /** Original prompt file path (for reference/logging) */
   launch_prompt_file?: string;
+  /** Prompt file metadata (from YAML front matter) */
+  launch_prompt_meta?: Record<string, unknown> | null;
+  /** Session routing key (supports {{field}} interpolation) */
+  session_key?: string;
+  /** Conversation thread grouping key (supports {{field}} interpolation) */
+  thread_id?: string;
 }
 
 export interface DeliveryResult {

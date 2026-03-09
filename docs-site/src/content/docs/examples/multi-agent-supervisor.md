@@ -17,6 +17,7 @@ The feedback loop pattern -- the defining feature of OrgLoop. Claude Code sessio
 - The recursive loop: actor completes -> event emitted -> routed to supervisor -> supervisor completes -> event emitted -> ...
 - SOPs (Standard Operating Procedures) as launch prompts that guide actor behavior
 - Why `actor.stopped` is deliberately neutral -- the system observes, actors judge
+- **Callback-first delivery**: completion events from sub-agents route back to the originating supervisor session automatically via OpenClaw's callback mechanism
 
 ## The pattern
 
@@ -99,12 +100,11 @@ defaults:
 
 sources:
   - id: claude-code
-    description: Claude Code session completion events
+    description: Claude Code session lifecycle events
     connector: "@orgloop/connector-claude-code"
-    config:
-      hook_type: post-exit
     emits:
       - actor.stopped
+      - resource.changed
 
   - id: github
     description: GitHub PR activity (work produced by Claude Code)
@@ -231,13 +231,19 @@ This is deliberate. Whether work was completed, the agent crashed, got stuck, or
 ## How the loop sustains itself
 
 1. Claude Code finishes a coding session. The post-exit hook fires.
-2. The Claude Code connector emits an `actor.stopped` event.
+2. The coding agent connector emits an `actor.stopped` event with a [normalized lifecycle payload](/spec/lifecycle-contract/) (`payload.lifecycle` and `payload.session`).
 3. The `session-review` route matches and delivers the event to the supervisor.
 4. The supervisor reviews the work using the SOP as guidance.
 5. The supervisor's own session eventually ends -- emitting another `actor.stopped` event.
 6. If a route matches supervisor completions, the loop continues. If not, the chain terminates naturally.
 
 The loop is not infinite by design. It terminates when no route matches the latest `actor.stopped` event, or when the SOP instructs the supervisor to stop retrying.
+
+## Callback-first delivery
+
+When the OpenClaw connector delivers an event to a sub-agent, it can include callback metadata (`openclaw_callback_session_key`). When that sub-agent completes, the resulting `actor.stopped` event carries this metadata. The OpenClaw connector detects it and delivers the completion event back to the originating supervisor session first, before falling back to normal routing.
+
+This means the supervisor automatically receives the result of work it dispatched, without needing a separate route for every sub-agent. The callback mechanism is built into the OpenClaw connector -- configure it by including callback metadata in the session key.
 
 ## When to use this pattern
 

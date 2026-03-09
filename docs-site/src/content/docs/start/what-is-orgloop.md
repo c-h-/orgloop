@@ -59,8 +59,6 @@ sources:
 
   - id: claude-code
     connector: "@orgloop/connector-claude-code"
-    config:
-      hook_type: post-exit
     emits:
       - actor.stopped
 

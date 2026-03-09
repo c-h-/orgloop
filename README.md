@@ -170,7 +170,7 @@ orgloop logs --source github --since 2h
 
 ---
 
-## Packages (21)
+## Packages (27)
 
 | Package | Description |
 |---------|-------------|
@@ -180,7 +180,12 @@ orgloop logs --source github --since 2h
 | `@orgloop/server` | HTTP API server |
 | `@orgloop/connector-github` | Poll-based: PRs, reviews, CI, comments |
 | `@orgloop/connector-linear` | Poll-based: issues, comments, state changes |
-| `@orgloop/connector-claude-code` | Hook-based: post-exit session events |
+| `@orgloop/connector-coding-agent` | Hook-based: harness-agnostic session lifecycle (Claude Code, Codex, OpenCode, Pi, Pi-rust) |
+| `@orgloop/connector-claude-code` | Backward-compat alias for coding-agent |
+| `@orgloop/connector-codex` | Hook-based: Codex session lifecycle |
+| `@orgloop/connector-opencode` | Hook-based: OpenCode session lifecycle |
+| `@orgloop/connector-pi` | Hook-based: Pi session lifecycle |
+| `@orgloop/connector-pi-rust` | Hook-based: Pi-rust session lifecycle |
 | `@orgloop/connector-openclaw` | Target: POST delivery to OpenClaw agents |
 | `@orgloop/connector-webhook` | Generic: source (HMAC) + target (HTTP) |
 | `@orgloop/connector-cron` | Scheduled: cron expressions + intervals |

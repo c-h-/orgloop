@@ -30,7 +30,7 @@ orgloop validate && orgloop start
 In another terminal:
 
 ```bash
-curl -X POST http://localhost:3000/webhook \
+curl -X POST http://localhost:4800/webhook/webhook \
   -H "Content-Type: application/json" \
   -d '{"type": "test", "message": "hello from orgloop"}'
 ```
@@ -108,8 +108,6 @@ sources:
 
   - id: claude-code
     connector: "@orgloop/connector-claude-code"
-    config:
-      hook_type: post-exit
 
 actors:
   - id: openclaw-engineering-agent

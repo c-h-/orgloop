@@ -71,7 +71,7 @@ sources:
 
   - id: claude-code
     connector: "@orgloop/connector-claude-code"
-    config: { hook_type: post-exit }
+    # Hook-based: receives session lifecycle events via webhook
 
 actors:
   - id: engineering
@@ -123,7 +123,7 @@ Read that and you see an organization's nervous system. Every event that matters
 sources:
   - id: claude-code
     connector: "@orgloop/connector-claude-code"
-    config: { hook_type: post-exit }    # Emits actor.stopped when a session ends
+    # Hook-based: receives session lifecycle events via webhook    # Emits actor.stopped when a session ends
 
 actors:
   - id: supervisor

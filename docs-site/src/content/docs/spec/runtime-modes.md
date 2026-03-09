@@ -129,50 +129,45 @@ await loop.start();
 
 **This mode exists by default** if we design library-first. No additional work needed — just export clean public APIs from `@orgloop/core`.
 
-### Mode 3: Server/API Mode (v1.1 -- Not Yet Implemented)
+### Mode 3: Server/API Mode
 
-> **Status:** `@orgloop/server` exists as a placeholder package that re-exports `@orgloop/core`. The REST API, `orgloop serve` command, and HTTP layer described below are the planned v1.1 design. No `serve` CLI command exists today.
+> **Status:** The runtime includes a built-in HTTP server (default port 4800, configurable via `ORGLOOP_PORT`) that exposes REST API, control API, and webhook endpoints. The `@orgloop/server` package re-exports `@orgloop/core` with `registerRestApi`. No separate `orgloop serve` command is needed — the API is automatically available when the runtime starts.
 
-**Planned command:** `orgloop serve`
+The HTTP server binds to `127.0.0.1` (localhost only) and starts automatically when the runtime launches. It serves three route families:
 
-Will expose a REST API for programmatic control, event ingestion, and status monitoring. For production deployments, web dashboards, and enterprise integrations.
+#### REST API (GET /api/*)
 
-Note: The engine already has a lightweight `WebhookServer` (localhost-only, port 4800) for hook-based sources like Claude Code. The server mode described here is a full-featured API server — a separate concern.
-
-#### Planned API Surface
+Observability and monitoring endpoints:
 
 ```
-# Event ingestion (push-based sources)
-POST   /api/v1/events              Ingest an event
-GET    /api/v1/events              Query recent events (with filters)
-GET    /api/v1/events/:id          Get a specific event's full trace
-
-# Runtime management
-GET    /api/v1/status              Runtime status (uptime, counts)
-GET    /api/v1/health              Health check (for load balancers)
-
-# Observability
-GET    /api/v1/sources             List sources and their status
-GET    /api/v1/sources/:id         Source detail (checkpoint, stats)
-GET    /api/v1/actors              List actors and their status
-GET    /api/v1/actors/:id          Actor detail (delivery stats)
-GET    /api/v1/routes              List routes and their stats
-GET    /api/v1/routes/:id          Route detail (match/drop counts)
-
-# Configuration management
-POST   /api/v1/config/validate     Validate a config payload
-POST   /api/v1/config/plan         Compute a plan
-POST   /api/v1/config/start        Apply a config change
-
-# Logs
-GET    /api/v1/logs                Stream logs (SSE)
-GET    /api/v1/logs/query          Query historical logs
-
-# Webhook receiver (for push-based sources)
-POST   /api/v1/webhooks/:source    Receive webhook from a source platform
+GET /api/status     Runtime health, uptime, PID, per-module status, per-source detail
+GET /api/routes     All routes with fire counts and last-fired timestamps
+GET /api/events     Recent events from ring buffer (query params: from, to, source, route, limit)
+GET /api/sources    Per-source connector detail (type, health, event count, poll interval)
+GET /api/metrics    Prometheus-format metrics (requires ORGLOOP_METRICS_PORT env var)
 ```
 
-**Who will use this:** Production deployments behind a load balancer. Web dashboards that show OrgLoop status. Enterprise integrations that need programmatic event ingestion. Teams that want an API-first interface instead of (or in addition to) CLI.
+#### Control API (POST /control/*)
+
+Dynamic module management and lifecycle control:
+
+```
+GET  /control/status              Runtime status snapshot
+POST /control/module/load         Load a new module: { name, config }
+POST /control/module/unload       Unload a module: { name }
+POST /control/module/reload       Reload a module: { name }
+GET  /control/module/list         List all loaded modules
+GET  /control/module/status/:name Status of a specific module
+POST /control/shutdown            Graceful runtime shutdown
+```
+
+#### Webhook Endpoints (POST /webhook/*)
+
+```
+POST /webhook/:sourceId    Receive webhook events for hook-based sources
+```
+
+**Who uses this:** The CLI's `orgloop status` command queries `/control/status`. Multi-module daemons use the control API for hot-loading. External tools and dashboards can query `/api/*` for monitoring. Hook-based sources (coding-agent, webhook) receive events via `/webhook/*`.
 
 ### Architecture Diagram
 
@@ -197,13 +192,13 @@ POST   /api/v1/webhooks/:source    Receive webhook from a source platform
             │                      │                   │
    ┌────────▼────────┐   ┌────────▼────────┐  ┌───────▼────────┐
    │  @orgloop/cli   │   │ @orgloop/server │  │  Your app      │
-   │                 │   │  (placeholder)  │  │                │
-   │  orgloop start  │   │                 │  │  import {      │
-   │  orgloop status │   │  orgloop serve  │  │    OrgLoop     │
-   │  orgloop logs   │   │  REST API       │  │  } from core   │
-   │  orgloop test   │   │  (v1.1)         │  │                │
+   │                 │   │                 │  │                │
+   │  orgloop start  │   │  Re-exports     │  │  import {      │
+   │  orgloop status │   │  core +         │  │    OrgLoop     │
+   │  orgloop logs   │   │  registerRestApi│  │  } from core   │
+   │  orgloop test   │   │                 │  │                │
    └─────────────────┘   └─────────────────┘  └────────────────┘
-        CLI mode           Server mode (v1.1)    Library mode
+        CLI mode           Server/API mode       Library mode
 ```
 
 ### Priority
@@ -212,4 +207,4 @@ POST   /api/v1/webhooks/:source    Receive webhook from a source platform
 |------|----------|-------|
 | CLI mode (`orgloop start`) | **MVP** | Ship first. This proves the core works. |
 | Library mode (`import { OrgLoop }`) | **MVP** | Comes free with library-first design. The CLI already uses it. |
-| Server mode (`orgloop serve`) | **v1.1** | After CLI is proven, add the HTTP layer. The library API is already there; server is just HTTP routing on top. |
+| Server mode (built-in HTTP API) | **Implemented** | REST API, control API, and webhook endpoints are built into the runtime. Available on every `orgloop start`. |

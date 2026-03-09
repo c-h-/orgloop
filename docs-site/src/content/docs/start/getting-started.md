@@ -53,14 +53,14 @@ orgloop validate
 orgloop start
 ```
 
-OrgLoop is now running. The webhook source is listening on `http://localhost:3000/webhook`.
+OrgLoop is now running. The webhook source is listening on `http://localhost:4800/webhook/webhook`.
 
 ### Send a test event
 
 In another terminal:
 
 ```bash
-curl -X POST http://localhost:3000/webhook \
+curl -X POST http://localhost:4800/webhook/webhook \
   -H "Content-Type: application/json" \
   -d '{"type": "test", "message": "hello from orgloop"}'
 ```
@@ -250,7 +250,7 @@ orgloop status
 OrgLoop Runtime
   Status: running (PID 42831)
   Uptime: 2m 14s
-  Control API: http://127.0.0.1:9801
+  Control API: http://127.0.0.1:4800
 
   Sources: 3 | Actors: 1 | Routes: 4
 

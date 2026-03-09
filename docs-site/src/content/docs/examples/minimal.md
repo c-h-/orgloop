@@ -112,7 +112,7 @@ loggers:
 Send a test event with curl:
 
 ```bash
-curl -X POST http://localhost:3000/webhook \
+curl -X POST http://localhost:4800/webhook/webhook \
   -H "Content-Type: application/json" \
   -d '{"type": "test", "message": "hello from orgloop"}'
 ```

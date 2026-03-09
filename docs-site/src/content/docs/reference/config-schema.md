@@ -156,9 +156,22 @@ sources:
 | `project` | string | Optional Linear project name filter. |
 | `api_key` | string | Linear API key. Use `"${LINEAR_API_KEY}"`. |
 
+Linear comment events include `issue_assignee` and `issue_creator` in provenance, enabling routes to filter by issue context (e.g., "only route if assignee is on the eng team").
+
+**Coding Agent** (`@orgloop/connector-coding-agent`):
+
+The generalized, harness-agnostic coding agent connector. Receives webhook events from any coding harness (Claude Code, Codex, OpenCode, Pi, Pi-rust) via POST to the runtime's `/webhook/:sourceId` endpoint. Events include a [normalized lifecycle payload](/spec/lifecycle-contract/) (`payload.lifecycle` and `payload.session`).
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `secret` | string | Optional HMAC-SHA256 secret for webhook signature validation. |
+| `buffer_dir` | string | Optional directory for crash-recovery disk buffering (JSON Lines). |
+| `platform` | string | Platform identifier. Defaults to source ID. |
+| `harness` | string | Harness type (`claude-code`, `codex`, `opencode`, `pi`, `pi-rust`). Defaults to platform. |
+
 **Claude Code** (`@orgloop/connector-claude-code`):
 
-Claude Code is hook-based, not poll-based. It exposes a webhook handler that receives POST requests from Claude Code's post-exit hook script. No config fields beyond `id` and `connector` are required.
+Backward-compatible alias for `@orgloop/connector-coding-agent`. Registers with ID `claude-code` and delegates to `CodingAgentSource`. Existing configs continue to work unchanged. For new projects, consider using `@orgloop/connector-coding-agent` directly for harness-agnostic routing.
 
 **Webhook** (`@orgloop/connector-webhook`):
 
@@ -296,9 +309,16 @@ The `then.config` fields are connector-specific. For OpenClaw:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `session_key` | string | Session routing key. |
-| `wake_mode` | string | When to wake the agent: `now`, `next`, `queue`. |
-| `deliver` | boolean | Whether to deliver the message to the agent's chat. |
+| `session_key` | string | Session routing key. Supports `{{field}}` interpolation from event fields (e.g., `orgloop:github:pr:{{payload.pr_number}}`). |
+| `thread_id` | string | Optional conversation thread grouping key. Supports `{{field}}` interpolation (e.g., `pr-{{payload.pr_number}}`). |
+| `wake_mode` | string | When to wake the agent: `now`, `next`, `queue`. Default: `now`. |
+| `deliver` | boolean | Whether to deliver the message to the agent's chat. Default: `false`. |
+| `channel` | string | Override the actor's `default_channel` for this route. |
+| `to` | string | Override the actor's `default_to` for this route. |
+
+**Callback-first delivery:** When an event's payload contains `meta.openclaw_callback_session_key` (or `session.meta.openclaw_callback_session_key`), the OpenClaw connector delivers to that callback session first. If callback delivery fails, it falls back to normal routing. This enables chained agent supervision — an agent completes work, and its completion event routes back to the originating supervisor session.
+
+**Template interpolation:** The `session_key` and `thread_id` fields support `{{double-brace}}` interpolation from event fields. Supported paths include `payload.*`, `provenance.*`, and top-level event fields (`source`, `type`). Missing values resolve to `"unknown"`.
 
 ### `with` — Launch Context
 
