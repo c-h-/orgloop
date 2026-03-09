@@ -107,7 +107,9 @@ sources:
       interval: 5m
 
   - id: claude-code
-    connector: "@orgloop/connector-claude-code"
+    connector: "@orgloop/connector-coding-agent"
+    # Or use "@orgloop/connector-claude-code" for backward compat.
+    # Works with any coding harness: Claude Code, Codex, OpenCode, Pi, Pi-rust.
 
 actors:
   - id: openclaw-engineering-agent

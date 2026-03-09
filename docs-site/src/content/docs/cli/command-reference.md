@@ -24,7 +24,8 @@ npm install -g @orgloop/cli
 | [`orgloop status`](#status) | Show runtime status and recent events |
 | [`orgloop logs`](#logs) | Tail or query the event log |
 | [`orgloop test`](#test) | Inject a test event and trace its path |
-| [`orgloop stop`](#stop) | Stop the runtime gracefully |
+| [`orgloop stop`](#stop) | Stop the current module (or daemon if last module) |
+| [`orgloop shutdown`](#shutdown) | Stop the daemon and all modules unconditionally |
 | [`orgloop hook`](#hook) | Forward hook events to the running engine |
 | [`orgloop inspect`](#inspect) | Deep-dive into a source, actor, or route |
 | [`orgloop install-service`](#install-service) | Generate a platform service file |
@@ -615,7 +616,7 @@ echo '{"type":"resource.changed","source":"github","payload":{}}' | orgloop test
 
 ## stop
 
-Stop the runtime gracefully. Tries the control API first (`POST /control/shutdown`) for a clean shutdown. Falls back to `SIGTERM` via PID file if the control API is not reachable.
+Stop the current module. Module-aware — if multiple modules share a daemon, only the current directory's module is unloaded. If it is the last module, the daemon shuts down entirely.
 
 ```
 orgloop stop [options]
@@ -624,16 +625,44 @@ orgloop stop [options]
 | Flag | Description |
 |------|-------------|
 | `--force` | Force kill with SIGKILL |
+| `--all` | Stop the daemon and all modules (alias for `orgloop shutdown`) |
 
 ```bash
+# Single module running:
 $ orgloop stop
-
-Stopping OrgLoop (PID 42891)...
-Requesting graceful shutdown via control API...
+Module "engineering-org" is the last module. Shutting down daemon.
+Stopping OrgLoop daemon (PID 42891)...
   ✓ Stopped.
+
+# Multiple modules running:
+$ orgloop stop
+Unloading module "engineering-org"...
+Module "engineering-org" stopped. Daemon continues with 1 module(s).
 ```
 
 Graceful shutdown: flushes log buffers, persists source checkpoints, waits for in-flight deliveries (with timeout), then exits. If the process does not exit within 10 seconds, it is force-killed with `SIGKILL`.
+
+---
+
+## shutdown
+
+Stop the daemon and all loaded modules unconditionally. Unlike `stop`, which is module-aware, `shutdown` always takes down the entire daemon.
+
+```
+orgloop shutdown [options]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--force` | Force kill with SIGKILL |
+
+```bash
+$ orgloop shutdown
+
+Stopping OrgLoop daemon (PID 42891)...
+Requesting graceful shutdown via control API...
+  ✓ Stopped.
+```
 
 ---
 
@@ -777,3 +806,39 @@ orgloop version
 $ orgloop version
 @orgloop/cli 1.0.0
 ```
+
+---
+
+## Built-in REST API
+
+The runtime includes an HTTP server (default port 4800, configurable via `ORGLOOP_PORT`) that starts automatically with `orgloop start`. It serves three route families.
+
+### Observability — GET /api/*
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/status` | Runtime health, uptime, PID, per-module status, per-source detail |
+| `GET /api/routes` | All routes with fire counts and last-fired timestamps |
+| `GET /api/events` | Recent events from ring buffer. Query params: `from`, `to`, `source`, `route`, `limit` |
+| `GET /api/sources` | Per-source connector detail (type, health, event count, poll interval) |
+| `GET /api/metrics` | Prometheus-format metrics (requires `ORGLOOP_METRICS_PORT` env var) |
+
+### Control — POST /control/*
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /control/status` | Runtime status snapshot |
+| `POST /control/module/load` | Load a new module: `{ name, config }` |
+| `POST /control/module/unload` | Unload a module: `{ name }` |
+| `POST /control/module/reload` | Reload a module: `{ name }` |
+| `GET /control/module/list` | List all loaded modules |
+| `GET /control/module/status/:name` | Status of a specific module |
+| `POST /control/shutdown` | Graceful runtime shutdown |
+
+### Webhooks — POST /webhook/*
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /webhook/:sourceId` | Receive webhook events for hook-based sources (coding-agent, webhook) |
+
+The HTTP server binds to `127.0.0.1` (localhost only). CLI commands like `orgloop status` and `orgloop stop` communicate with the running runtime via these endpoints.

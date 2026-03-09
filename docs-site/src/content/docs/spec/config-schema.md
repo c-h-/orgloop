@@ -8,7 +8,7 @@ description: "YAML config format, project manifest, source/actor/route/transform
 **Decision:** YAML for configuration files, with JSON Schema for validation.
 
 **Rationale:**
-- DESIGN.md already uses YAML for all examples — no switching cost.
+- The specification already uses YAML for all examples — no switching cost.
 - Supports comments (critical for config-as-code — people need to annotate routing decisions).
 - Human-readable and writable. OaC files are meant to be read by the team; readability wins.
 - JSON Schema provides programmatic validation; the CLI runs it on `orgloop validate`.
@@ -271,7 +271,7 @@ The generic webhook connector sends the raw event and launch prompt:
 ### 3.5 Transform Definition
 
 Transforms are defined inside `TransformGroup` YAML files. A single file can declare multiple transforms. Transforms can be:
-1. **Shell scripts** — stdin/stdout contract (as specified in DESIGN.md)
+1. **Shell scripts** — stdin/stdout contract (see [Transforms spec](/spec/transforms/))
 2. **Package transforms** — referencing a transform package with config
 
 ```yaml
@@ -304,7 +304,7 @@ transforms:
     timeout_ms: 5000
 ```
 
-The shell script contract (unchanged from DESIGN.md):
+The shell script contract:
 
 ```bash
 #!/bin/bash

@@ -17,11 +17,10 @@ When the community grows and third-party connectors proliferate, community conne
 
 ```
 orgloop/
-├── DESIGN.md                    # Architecture and philosophy
 ├── README.md                    # Project overview + quickstart
 ├── AGENTS.md                    # AI agent guidance
 ├── CLAUDE.md                    # Claude Code project instructions
-├── LICENSE                      # Apache 2.0
+├── LICENSE.md                   # MIT License
 ├── package.json                 # Workspace root (pnpm workspaces)
 ├── pnpm-workspace.yaml
 ├── tsconfig.base.json           # Shared TypeScript config
@@ -41,6 +40,11 @@ orgloop/
 │   │       ├── store.ts         # Checkpoint + event store
 │   │       ├── scheduler.ts     # Poll scheduling + cron
 │   │       ├── http.ts          # Webhook HTTP server (localhost:4800) + control API
+│   │       ├── rest-api.ts      # REST API endpoints (/api/status, /api/routes, /api/events, /api/sources, /api/metrics)
+│   │       ├── event-history.ts # Ring buffer for recent event storage
+│   │       ├── metrics.ts       # Prometheus metrics collection
+│   │       ├── supervisor.ts    # Daemon supervisor (auto-restart on crash)
+│   │       ├── prompt.ts        # Launch prompt file loading (YAML front matter stripping)
 │   │       ├── schema.ts        # YAML schema validation (JSON Schema / AJV)
 │   │       └── errors.ts        # Error taxonomy
 │   │
@@ -69,11 +73,14 @@ orgloop/
 │   │
 │   ├── sdk/                     # @orgloop/sdk — plugin development kit
 │   │   └── src/
+│   │       ├── index.ts         # Barrel export (re-exports all modules)
 │   │       ├── types.ts         # Core type definitions (OrgLoopEvent, config, etc.)
 │   │       ├── connector.ts     # Connector interfaces (Source, Actor, Registration)
 │   │       ├── transform.ts     # Transform interface + context
 │   │       ├── logger.ts        # Logger interface + registration
 │   │       ├── event.ts         # Event builder + validators
+│   │       ├── http.ts          # HTTP client utilities (keep-alive, fetch wrapper)
+│   │       ├── lifecycle.ts     # Normalized lifecycle contract types + validators
 │   │       └── testing.ts       # Test harness for plugin authors
 │   │
 │   └── server/                  # @orgloop/server — HTTP API server
@@ -177,4 +184,4 @@ orgloop/
 | Compatibility | Guaranteed with current core | Declares `@orgloop/sdk` peer dependency |
 | Approval required | N/A (we publish them) | **None** — anyone can publish at any time |
 
-**Inspiration:** Terraform's provider model. `hashicorp/aws` is first-party; community providers follow a naming convention, implement a well-defined interface, and are discovered via registry/npm. See [Zero Bottleneck to Adoption](#24-design-principle-zero-bottleneck-to-adoption) for the full philosophy.
+**Inspiration:** Terraform's provider model. `hashicorp/aws` is first-party; community providers follow a naming convention, implement a well-defined interface, and are discovered via registry/npm. No approval needed — if it implements the interface, it works.

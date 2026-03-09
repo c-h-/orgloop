@@ -30,6 +30,7 @@ Copy the example and run it:
 ```bash
 cp -r examples/minimal my-project
 cd my-project
+npm install
 orgloop validate
 orgloop start
 ```
@@ -39,6 +40,7 @@ Or scaffold from scratch:
 ```bash
 orgloop init    # select "webhook" when prompted for connectors
 cd my-project
+npm install
 orgloop validate
 orgloop start
 ```

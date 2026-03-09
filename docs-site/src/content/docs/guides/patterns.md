@@ -376,9 +376,9 @@ Compute supports comparison operators (`===`, `!==`, `>`, `<`, `>=`, `<=`). The 
 
 ## Route-level filtering with CWD patterns
 
-**Problem:** You use Claude Code across multiple projects and want different routing per project directory.
+**Problem:** You use coding agents across multiple projects and want different routing per project directory.
 
-**Solution:** The Claude Code connector emits the working directory in `payload.cwd`. Use regex patterns in the transform-filter to route by path.
+**Solution:** The coding-agent connector emits the working directory in the [normalized lifecycle payload](/spec/lifecycle-contract/) at `payload.session.cwd` (or `payload.cwd` for backward compatibility). Use regex patterns in the transform-filter to route by path.
 
 ```yaml
 transforms:
@@ -387,14 +387,14 @@ transforms:
     package: "@orgloop/transform-filter"
     config:
       match:
-        payload.cwd: '/^\/Users\/alice\/work\//'
+        payload.session.cwd: '/^\/Users\/alice\/work\//'
 
   - name: personal-projects-only
     type: package
     package: "@orgloop/transform-filter"
     config:
       match:
-        payload.cwd: '/\/personal\//'
+        payload.session.cwd: '/\/personal\//'
 ```
 
 Regex patterns are delimited with forward slashes: `/pattern/flags`. Case-insensitive matching uses the `i` flag: `/pattern/i`.

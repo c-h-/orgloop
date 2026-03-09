@@ -156,10 +156,10 @@ No walled-garden marketplace, no binary blobs.
 OrgLoop's default network posture is **zero inbound connections**:
 
 - Sources poll outbound -- no listening ports
-- `orgloop start` runs as a local daemon with no network exposure
-- `orgloop serve` (HTTP API) is opt-in and binds to `127.0.0.1` by default
+- `orgloop start` runs as a local daemon with the HTTP server bound to `127.0.0.1` (localhost only)
+- The built-in REST API, control API, and webhook endpoints are not exposed to the network by default
 
 For production deployments:
 - Run behind Tailscale, WireGuard, or your VPN of choice
-- If `orgloop serve` is needed, bind explicitly with `--host 0.0.0.0` -- this requires a conscious decision
-- Webhook ingestion (for push-based sources like Claude Code hooks) binds to localhost by default
+- The HTTP server binds to localhost by default; exposing it externally requires a conscious decision via `ORGLOOP_HOST`
+- Webhook ingestion (for push-based sources like coding-agent hooks) binds to localhost by default

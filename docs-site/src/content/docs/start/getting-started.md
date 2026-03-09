@@ -175,6 +175,8 @@ orgloop init
 
 Select **github**, **linear**, **openclaw**, and **claude-code** in the connector picker. The wizard will also offer to install the Claude Code post-exit hook.
 
+> **Tip:** For new projects, you can use `@orgloop/connector-coding-agent` instead of `@orgloop/connector-claude-code`. The coding-agent connector is harness-agnostic — it works with Claude Code, Codex, OpenCode, Pi, and Pi-rust. The `claude-code` connector is a backward-compatible alias that delegates to `coding-agent`.
+
 ```bash
 cd my-org
 npm install
@@ -260,7 +262,7 @@ OrgLoop Runtime
   claude-code      hook      —
 ```
 
-Use `orgloop status` for a detailed view with per-source health.
+Use `orgloop status` for a detailed view with per-source health. The runtime also exposes a REST API at `http://127.0.0.1:4800/api/` for programmatic monitoring — see [Architecture](/concepts/architecture/#runtime-modes) for endpoints.
 
 ---
 

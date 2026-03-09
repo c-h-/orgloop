@@ -58,10 +58,23 @@ These fields can be set in the route's `then.config`:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `session_key` | `string` | `orgloop:<source>:<type>` | OpenClaw session key |
+| `session_key` | `string` | `orgloop:<source>:<type>` | OpenClaw session key. Supports `{{field}}` interpolation (e.g., `orgloop:github:pr:{{payload.pr_number}}`). |
+| `thread_id` | `string` | — | Conversation thread grouping key. Supports `{{field}}` interpolation (e.g., `pr-{{payload.pr_number}}`). |
 | `wake_mode` | `string` | `"now"` | When to wake the agent (`"now"`, etc.) |
 | `deliver` | `boolean` | `false` | Whether to deliver the message to a channel |
+| `channel` | `string` | — | Override the actor's `default_channel` for this route |
+| `to` | `string` | — | Override the actor's `default_to` for this route |
 | `launch_prompt` | `string` | — | Resolved from route's `with.prompt_file`; appended to the message |
+
+### Template interpolation
+
+The `session_key` and `thread_id` fields support `{{double-brace}}` interpolation from event fields. Supported paths include `payload.*`, `provenance.*`, and top-level event fields (`source`, `type`). Missing values resolve to `"unknown"`.
+
+### Callback-first delivery
+
+When an event's payload contains callback metadata (`payload.meta.openclaw_callback_session_key` or `payload.session.meta.openclaw_callback_session_key`), the connector delivers to that callback session first, using the callback's `agent_id` if present. If callback delivery fails, it falls back to normal routing.
+
+This enables chained agent supervision: a supervisor dispatches work to a sub-agent, and the sub-agent's completion event automatically routes back to the originating supervisor session.
 
 ## Example route
 

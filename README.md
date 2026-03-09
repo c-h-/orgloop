@@ -147,6 +147,7 @@ loggers:
 - **One process replaces N pollers** -- no more scattered LaunchAgents and cron jobs
 - **Multi-module daemon** -- multiple projects share one daemon; add/remove modules without restarts
 - **Daemon mode** -- supervised background process with auto-restart
+- **Built-in REST API** -- `/api/status`, `/api/routes`, `/api/events`, `/api/sources` for monitoring and integration
 - **`plan` before `start`** -- see exactly what will change (Terraform-style)
 
 ---
@@ -170,14 +171,14 @@ orgloop logs --source github --since 2h
 
 ---
 
-## Packages (27)
+## Packages (26)
 
 | Package | Description |
 |---------|-------------|
 | `@orgloop/sdk` | Interfaces, types, test harness |
-| `@orgloop/core` | Runtime, router, bus, scheduler, schema validation |
+| `@orgloop/core` | Runtime, router, bus, scheduler, schema validation, REST API |
 | `@orgloop/cli` | CLI (`init`, `plan`, `start`, `status`, `doctor`, ...) |
-| `@orgloop/server` | HTTP API server |
+| `@orgloop/server` | HTTP API server (re-exports core + REST API) |
 | `@orgloop/connector-github` | Poll-based: PRs, reviews, CI, comments |
 | `@orgloop/connector-linear` | Poll-based: issues, comments, state changes |
 | `@orgloop/connector-coding-agent` | Hook-based: harness-agnostic session lifecycle (Claude Code, Codex, OpenCode, Pi, Pi-rust) |
@@ -186,19 +187,19 @@ orgloop logs --source github --since 2h
 | `@orgloop/connector-opencode` | Hook-based: OpenCode session lifecycle |
 | `@orgloop/connector-pi` | Hook-based: Pi session lifecycle |
 | `@orgloop/connector-pi-rust` | Hook-based: Pi-rust session lifecycle |
-| `@orgloop/connector-openclaw` | Target: POST delivery to OpenClaw agents |
+| `@orgloop/connector-openclaw` | Target: POST delivery to OpenClaw agents (callback-first, dynamic threadId) |
 | `@orgloop/connector-webhook` | Generic: source (HMAC) + target (HTTP) |
 | `@orgloop/connector-cron` | Scheduled: cron expressions + intervals |
-| `@orgloop/transform-filter` | Match/exclude with dot-path patterns |
+| `@orgloop/connector-agent-ctl` | Poll-based: AI agent session lifecycle |
+| `@orgloop/connector-docker` | Target: Docker container + Kind cluster control |
+| `@orgloop/connector-gog` | Poll-based: Gmail via gog CLI |
+| `@orgloop/transform-filter` | Match/exclude with dot-path patterns + jq mode |
 | `@orgloop/transform-dedup` | SHA-256 hash, time window dedup |
 | `@orgloop/transform-enrich` | Add, copy, and compute fields on events |
+| `@orgloop/transform-agent-gate` | Gate events on running agent sessions |
 | `@orgloop/logger-console` | ANSI colors, phase icons, level filtering |
 | `@orgloop/logger-file` | Buffered JSONL, rotation, gzip |
 | `@orgloop/logger-otel` | OpenTelemetry OTLP export |
-| `@orgloop/connector-agent-ctl` | Agent lifecycle control (start, stop, signal) |
-| `@orgloop/connector-docker` | Docker container events and management |
-| `@orgloop/connector-gog` | GOG integration connector |
-| `@orgloop/transform-agent-gate` | Agent gating logic for event pipelines |
 | `@orgloop/logger-syslog` | RFC 5424 syslog protocol |
 
 ---

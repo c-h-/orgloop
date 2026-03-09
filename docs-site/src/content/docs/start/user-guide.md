@@ -435,7 +435,27 @@ orgloop test event.json --dry-run
 orgloop stop
 ```
 
-Or press Ctrl+C if running in foreground.
+Or press Ctrl+C if running in foreground. If multiple modules share the daemon, `stop` only unloads the current directory's module. Use `orgloop shutdown` to take down the entire daemon.
+
+### REST API
+
+The runtime exposes a REST API at `http://127.0.0.1:4800/api/` for programmatic monitoring:
+
+```bash
+# Runtime status
+curl http://127.0.0.1:4800/api/status
+
+# Route stats
+curl http://127.0.0.1:4800/api/routes
+
+# Recent events
+curl http://127.0.0.1:4800/api/events?source=github&limit=10
+
+# Per-source detail
+curl http://127.0.0.1:4800/api/sources
+```
+
+See the [CLI Command Reference](/cli/command-reference/#built-in-rest-api) for the full endpoint list.
 
 ## 11. When OrgLoop stops
 
@@ -536,7 +556,8 @@ After editing, run `orgloop validate` to check your work.
 | `orgloop logs` | Tail the event log |
 | `orgloop test [file]` | Inject a test event |
 | `orgloop test --generate <connector>` | Generate a sample event |
-| `orgloop stop` | Stop the runtime gracefully |
+| `orgloop stop` | Stop the current module (or daemon if last) |
+| `orgloop shutdown` | Stop the daemon and all modules |
 | `orgloop hook claude-code-stop` | Forward Claude Code stop hook |
 
 **Global options:**

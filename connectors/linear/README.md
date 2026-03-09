@@ -60,6 +60,8 @@ All events are emitted as OrgLoop `resource.changed` type.
     "author": "Alice Smith",
     "author_type": "team_member",
     "issue_id": "ENG-42",
+    "issue_assignee": "Alice Smith",
+    "issue_creator": "Bob Jones",
     "state": "In Progress",
     "url": "https://linear.app/my-org/issue/ENG-42"
   },
@@ -87,6 +89,8 @@ All events are emitted as OrgLoop `resource.changed` type.
     "author": "Bob Jones",
     "author_type": "team_member",
     "issue_id": "ENG-42",
+    "issue_assignee": "Alice Smith",
+    "issue_creator": "Alice Smith",
     "url": "https://linear.app/my-org/issue/ENG-42#comment-abc"
   },
   "payload": {

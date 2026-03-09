@@ -7,7 +7,7 @@ description: "Transform interface, script contract, and built-in transforms — 
 
 OrgLoop supports two transform modes:
 
-1. **Script transforms** — shell scripts following the stdin/stdout contract from DESIGN.md. This is the primary mode. It's simple, language-agnostic, and debuggable.
+1. **Script transforms** — shell scripts following the stdin/stdout contract. This is the primary mode. It's simple, language-agnostic, and debuggable.
 
 2. **Package transforms** — TypeScript classes implementing the `Transform` interface from `@orgloop/sdk`. For performance-sensitive or complex transforms that benefit from in-process execution.
 

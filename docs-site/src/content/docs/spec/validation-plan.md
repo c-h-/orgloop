@@ -32,7 +32,7 @@ description: "Migration map, MVP scope, testing strategy, and success criteria f
 **Out of scope for MVP:**
 - Workspaces (Tier 2+ concern)
 - Distributed runtime / queue backends (NATS, Kafka)
-- HTTP API server / `orgloop serve` (CLI-only for MVP)
+- HTTP API server — now built into the runtime (REST API at `/api/*`, control API at `/control/*`)
 - OpenTelemetry logger
 - Plugin registry / discovery
 - Hot-reload of config changes

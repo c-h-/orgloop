@@ -64,7 +64,7 @@ npm install orgloop-connector-jira
 orgloop add connector jira --package orgloop-connector-jira
 ```
 
-No approval needed. If it implements the interface, it works. See [Zero Bottleneck to Adoption](#24-design-principle-zero-bottleneck-to-adoption).
+No approval needed. If it implements the interface, it works.
 
 ### 7.3 Plugin Discovery & Loading
 
