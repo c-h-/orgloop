@@ -10,14 +10,14 @@
 
 import { fork } from 'node:child_process';
 import { closeSync, openSync, unlinkSync } from 'node:fs';
-import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Command } from 'commander';
 import { loadCliConfig, resolveConfigPath } from '../config.js';
 import { getDaemonInfo } from '../daemon-client.js';
-import { deriveModuleName, registerModule } from '../module-registry.js';
+import { deriveModuleName, readModulesState, registerModule } from '../module-registry.js';
 import * as output from '../output.js';
 import { createProjectImport } from '../project-import.js';
 import { resolveConnectors } from '../resolve-connectors.js';
@@ -311,12 +311,11 @@ async function runForeground(configPath?: string, force?: boolean): Promise<void
 		}
 	});
 
-	// Signal handling
+	// Signal handling — modules.json is NOT cleared here so modules persist across restarts.
+	// Only explicit `orgloop stop --all` or `orgloop stop` (last module) clears the registry.
 	const shutdown = async () => {
 		output.blank();
 		output.info('Shutting down...');
-		const { clearModulesState } = await import('../module-registry.js');
-		await clearModulesState();
 		await runtime.stop();
 		await cleanupPidFile();
 		process.exit(0);
@@ -425,6 +424,56 @@ async function runForeground(configPath?: string, force?: boolean): Promise<void
 			configPath: resolvedConfigPath,
 			loadedAt: new Date().toISOString(),
 		});
+
+		// Auto-restore previously registered modules from modules.json
+		const persistedState = await readModulesState();
+		for (const persisted of persistedState.modules) {
+			// Skip the module we just loaded
+			if (persisted.name === moduleName) continue;
+
+			// Check that the config file still exists
+			try {
+				await access(persisted.configPath);
+			} catch {
+				output.warn(
+					`Skipping persisted module "${persisted.name}": config not found at ${persisted.configPath}`,
+				);
+				continue;
+			}
+
+			try {
+				const restoredConfig = await loadCliConfig({ configPath: persisted.configPath });
+				const restoredName = deriveModuleName(restoredConfig.project.name, persisted.sourceDir);
+				const restoredResolved = await resolveModuleResources(restoredConfig, persisted.sourceDir);
+
+				const restoredModuleConfig: import('@orgloop/core').ModuleConfig = {
+					name: restoredName,
+					sources: restoredConfig.sources,
+					actors: restoredConfig.actors,
+					routes: restoredConfig.routes,
+					transforms: restoredConfig.transforms,
+					loggers: restoredConfig.loggers,
+					defaults: restoredConfig.defaults,
+					modulePath: resolve(persisted.sourceDir),
+				};
+
+				await runtime.loadModule(restoredModuleConfig, {
+					sources: restoredResolved.resolvedSources,
+					actors: restoredResolved.resolvedActors,
+					transforms: restoredResolved.resolvedTransforms,
+					loggers: restoredResolved.resolvedLoggers,
+					...(restoredResolved.checkpointStore
+						? { checkpointStore: restoredResolved.checkpointStore }
+						: {}),
+				});
+
+				output.success(`Restored module "${restoredName}" from previous session`);
+			} catch (err) {
+				output.warn(
+					`Failed to restore module "${persisted.name}": ${err instanceof Error ? err.message : String(err)}`,
+				);
+			}
+		}
 
 		// Display progress
 		for (const s of config.sources) {
