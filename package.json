@@ -27,5 +27,5 @@
   "dependencies": {
     "@orgloop/transform-agent-gate": "workspace:^"
   },
-  "version": "0.5.0"
+  "version": "0.6.0"
 }

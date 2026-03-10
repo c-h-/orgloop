@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-03-09
+
+feat: callback-first delivery, dynamic threadId, docs audit (#94, #97, #98)
+
+
 ## [0.4.0] - 2026-02-25
 
 ### Added
