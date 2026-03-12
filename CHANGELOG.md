@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-03-11
+
+feat(github): add pr_state, pr_merged to provenance. feat(cli): persist registered modules across daemon restarts. feat(core): templated session_key for resource-correlated event batching.
+
+
 ## [0.6.0] - 2026-03-09
 
 feat: callback-first delivery, dynamic threadId, docs audit (#94, #97, #98)
