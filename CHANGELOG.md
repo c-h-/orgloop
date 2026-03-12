@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-03-12
+
+feat(connector-github): issue event polling for opened/labeled/assigned events (#106). feat(connector-github): webhook-based connector for real-time event delivery (#108). feat: file-based checkpoint persistence for connectors (#107). feat: SOP execution audit trail with output validation and loop detection (#92). fix: daemon .env loading on module registration + restart reliability (#104, #95). docs: REST API endpoints in README (#85).
+
+
 ## [0.6.1] - 2026-03-11
 
 feat(github): add pr_state, pr_merged to provenance. feat(cli): persist registered modules across daemon restarts. feat(core): templated session_key for resource-correlated event batching.
