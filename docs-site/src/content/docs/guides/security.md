@@ -116,6 +116,53 @@ orgloop logs --result drop --since 1h
 
 See the [Building Transforms](/guides/transform-authoring/) guide for details on how transforms interact with the audit pipeline.
 
+## SOP execution audit trail
+
+Every SOP execution is recorded with full provenance in the **audit trail** — a structured record of inputs, routing decisions, outputs, and content hashes. This enables post-incident forensics and real-time monitoring of agent behavior.
+
+Each audit record captures:
+- **Input:** event ID, source, type, SHA-256 content hash
+- **Routing:** matched route, SOP file, module
+- **Execution:** actor, delivery status, duration
+- **Outputs:** side-effects with content hashes and validation flags
+- **Chain tracking:** depth in the event chain, parent event ID
+
+The audit trail is queryable via the Runtime API — filter by trace ID, route, actor, or flag status.
+
+## Output validation
+
+Before SOP outputs reach external systems, OrgLoop's **output validator** checks for potential payload propagation — a defense against the Viral Agent Loop (arXiv:2602.19555):
+
+- **Instruction detection:** Flags prompt injection patterns like "ignore previous instructions", system prompt delimiters (`[INST]`, `<<SYS>>`), and encoded payloads
+- **Input echo detection:** Flags outputs that are suspiciously similar to the input (echo/amplification attacks)
+- **Scope violation detection:** Flags references to URLs outside allowed domains, shell commands, and actions outside the SOP's expected scope
+
+Outputs with critical flags can optionally be held for human review before delivery (`holdOnCritical: true` in RuntimeOptions).
+
+## Loop detection and circuit breaking
+
+OrgLoop tracks **event chains** — when Event A triggers an SOP that produces Output B, which triggers another SOP producing Output C. This chain tracking detects runaway feedback loops:
+
+- **Chain depth monitoring:** Alerts when a trace's event chain exceeds a configurable depth (default: 3 hops)
+- **Pattern detection:** Flags repeated source+type combinations within a chain
+- **Circuit breaker:** Automatically stops processing when chains exceed the circuit breaker depth (default: 5 hops)
+
+Configure via RuntimeOptions:
+
+```typescript
+const runtime = new Runtime({
+  loopDetector: {
+    maxChainDepth: 3,        // Alert threshold
+    circuitBreakerDepth: 5,  // Auto-stop threshold
+    windowMs: 300_000,       // 5-minute tracking window
+  },
+  outputValidator: {
+    holdOnCritical: true,    // Hold flagged outputs for review
+    allowedDomains: ['github.com', 'linear.app'],
+  },
+});
+```
+
 ## Plan before start
 
 `orgloop plan` shows exactly what will change before any config is applied:

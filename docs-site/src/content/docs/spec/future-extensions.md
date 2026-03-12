@@ -267,7 +267,7 @@ Implemented as `orgloop routes` command. ASCII rendering shows sources -> routes
 - Should work regardless of actor type (Claude Code, Codex, custom agents)
 - MCP tool approach: OrgLoop provides an MCP server with an `emit_event` tool that agents can call
 - HTTP approach: actors POST to `http://localhost:<port>/emit` (similar to webhook source, but for outbound from actors)
-- Rate limiting and loop detection needed to prevent infinite emission chains
+- Rate limiting and loop detection needed to prevent infinite emission chains (loop detection now implemented in FE-25)
 
 **Affects:** `packages/core/src/runtime.ts` (core runtime logic; `engine.ts` is now a backward-compatible wrapper), `packages/core/src/http.ts`, `packages/sdk/src/connector.ts`, possibly new MCP server package
 
@@ -331,6 +331,17 @@ Trust and permissions for third-party connectors and transforms are handled thro
 - Graceful degradation: shed load when sources are unhealthy rather than crashing
 
 **Affects:** `packages/core/src/supervisor.ts`, `packages/core/src/runtime.ts`, `packages/cli/src/commands/start.ts`
+
+---
+
+### ~~FE-25: SOP Execution Audit Trail & Output Validation~~ **Resolved (v0.6.2)**
+
+Implemented in `packages/core/src/`:
+- `audit.ts` — `AuditTrail` class records every SOP execution with full provenance: input event (source, type, content hash), matched route, SOP file, actor session, outputs with content hashes, chain depth, and validation flags
+- `output-validator.ts` — `OutputValidator` pre-delivery validation checks for instruction injection patterns (prompt injection defense), input echo/amplification, scope violations (unauthorized URLs, shell commands). Supports hold-for-review on critical flags
+- `loop-detector.ts` — `LoopDetector` tracks event chains by trace_id, alerts on configurable chain depth (default: 3 hops), auto-stops via circuit breaker at configurable depth (default: 5 hops). Detects repeated source+type patterns within chains
+
+Defense against the Viral Agent Loop (arXiv:2602.19555). See [Security guide](/guides/security/) for usage.
 
 ---
 

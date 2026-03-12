@@ -100,9 +100,11 @@ loggers/
 ### Event flow
 
 ```
-Source.poll() → EventBus → ModuleInstance.processEvent() → matchRoutes() → executeTransformPipeline() → Actor.deliver()
-                                                                                                              |
-                                                                                                    actor.stopped → EventBus (loops back)
+Source.poll() → LoopDetector.check() → EventBus → matchRoutes() → executeTransformPipeline() → OutputValidator.validate() → Actor.deliver()
+                      |                                                                                                           |
+                circuit breaker                                                                                         AuditTrail.record()
+                (auto-stop loops)                                                                                                 |
+                                                                                                                    actor.stopped → EventBus (loops back)
 ```
 
 The `Runtime` owns the shared infrastructure (bus, scheduler, loggers, HTTP server). Each `ModuleInstance` owns its sources, actors, routes, and transforms. Events flow through module-scoped routing -- each module only matches against its own routes. The bus is the spine. Routes are explicit allow-lists (actors only see events their routes match).
@@ -124,6 +126,9 @@ The `Runtime` owns the shared infrastructure (bus, scheduler, loggers, HTTP serv
 | `loadConfig()` | `packages/core/src/schema.ts` | YAML loading, AJV validation, env var substitution |
 | `FileCheckpointStore` | `packages/core/src/store.ts` | Source deduplication checkpoints |
 | `LoggerManager` | `packages/core/src/logger.ts` | Fan-out to loggers, non-blocking, error-isolated |
+| `AuditTrail` | `packages/core/src/audit.ts` | SOP execution audit records with content hashes, chain tracking |
+| `OutputValidator` | `packages/core/src/output-validator.ts` | Pre-delivery output validation (injection, echo, scope) |
+| `LoopDetector` | `packages/core/src/loop-detector.ts` | Event chain tracking, pattern detection, circuit breaker |
 
 ### Plugin registration
 
@@ -190,6 +195,9 @@ Every plugin type (connector, transform, logger) must be wired through the **ful
 | Module instance (lifecycle states, resource ownership) | `packages/core/src/__tests__/module-instance.test.ts` | 17 |
 | Multi-module runtime (load, unload, reload, events) | `packages/core/src/__tests__/multi-module-runtime.test.ts` | 9 |
 | Module registry CLI (persist, find, clear) | `packages/cli/src/__tests__/module-registry.test.ts` | 12 |
+| Audit trail (recording, querying, integration) | `packages/core/src/__tests__/audit-trail.test.ts` | 17 |
+| Output validator (injection, echo, scope, config) | `packages/core/src/__tests__/output-validator.test.ts` | 26 |
+| Loop detector (chains, circuit breaker, integration) | `packages/core/src/__tests__/loop-detector.test.ts` | 14 |
 
 When fixing a bug, add a regression test. When wiring a new plugin, add an engine-integration test.
 
@@ -316,6 +324,9 @@ Script-based (stdin/stdout, any language) or package-based (TypeScript, implemen
 - **Least-privilege routing** — actors only see events their routes match
 - **Audit by default** — loggers are first-class primitives, not optional
 - **Plan before start** — `orgloop plan` shows changes before execution
+- **SOP execution audit trail** — every execution recorded with input/output content hashes, chain depth, and validation flags
+- **Output validation** — pre-delivery checks for instruction injection, input echo, and scope violations (viral agent loop defense)
+- **Loop detection** — event chain tracking with configurable circuit breaker (default: 3 hop alert, 5 hop auto-stop)
 
 See the [Security guide](https://orgloop.ai/guides/security/) for the full security architecture.
 

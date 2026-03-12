@@ -223,7 +223,12 @@ export type LogPhase =
 	| 'module.removed'
 	| 'module.error'
 	| 'runtime.start'
-	| 'runtime.stop';
+	| 'runtime.stop'
+	| 'audit.record'
+	| 'audit.flag'
+	| 'audit.held'
+	| 'loop.detected'
+	| 'loop.circuit_broken';
 
 /** Universal log entry — every logger receives this */
 export interface LogEntry {

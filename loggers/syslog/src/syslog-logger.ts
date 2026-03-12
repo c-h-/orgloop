@@ -65,6 +65,11 @@ const PHASE_SEVERITY: Record<LogPhase, number> = {
 	'module.error': 3, // Error
 	'runtime.start': 6, // Informational
 	'runtime.stop': 6, // Informational
+	'audit.record': 7, // Debug
+	'audit.flag': 4, // Warning
+	'audit.held': 3, // Error
+	'loop.detected': 4, // Warning
+	'loop.circuit_broken': 3, // Error
 };
 
 /** Get severity for a phase, with optional fatal upgrade */

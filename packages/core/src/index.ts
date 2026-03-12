@@ -4,6 +4,9 @@
  * Public API exports for library mode.
  */
 
+export type { AuditFlag, AuditOutput, AuditRecord, AuditTrailOptions } from './audit.js';
+// Audit trail
+export { AuditTrail, contentHash, generateAuditId } from './audit.js';
 export type { BusHandler, EventBus } from './bus.js';
 // Event bus
 export { FileWalBus, InMemoryBus } from './bus.js';
@@ -31,12 +34,18 @@ export type { ApiHandler, RuntimeControl } from './http.js';
 export { DEFAULT_HTTP_PORT, WebhookServer } from './http.js';
 // Logger manager
 export { LoggerManager } from './logger.js';
+export type { ChainNode, LoopCheckResult, LoopDetectorOptions } from './loop-detector.js';
+// Loop detector
+export { LoopDetector } from './loop-detector.js';
 export type { MetricsServerOptions } from './metrics.js';
 // Prometheus metrics
 export { MetricsServer } from './metrics.js';
 export type { ModuleConfig, ModuleContext } from './module-instance.js';
 // Module system
 export { ModuleInstance } from './module-instance.js';
+export type { OutputValidationResult, OutputValidatorOptions } from './output-validator.js';
+// Output validator
+export { OutputValidator } from './output-validator.js';
 export type { StripFrontMatterResult } from './prompt.js';
 // Prompt utilities
 export { stripFrontMatter } from './prompt.js';
