@@ -36,6 +36,11 @@ const PHASE_SEVERITY: Record<LogPhase, { text: string; number: number }> = {
 	'module.error': { text: 'ERROR', number: 17 },
 	'runtime.start': { text: 'INFO', number: 9 },
 	'runtime.stop': { text: 'INFO', number: 9 },
+	'audit.record': { text: 'DEBUG', number: 5 },
+	'audit.flag': { text: 'WARN', number: 13 },
+	'audit.held': { text: 'ERROR', number: 17 },
+	'loop.detected': { text: 'WARN', number: 13 },
+	'loop.circuit_broken': { text: 'ERROR', number: 17 },
 };
 
 export interface OtelLoggerConfig {

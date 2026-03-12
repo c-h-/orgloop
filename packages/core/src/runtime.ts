@@ -19,6 +19,8 @@ import type {
 	RuntimeStatus,
 } from '@orgloop/sdk';
 import { generateTraceId } from '@orgloop/sdk';
+import type { AuditFlag, AuditOutput, AuditRecord, AuditTrailOptions } from './audit.js';
+import { AuditTrail, contentHash, generateAuditId } from './audit.js';
 import type { EventBus } from './bus.js';
 import { InMemoryBus } from './bus.js';
 import { ConnectorError, DeliveryError, ModuleNotFoundError } from './errors.js';
@@ -27,9 +29,13 @@ import { EventHistory } from './event-history.js';
 import type { RuntimeControl } from './http.js';
 import { DEFAULT_HTTP_PORT, WebhookServer } from './http.js';
 import { LoggerManager } from './logger.js';
+import type { LoopCheckResult, LoopDetectorOptions } from './loop-detector.js';
+import { LoopDetector } from './loop-detector.js';
 import { MetricsServer } from './metrics.js';
 import type { ModuleConfig } from './module-instance.js';
 import { ModuleInstance } from './module-instance.js';
+import type { OutputValidatorOptions } from './output-validator.js';
+import { OutputValidator } from './output-validator.js';
 import { stripFrontMatter } from './prompt.js';
 import { ModuleRegistry } from './registry.js';
 import { interpolateConfig, matchRoutes } from './router.js';
@@ -77,6 +83,12 @@ export interface RuntimeOptions {
 	metricsPort?: number;
 	/** Event history ring buffer options */
 	eventHistory?: EventHistoryOptions;
+	/** Audit trail options */
+	auditTrail?: AuditTrailOptions;
+	/** Output validator options */
+	outputValidator?: OutputValidatorOptions;
+	/** Loop detector options */
+	loopDetector?: LoopDetectorOptions;
 }
 
 export interface LoadModuleOptions {
@@ -138,6 +150,11 @@ class Runtime extends EventEmitter implements RuntimeControl {
 	private readonly eventHistory: EventHistory;
 	private readonly routeStats = new Map<string, RouteStats>();
 
+	// Audit trail, output validation, and loop detection
+	private readonly auditTrail: AuditTrail;
+	private readonly outputValidator: OutputValidator;
+	private readonly loopDetector: LoopDetector;
+
 	constructor(options?: RuntimeOptions) {
 		super();
 		this.bus = options?.bus ?? new InMemoryBus();
@@ -168,6 +185,11 @@ class Runtime extends EventEmitter implements RuntimeControl {
 
 		// Event history ring buffer
 		this.eventHistory = new EventHistory(options?.eventHistory);
+
+		// Audit trail, output validation, and loop detection
+		this.auditTrail = new AuditTrail(options?.auditTrail);
+		this.outputValidator = new OutputValidator(options?.outputValidator);
+		this.loopDetector = new LoopDetector(options?.loopDetector);
 	}
 
 	// ─── Lifecycle ───────────────────────────────────────────────────────────
@@ -415,6 +437,50 @@ class Runtime extends EventEmitter implements RuntimeControl {
 			module: mod.name,
 		});
 
+		// ─── Loop Detection ──────────────────────────────────────────────
+		if (event.trace_id) {
+			const loopCheck = this.loopDetector.check(
+				event.trace_id,
+				event.id,
+				event.source,
+				event.type,
+				null, // route not yet known
+				null,
+			);
+
+			if (loopCheck.circuit_broken) {
+				await this.emitLog('loop.circuit_broken', {
+					event_id: event.id,
+					trace_id: event.trace_id,
+					source: event.source,
+					module: mod.name,
+					result: `Circuit broken: event chain depth ${loopCheck.chain_depth} exceeds limit`,
+					metadata: {
+						chain_depth: loopCheck.chain_depth,
+						chain: loopCheck.chain.map((n) => n.event_id),
+					},
+				});
+				this.emit('loop:circuit_broken', { event, loopCheck });
+				await this.bus.ack(event.id);
+				return;
+			}
+
+			if (loopCheck.loop_detected) {
+				await this.emitLog('loop.detected', {
+					event_id: event.id,
+					trace_id: event.trace_id,
+					source: event.source,
+					module: mod.name,
+					result: `Loop detected: chain depth ${loopCheck.chain_depth}`,
+					metadata: {
+						chain_depth: loopCheck.chain_depth,
+						flags: loopCheck.flags.map((f) => f.message),
+					},
+				});
+				this.emit('loop:detected', { event, loopCheck });
+			}
+		}
+
 		// Write to bus (WAL)
 		await this.bus.publish(event);
 
@@ -578,6 +644,9 @@ class Runtime extends EventEmitter implements RuntimeControl {
 		});
 
 		const startTime = Date.now();
+		const auditFlags: AuditFlag[] = [];
+		const auditOutputs: AuditOutput[] = [];
+		let deliveryStatus: 'delivered' | 'rejected' | 'error' | 'held' = 'error';
 
 		try {
 			// Build delivery config (interpolate {{dot.path}} templates from event)
@@ -598,43 +667,90 @@ class Runtime extends EventEmitter implements RuntimeControl {
 				}
 			}
 
-			const result = await actor.deliver(event, deliveryConfig);
-			const durationMs = Date.now() - startTime;
+			// ─── Output Validation ───────────────────────────────────────
+			const deliveryContent = JSON.stringify(deliveryConfig);
+			const validation = this.outputValidator.validate(deliveryContent, event);
 
-			if (result.status === 'delivered') {
-				await this.emitLog('deliver.success', {
+			if (validation.flags.length > 0) {
+				auditFlags.push(...validation.flags);
+
+				for (const flag of validation.flags) {
+					await this.emitLog('audit.flag', {
+						event_id: event.id,
+						trace_id: event.trace_id,
+						route: routeName,
+						target: actorId,
+						module: mod.name,
+						result: flag.message,
+						metadata: { flag_type: flag.type, severity: flag.severity },
+					});
+				}
+			}
+
+			if (validation.hold_for_review) {
+				deliveryStatus = 'held';
+				await this.emitLog('audit.held', {
 					event_id: event.id,
 					trace_id: event.trace_id,
 					route: routeName,
 					target: actorId,
-					duration_ms: durationMs,
 					module: mod.name,
+					result: 'Output held for human review due to critical flags',
+					metadata: { flags: validation.flags.map((f) => f.message) },
 				});
-				this.emit('delivery', {
-					event,
-					route: routeName,
-					actor: actorId,
-					status: 'delivered',
-				});
+				this.emit('audit:held', { event, route: routeName, actor: actorId, validation });
 			} else {
-				await this.emitLog('deliver.failure', {
-					event_id: event.id,
-					trace_id: event.trace_id,
-					route: routeName,
+				// Proceed with delivery
+				const result = await actor.deliver(event, deliveryConfig);
+				const durationMs = Date.now() - startTime;
+
+				// Record output
+				auditOutputs.push({
+					type: `deliver.${result.status}`,
 					target: actorId,
-					duration_ms: durationMs,
-					error: result.error?.message ?? result.status,
-					module: mod.name,
+					content_hash: contentHash(deliveryConfig),
+					timestamp: new Date().toISOString(),
+					flags: validation.flags,
 				});
-				this.emit('delivery', {
-					event,
-					route: routeName,
-					actor: actorId,
-					status: result.status,
-				});
+
+				if (result.status === 'delivered') {
+					deliveryStatus = 'delivered';
+					await this.emitLog('deliver.success', {
+						event_id: event.id,
+						trace_id: event.trace_id,
+						route: routeName,
+						target: actorId,
+						duration_ms: durationMs,
+						module: mod.name,
+					});
+					this.emit('delivery', {
+						event,
+						route: routeName,
+						actor: actorId,
+						status: 'delivered',
+					});
+				} else {
+					deliveryStatus = result.status as 'rejected' | 'error';
+					await this.emitLog('deliver.failure', {
+						event_id: event.id,
+						trace_id: event.trace_id,
+						route: routeName,
+						target: actorId,
+						duration_ms: durationMs,
+						error: result.error?.message ?? result.status,
+						module: mod.name,
+					});
+					this.emit('delivery', {
+						event,
+						route: routeName,
+						actor: actorId,
+						status: result.status,
+					});
+				}
 			}
 		} catch (err) {
 			const durationMs = Date.now() - startTime;
+			deliveryStatus = 'error';
 			const error = new DeliveryError(actorId, routeName, 'Delivery failed', { cause: err });
 			this.emit('error', error);
 			this.metricsServer?.connectorErrors.inc({ connector: actorId });
@@ -648,6 +764,48 @@ class Runtime extends EventEmitter implements RuntimeControl {
 				module: mod.name,
 			});
 		}
+
+		// ─── Audit Trail Recording ───────────────────────────────────────
+		const durationMs = Date.now() - startTime;
+		const chainDepth = event.trace_id ? this.loopDetector.getChainDepth(event.trace_id) : 1;
+
+		const auditRecord: AuditRecord = {
+			id: generateAuditId(),
+			timestamp: new Date().toISOString(),
+			trace_id: event.trace_id ?? '',
+			input_event_id: event.id,
+			input_source: event.source,
+			input_type: event.type,
+			input_content_hash: contentHash(event.payload),
+			route: routeName,
+			sop_file: route.with?.prompt_file ?? null,
+			module: mod.name,
+			actor: actorId,
+			delivery_status: deliveryStatus,
+			duration_ms: durationMs,
+			outputs: auditOutputs,
+			chain_depth: chainDepth,
+			parent_event_id: null, // set by caller if part of a chain
+			held_for_review: deliveryStatus === 'held',
+			flags: auditFlags,
+		};
+
+		this.auditTrail.record(auditRecord);
+
+		await this.emitLog('audit.record', {
+			event_id: event.id,
+			trace_id: event.trace_id,
+			route: routeName,
+			target: actorId,
+			module: mod.name,
+			metadata: {
+				audit_id: auditRecord.id,
+				delivery_status: deliveryStatus,
+				chain_depth: chainDepth,
+				flag_count: auditFlags.length,
+				held: auditRecord.held_for_review,
+			},
+		});
 	}
 
 	// ─── Source Polling ───────────────────────────────────────────────────────
@@ -997,6 +1155,53 @@ class Runtime extends EventEmitter implements RuntimeControl {
 		}
 
 		return sources;
+	}
+
+	// ─── Audit Trail & Loop Detection API ────────────────────────────────
+
+	/** Query the audit trail. */
+	queryAuditTrail(filter?: {
+		trace_id?: string;
+		route?: string;
+		actor?: string;
+		held_only?: boolean;
+		flagged_only?: boolean;
+		limit?: number;
+	}): AuditRecord[] {
+		return this.auditTrail.query(filter);
+	}
+
+	/** Get the full audit chain for a trace ID. */
+	getAuditChain(traceId: string): AuditRecord[] {
+		return this.auditTrail.getChain(traceId);
+	}
+
+	/** Get loop detector state for a trace ID. */
+	getLoopState(traceId: string): LoopCheckResult | null {
+		const chain = this.loopDetector.getChain(traceId);
+		if (chain.length === 0) return null;
+		return {
+			loop_detected: false,
+			circuit_broken: this.loopDetector.isCircuitBroken(traceId),
+			chain_depth: chain.length,
+			chain,
+			flags: [],
+		};
+	}
+
+	/** Get the audit trail instance (for direct access in tests). */
+	getAuditTrail(): AuditTrail {
+		return this.auditTrail;
+	}
+
+	/** Get the loop detector instance (for direct access in tests). */
+	getLoopDetector(): LoopDetector {
+		return this.loopDetector;
+	}
+
+	/** Get the output validator instance (for direct access in tests). */
+	getOutputValidator(): OutputValidator {
+		return this.outputValidator;
 	}
 
 	/** Get the metrics registry for Prometheus text output. */

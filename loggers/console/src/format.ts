@@ -48,6 +48,11 @@ const PHASE_STYLES: Record<LogPhase, PhaseStyle> = {
 	'module.error': { icon: '\u26a0', color: RED }, // ⚠
 	'runtime.start': { icon: '\u25cf', color: MAGENTA }, // ●
 	'runtime.stop': { icon: '\u25cf', color: MAGENTA }, // ●
+	'audit.record': { icon: '\u25cf', color: CYAN }, // ●
+	'audit.flag': { icon: '\u26a0', color: YELLOW }, // ⚠
+	'audit.held': { icon: '\u26d4', color: RED }, // ⛔
+	'loop.detected': { icon: '\u26a0', color: YELLOW }, // ⚠
+	'loop.circuit_broken': { icon: '\u26d4', color: RED }, // ⛔
 };
 
 /**
@@ -153,6 +158,11 @@ const PHASE_LEVELS: Record<LogPhase, number> = {
 	'module.error': 3, // error
 	'runtime.start': 1, // info
 	'runtime.stop': 1, // info
+	'audit.record': 0, // debug
+	'audit.flag': 2, // warn
+	'audit.held': 3, // error
+	'loop.detected': 2, // warn
+	'loop.circuit_broken': 3, // error
 };
 
 const LEVEL_VALUES: Record<string, number> = {
