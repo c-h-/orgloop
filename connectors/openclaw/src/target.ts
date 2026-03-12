@@ -118,6 +118,9 @@ export class OpenClawTarget implements ActorConnector {
 				channel: (routeConfig.channel as string) ?? this.defaultChannel,
 				to: (routeConfig.to as string) ?? this.defaultTo,
 				...(threadId !== undefined ? { threadId } : {}),
+				...(routeConfig.model ? { model: routeConfig.model } : {}),
+				...(routeConfig.thinking ? { thinking: routeConfig.thinking } : {}),
+				...(routeConfig.timeout_seconds ? { timeoutSeconds: routeConfig.timeout_seconds } : {}),
 			});
 			if (callbackResult.status === 'delivered') {
 				return callbackResult;
@@ -134,6 +137,9 @@ export class OpenClawTarget implements ActorConnector {
 			channel: (routeConfig.channel as string) ?? this.defaultChannel,
 			to: (routeConfig.to as string) ?? this.defaultTo,
 			...(threadId !== undefined ? { threadId } : {}),
+			...(routeConfig.model ? { model: routeConfig.model } : {}),
+			...(routeConfig.thinking ? { thinking: routeConfig.thinking } : {}),
+			...(routeConfig.timeout_seconds ? { timeoutSeconds: routeConfig.timeout_seconds } : {}),
 		});
 	}
 
