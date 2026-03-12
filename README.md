@@ -171,6 +171,138 @@ orgloop logs --source github --since 2h
 
 ---
 
+## REST API
+
+OrgLoop exposes a read-only REST API for monitoring and integration. The API starts automatically with `orgloop start` and binds to `127.0.0.1:4800`.
+
+**Configuration:**
+
+| Method | Default | Description |
+|--------|---------|-------------|
+| `ORGLOOP_PORT` env var | `4800` | Override the HTTP port |
+| `httpPort` in RuntimeOptions | `4800` | Set port programmatically (library mode) |
+
+### Endpoints
+
+#### `GET /api/status` — Runtime health and overview
+
+```bash
+curl http://127.0.0.1:4800/api/status
+```
+
+```json
+{
+  "health": "ok",
+  "running": true,
+  "pid": 42891,
+  "uptime_ms": 12132000,
+  "http_port": 4800,
+  "modules": [
+    { "name": "my-org", "state": "active", "sources": 3, "routes": 3, "actors": 1, "uptime_ms": 12132000 }
+  ],
+  "sources": [
+    { "id": "github", "connector": "@orgloop/connector-github", "status": "healthy", "event_count": 47, "last_event": "2026-03-12T10:30:00Z" }
+  ]
+}
+```
+
+#### `GET /api/routes` — Configured routes with fire counts
+
+```bash
+curl http://127.0.0.1:4800/api/routes
+```
+
+```json
+[
+  {
+    "name": "github-to-engineering",
+    "module": "my-org",
+    "when": { "source": "github", "events": ["resource.changed"] },
+    "actor": "openclaw",
+    "fire_count": 12,
+    "last_fired": "2026-03-12T10:28:00Z"
+  }
+]
+```
+
+#### `GET /api/events` — Recent events with filtering
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `source` | string | Filter by source ID |
+| `route` | string | Filter by matched route name |
+| `from` | ISO 8601 | Start time |
+| `to` | ISO 8601 | End time |
+| `limit` | integer | Max results |
+
+```bash
+curl "http://127.0.0.1:4800/api/events?source=github&limit=5"
+```
+
+```json
+[
+  {
+    "event_id": "evt_abc123",
+    "timestamp": "2026-03-12T10:30:00Z",
+    "source": "github",
+    "type": "resource.changed",
+    "matched_routes": ["github-to-engineering"],
+    "actors": ["openclaw"],
+    "processing_ms": 42,
+    "module": "my-org"
+  }
+]
+```
+
+#### `GET /api/sources` — Per-source connector detail
+
+```bash
+curl http://127.0.0.1:4800/api/sources
+```
+
+```json
+[
+  {
+    "id": "github",
+    "module": "my-org",
+    "connector": "@orgloop/connector-github",
+    "type": "polling",
+    "status": "healthy",
+    "last_event": "2026-03-12T10:30:00Z",
+    "event_count": 47,
+    "poll_interval": "5m"
+  }
+]
+```
+
+#### `GET /api/metrics` — Prometheus-format metrics
+
+Requires `ORGLOOP_METRICS_PORT` or `metricsPort` to be set.
+
+```bash
+curl http://127.0.0.1:4800/api/metrics
+```
+
+Returns `text/plain` in Prometheus exposition format.
+
+#### `GET /api/doctor` — Structured doctor output
+
+```bash
+curl http://127.0.0.1:4800/api/doctor
+```
+
+```json
+{
+  "status": "ok",
+  "checks": [
+    { "name": "config-valid", "status": "ok", "message": "Config loaded successfully" },
+    { "name": "github-token", "status": "ok", "message": "GITHUB_TOKEN is set" }
+  ]
+}
+```
+
+---
+
 ## Packages (26)
 
 | Package | Description |
