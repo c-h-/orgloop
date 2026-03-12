@@ -28,7 +28,10 @@ import {
 import { executeBatchPRQuery } from './graphql.js';
 import {
 	normalizeCheckSuiteCompleted,
+	normalizeIssueAssigned,
 	normalizeIssueComment,
+	normalizeIssueLabeled,
+	normalizeIssueOpened,
 	normalizePullRequestClosed,
 	normalizePullRequestOpened,
 	normalizePullRequestReadyForReview,
@@ -271,6 +274,17 @@ export class GitHubSource implements SourceConnector {
 			if (this.events.includes('issue_comment')) {
 				const comments = await this.pollIssueComments(since);
 				events.push(...comments);
+			}
+
+			// ─── REST: Issue events (opened, labeled, assigned) ──────────
+			const needsIssueEvents =
+				this.events.includes('issues.opened') ||
+				this.events.includes('issues.labeled') ||
+				this.events.includes('issues.assigned');
+
+			if (needsIssueEvents) {
+				const issueEvents = await this.pollIssueEvents(since);
+				events.push(...issueEvents);
 			}
 
 			// ─── REST: Non-essential events (skip if budget low) ────────
@@ -581,6 +595,67 @@ export class GitHubSource implements SourceConnector {
 					repoData,
 				);
 			});
+	}
+
+	/**
+	 * Poll issue events (opened, labeled, assigned) via the repo-level
+	 * issues events endpoint. Uses paginated iterator with early termination
+	 * when all events on a page are older than since.
+	 * Skips events on pull requests (PRs are issues in GitHub's data model).
+	 */
+	private async pollIssueEvents(since: string): Promise<OrgLoopEvent[]> {
+		const events: OrgLoopEvent[] = [];
+		const repoData = { full_name: `${this.owner}/${this.repo}` };
+
+		const eventFilter = new Set<string>();
+		if (this.events.includes('issues.opened')) eventFilter.add('opened');
+		if (this.events.includes('issues.labeled')) eventFilter.add('labeled');
+		if (this.events.includes('issues.assigned')) eventFilter.add('assigned');
+
+		const iterator = this.octokit.paginate.iterator(this.octokit.issues.listEventsForRepo, {
+			owner: this.owner,
+			repo: this.repo,
+			per_page: 100,
+		});
+
+		for await (const response of iterator) {
+			this.pollBudget.apiCalls++;
+			if (response.headers) {
+				this.updateRateLimitFromHeaders(response.headers as unknown as Record<string, string>);
+			}
+
+			const issueEvents = response.data as unknown as Record<string, unknown>[];
+			let allOlderThanSince = true;
+
+			for (const issueEvent of issueEvents) {
+				const createdAt = issueEvent.created_at as string;
+				if (createdAt && createdAt >= since) {
+					allOlderThanSince = false;
+					if (createdAt > since) {
+						const eventType = issueEvent.event as string;
+						if (!eventFilter.has(eventType)) continue;
+
+						// Skip events on pull requests
+						const issue = issueEvent.issue as Record<string, unknown> | undefined;
+						if (issue?.pull_request) continue;
+
+						if (eventType === 'opened') {
+							events.push(normalizeIssueOpened(this.sourceId, issueEvent, repoData));
+						} else if (eventType === 'labeled') {
+							events.push(normalizeIssueLabeled(this.sourceId, issueEvent, repoData));
+						} else if (eventType === 'assigned') {
+							events.push(normalizeIssueAssigned(this.sourceId, issueEvent, repoData));
+						}
+					}
+				}
+			}
+
+			if (allOlderThanSince && issueEvents.length > 0) {
+				break;
+			}
+		}
+
+		return events;
 	}
 
 	private async pollFailedWorkflowRuns(since: string): Promise<OrgLoopEvent[]> {
