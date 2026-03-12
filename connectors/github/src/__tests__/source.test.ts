@@ -28,6 +28,7 @@ function createMockOctokit() {
 	};
 	const issues = {
 		listCommentsForRepo: vi.fn(),
+		listEventsForRepo: vi.fn(),
 	};
 	const actions = {
 		listWorkflowRunsForRepo: vi.fn(),
@@ -172,6 +173,23 @@ function makeCheckSuite(overrides: Record<string, unknown> = {}) {
 		before: 'def456',
 		after: 'abc123',
 		app: { slug: 'github-actions', name: 'GitHub Actions' },
+		...overrides,
+	};
+}
+
+function makeIssueEvent(overrides: Record<string, unknown> = {}) {
+	return {
+		id: 600,
+		event: 'opened',
+		created_at: '2024-01-15T10:00:00Z',
+		actor: { login: 'alice', type: 'User' },
+		issue: {
+			number: 10,
+			title: 'Bug report',
+			state: 'open',
+			user: { login: 'alice', type: 'User' },
+			html_url: 'https://github.com/owner/repo/issues/10',
+		},
 		...overrides,
 	};
 }
@@ -710,6 +728,160 @@ describe('GitHubSource', () => {
 			const result = await source.poll('2024-01-15T09:00:00Z');
 
 			expect(result.events).toHaveLength(0);
+		});
+	});
+
+	describe('pollIssueEvents (REST)', () => {
+		it('returns issue opened events', async () => {
+			const mock = createMockOctokit();
+			const event = makeIssueEvent();
+
+			mock.issues.listEventsForRepo.mockResolvedValue({ data: [event] });
+
+			const source = await createSource(['issues.opened'], mock);
+			const result = await source.poll('2024-01-15T09:00:00Z');
+
+			expect(result.events).toHaveLength(1);
+			expect(result.events[0].provenance.platform_event).toBe('issues.opened');
+			expect(result.events[0].payload.action).toBe('opened');
+			expect(result.events[0].payload.issue_number).toBe(10);
+		});
+
+		it('returns issue labeled events with label in provenance', async () => {
+			const mock = createMockOctokit();
+			const event = makeIssueEvent({
+				event: 'labeled',
+				label: { name: 'bug', color: 'd73a4a' },
+			});
+
+			mock.issues.listEventsForRepo.mockResolvedValue({ data: [event] });
+
+			const source = await createSource(['issues.labeled'], mock);
+			const result = await source.poll('2024-01-15T09:00:00Z');
+
+			expect(result.events).toHaveLength(1);
+			expect(result.events[0].provenance.platform_event).toBe('issues.labeled');
+			expect(result.events[0].provenance.label).toBe('bug');
+			expect(result.events[0].payload.label).toBe('bug');
+		});
+
+		it('returns issue assigned events', async () => {
+			const mock = createMockOctokit();
+			const event = makeIssueEvent({
+				event: 'assigned',
+				assignee: { login: 'bob', type: 'User' },
+			});
+
+			mock.issues.listEventsForRepo.mockResolvedValue({ data: [event] });
+
+			const source = await createSource(['issues.assigned'], mock);
+			const result = await source.poll('2024-01-15T09:00:00Z');
+
+			expect(result.events).toHaveLength(1);
+			expect(result.events[0].provenance.platform_event).toBe('issues.assigned');
+			expect(result.events[0].payload.assignee).toBe('bob');
+		});
+
+		it('filters out events older than since', async () => {
+			const mock = createMockOctokit();
+			const oldEvent = makeIssueEvent({ created_at: '2024-01-14T08:00:00Z' });
+			const newEvent = makeIssueEvent({
+				id: 601,
+				created_at: '2024-01-15T10:00:00Z',
+			});
+
+			let pageCount = 0;
+			mock.paginate.iterator.mockReturnValue({
+				async *[Symbol.asyncIterator]() {
+					pageCount++;
+					yield { data: [newEvent], headers: {} };
+					pageCount++;
+					yield { data: [oldEvent], headers: {} };
+				},
+			});
+
+			const source = await createSource(['issues.opened'], mock);
+			const result = await source.poll('2024-01-15T09:00:00Z');
+
+			expect(result.events).toHaveLength(1);
+			expect(pageCount).toBe(2);
+		});
+
+		it('skips events on pull requests', async () => {
+			const mock = createMockOctokit();
+			const prEvent = makeIssueEvent({
+				issue: {
+					number: 5,
+					title: 'PR labeled',
+					state: 'open',
+					user: { login: 'alice', type: 'User' },
+					html_url: 'https://github.com/owner/repo/pull/5',
+					pull_request: { url: 'https://api.github.com/repos/owner/repo/pulls/5' },
+				},
+			});
+
+			mock.issues.listEventsForRepo.mockResolvedValue({ data: [prEvent] });
+
+			const source = await createSource(['issues.opened'], mock);
+			const result = await source.poll('2024-01-15T09:00:00Z');
+
+			expect(result.events).toHaveLength(0);
+		});
+
+		it('only fetches event types configured', async () => {
+			const mock = createMockOctokit();
+			const openedEvent = makeIssueEvent({ event: 'opened' });
+			const labeledEvent = makeIssueEvent({
+				id: 601,
+				event: 'labeled',
+				label: { name: 'bug' },
+			});
+			const assignedEvent = makeIssueEvent({
+				id: 602,
+				event: 'assigned',
+				assignee: { login: 'bob' },
+			});
+
+			mock.issues.listEventsForRepo.mockResolvedValue({
+				data: [openedEvent, labeledEvent, assignedEvent],
+			});
+
+			// Only subscribe to issues.labeled
+			const source = await createSource(['issues.labeled'], mock);
+			const result = await source.poll('2024-01-15T09:00:00Z');
+
+			expect(result.events).toHaveLength(1);
+			expect(result.events[0].provenance.platform_event).toBe('issues.labeled');
+		});
+
+		it('handles multiple issue event types together', async () => {
+			const mock = createMockOctokit();
+			const openedEvent = makeIssueEvent({ event: 'opened' });
+			const labeledEvent = makeIssueEvent({
+				id: 601,
+				event: 'labeled',
+				label: { name: 'enhancement' },
+			});
+
+			mock.issues.listEventsForRepo.mockResolvedValue({
+				data: [openedEvent, labeledEvent],
+			});
+
+			const source = await createSource(['issues.opened', 'issues.labeled'], mock);
+			const result = await source.poll('2024-01-15T09:00:00Z');
+
+			expect(result.events).toHaveLength(2);
+		});
+
+		it('does not poll when no issue events configured', async () => {
+			const mock = createMockOctokit();
+			mockExecuteBatchPRQuery.mockResolvedValue(makeBatchResult());
+
+			const source = await createSource(['pull_request.review_submitted'], mock);
+			await source.poll('2024-01-15T09:00:00Z');
+
+			// listEventsForRepo should never be called
+			expect(mock.issues.listEventsForRepo).not.toHaveBeenCalled();
 		});
 	});
 

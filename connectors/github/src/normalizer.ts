@@ -273,6 +273,108 @@ export function normalizePullRequestReadyForReview(
 	});
 }
 
+/** Normalize an issue opened event */
+export function normalizeIssueOpened(
+	sourceId: string,
+	issueEvent: Record<string, unknown>,
+	repo: Record<string, unknown>,
+): OrgLoopEvent {
+	const actor = issueEvent.actor as Record<string, unknown> | undefined;
+	const issue = issueEvent.issue as Record<string, unknown>;
+	return buildEvent({
+		source: sourceId,
+		type: 'resource.changed',
+		provenance: {
+			platform: 'github',
+			platform_event: 'issues.opened',
+			resource_id: `issue-${issue.number}-opened`,
+			author: (actor?.login as string) ?? 'unknown',
+			author_type: detectAuthorType(
+				(actor?.login as string) ?? '',
+				actor?.type as string | undefined,
+			),
+			repo: (repo.full_name as string) ?? '',
+			url: (issue.html_url as string) ?? '',
+		},
+		payload: {
+			action: 'opened',
+			issue_title: issue.title,
+			issue_number: issue.number,
+			issue_state: issue.state,
+		},
+	});
+}
+
+/** Normalize an issue labeled event */
+export function normalizeIssueLabeled(
+	sourceId: string,
+	issueEvent: Record<string, unknown>,
+	repo: Record<string, unknown>,
+): OrgLoopEvent {
+	const actor = issueEvent.actor as Record<string, unknown> | undefined;
+	const issue = issueEvent.issue as Record<string, unknown>;
+	const label = issueEvent.label as Record<string, unknown> | undefined;
+	const labelName = (label?.name as string) ?? '';
+	return buildEvent({
+		source: sourceId,
+		type: 'resource.changed',
+		provenance: {
+			platform: 'github',
+			platform_event: 'issues.labeled',
+			resource_id: `issue-${issue.number}-labeled-${labelName}`,
+			author: (actor?.login as string) ?? 'unknown',
+			author_type: detectAuthorType(
+				(actor?.login as string) ?? '',
+				actor?.type as string | undefined,
+			),
+			repo: (repo.full_name as string) ?? '',
+			url: (issue.html_url as string) ?? '',
+			label: labelName,
+		},
+		payload: {
+			action: 'labeled',
+			issue_title: issue.title,
+			issue_number: issue.number,
+			issue_state: issue.state,
+			label: labelName,
+		},
+	});
+}
+
+/** Normalize an issue assigned event */
+export function normalizeIssueAssigned(
+	sourceId: string,
+	issueEvent: Record<string, unknown>,
+	repo: Record<string, unknown>,
+): OrgLoopEvent {
+	const actor = issueEvent.actor as Record<string, unknown> | undefined;
+	const issue = issueEvent.issue as Record<string, unknown>;
+	const assignee = issueEvent.assignee as Record<string, unknown> | undefined;
+	return buildEvent({
+		source: sourceId,
+		type: 'resource.changed',
+		provenance: {
+			platform: 'github',
+			platform_event: 'issues.assigned',
+			resource_id: `issue-${issue.number}-assigned-${(assignee?.login as string) ?? ''}`,
+			author: (actor?.login as string) ?? 'unknown',
+			author_type: detectAuthorType(
+				(actor?.login as string) ?? '',
+				actor?.type as string | undefined,
+			),
+			repo: (repo.full_name as string) ?? '',
+			url: (issue.html_url as string) ?? '',
+		},
+		payload: {
+			action: 'assigned',
+			issue_title: issue.title,
+			issue_number: issue.number,
+			issue_state: issue.state,
+			assignee: (assignee?.login as string) ?? '',
+		},
+	});
+}
+
 /** Normalize a check suite completion event */
 export function normalizeCheckSuiteCompleted(
 	sourceId: string,
