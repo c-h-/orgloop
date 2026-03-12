@@ -16,7 +16,8 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Command } from 'commander';
 import { loadCliConfig, resolveConfigPath } from '../config.js';
-import { getDaemonInfo } from '../daemon-client.js';
+import { getDaemonInfo, isPortInUse } from '../daemon-client.js';
+import { loadDotEnv } from '../dotenv.js';
 import { deriveModuleName, readModulesState, registerModule } from '../module-registry.js';
 import * as output from '../output.js';
 import { createProjectImport } from '../project-import.js';
@@ -328,6 +329,15 @@ async function runForeground(configPath?: string, force?: boolean): Promise<void
 		// Start the runtime (scheduler, shared infra)
 		await runtime.start();
 
+		// Check for port conflict before binding (issue #95)
+		const httpPort = Number(process.env.ORGLOOP_PORT) || 4800;
+		if (await isPortInUse(httpPort)) {
+			throw new Error(
+				`Port ${httpPort} is already in use. A previous daemon may not have released it. ` +
+					'Run `orgloop stop --force` to clean up, or set ORGLOOP_PORT to use a different port.',
+			);
+		}
+
 		// Start HTTP server for control API, webhooks, and REST API
 		await runtime.startHttpServer();
 
@@ -350,6 +360,9 @@ async function runForeground(configPath?: string, force?: boolean): Promise<void
 			if (!reqConfigPath || !reqProjectDir) {
 				throw new Error('configPath and projectDir are required');
 			}
+
+			// Load .env from the module's project directory so ${ENV_VAR} references resolve
+			await loadDotEnv(reqConfigPath);
 
 			const reqConfig = await loadCliConfig({ configPath: reqConfigPath });
 			const moduleName = deriveModuleName(reqConfig.project.name, reqProjectDir);
@@ -442,6 +455,9 @@ async function runForeground(configPath?: string, force?: boolean): Promise<void
 			}
 
 			try {
+				// Load .env for the restored module's project directory
+				await loadDotEnv(persisted.configPath);
+
 				const restoredConfig = await loadCliConfig({ configPath: persisted.configPath });
 				const restoredName = deriveModuleName(restoredConfig.project.name, persisted.sourceDir);
 				const restoredResolved = await resolveModuleResources(restoredConfig, persisted.sourceDir);

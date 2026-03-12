@@ -14,6 +14,7 @@
 import { type ChildProcess, spawn } from 'node:child_process';
 import { closeSync, existsSync, openSync, readFileSync } from 'node:fs';
 import { mkdir, readFile, rm, stat, unlink, writeFile } from 'node:fs/promises';
+import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -928,5 +929,181 @@ describe('waitForFile', () => {
 
 		expect(result).toBe(false);
 		expect(elapsed).toBeGreaterThanOrEqual(250);
+	});
+});
+
+// ─── Port-in-use detection (issue #95) ────────────────────────────────────────
+
+describe('port-in-use detection (#95)', () => {
+	let server: Server;
+	let boundPort: number;
+
+	beforeEach(async () => {
+		// Start a server on a random port to simulate a daemon holding a port
+		server = createServer((_, res) => {
+			res.writeHead(200);
+			res.end('ok');
+		});
+		await new Promise<void>((resolve) => {
+			server.listen(0, '127.0.0.1', () => {
+				const addr = server.address();
+				boundPort = typeof addr === 'object' && addr ? addr.port : 0;
+				resolve();
+			});
+		});
+	});
+
+	afterEach(async () => {
+		await new Promise<void>((resolve) => {
+			server.close(() => resolve());
+		});
+	});
+
+	it('detects a port that is in use', async () => {
+		const { isPortInUse } = await import('../daemon-client.js');
+		expect(await isPortInUse(boundPort)).toBe(true);
+	});
+
+	it('detects a port that is not in use', async () => {
+		const { isPortInUse } = await import('../daemon-client.js');
+		// Use a port that's very unlikely to be in use
+		expect(
+			await isPortInUse(boundPort + 10000 > 65535 ? boundPort - 1000 : boundPort + 10000),
+		).toBe(false);
+	});
+
+	it('waitForPortRelease returns true after port is freed', async () => {
+		const { waitForPortRelease } = await import('../daemon-client.js');
+
+		// Close the server after a delay
+		setTimeout(() => {
+			server.close();
+		}, 200);
+
+		const released = await waitForPortRelease(boundPort, 5_000);
+		expect(released).toBe(true);
+	});
+
+	it('waitForPortRelease returns false on timeout when port stays occupied', async () => {
+		const { waitForPortRelease } = await import('../daemon-client.js');
+
+		const start = Date.now();
+		const released = await waitForPortRelease(boundPort, 500);
+		const elapsed = Date.now() - start;
+
+		expect(released).toBe(false);
+		expect(elapsed).toBeGreaterThanOrEqual(400);
+	});
+});
+
+// ─── Orphan port detection for status (#95) ──────────────────────────────────
+
+describe('orphan port detection for status (#95)', () => {
+	let server: Server;
+	let boundPort: number;
+
+	beforeEach(async () => {
+		server = createServer((_, res) => {
+			res.writeHead(200, { 'Content-Type': 'application/json' });
+			res.end(JSON.stringify({ pid: 12345, modules: [], uptime_ms: 1000 }));
+		});
+		await new Promise<void>((resolve) => {
+			server.listen(0, '127.0.0.1', () => {
+				const addr = server.address();
+				boundPort = typeof addr === 'object' && addr ? addr.port : 0;
+				resolve();
+			});
+		});
+	});
+
+	afterEach(async () => {
+		await new Promise<void>((resolve) => {
+			server.close(() => resolve());
+		});
+	});
+
+	it('probeControlPort returns true when port responds with HTTP 200', async () => {
+		const { probeControlPort } = await import('../daemon-client.js');
+		expect(await probeControlPort(boundPort)).toBe(true);
+	});
+
+	it('probeControlPort returns false for unresponsive port', async () => {
+		const { probeControlPort } = await import('../daemon-client.js');
+		expect(
+			await probeControlPort(boundPort + 10000 > 65535 ? boundPort - 1000 : boundPort + 10000),
+		).toBe(false);
+	});
+});
+
+// ─── .env loading on module registration (#104) ──────────────────────────────
+
+describe('.env loading for daemon module registration (#104)', () => {
+	it('loadDotEnv sets process.env for keys not already set', async () => {
+		const envDir = join(testDir, 'project');
+		await mkdir(envDir, { recursive: true });
+
+		// Create a minimal orgloop.yaml so resolveConfigPath finds it
+		await writeFile(
+			join(envDir, 'orgloop.yaml'),
+			'project:\n  name: test\nsources: []\nactors: []\nroutes: []\ntransforms: []\nloggers: []\n',
+			'utf-8',
+		);
+
+		// Create .env file with test variables
+		const uniqueKey = `ORGLOOP_TEST_VAR_${Date.now()}`;
+		await writeFile(join(envDir, '.env'), `${uniqueKey}=test_value\n`, 'utf-8');
+
+		// Ensure the key is not already set
+		delete process.env[uniqueKey];
+
+		const { loadDotEnv } = await import('../dotenv.js');
+		const loaded = await loadDotEnv(join(envDir, 'orgloop.yaml'));
+
+		expect(loaded).toContain(uniqueKey);
+		expect(process.env[uniqueKey]).toBe('test_value');
+
+		// Cleanup
+		delete process.env[uniqueKey];
+	});
+
+	it('loadDotEnv does not overwrite existing env vars', async () => {
+		const envDir = join(testDir, 'project2');
+		await mkdir(envDir, { recursive: true });
+
+		await writeFile(
+			join(envDir, 'orgloop.yaml'),
+			'project:\n  name: test\nsources: []\nactors: []\nroutes: []\ntransforms: []\nloggers: []\n',
+			'utf-8',
+		);
+
+		const uniqueKey = `ORGLOOP_TEST_VAR2_${Date.now()}`;
+		await writeFile(join(envDir, '.env'), `${uniqueKey}=dotenv_value\n`, 'utf-8');
+
+		// Pre-set the variable
+		process.env[uniqueKey] = 'shell_value';
+
+		const { loadDotEnv } = await import('../dotenv.js');
+		await loadDotEnv(join(envDir, 'orgloop.yaml'));
+
+		// Shell value should win
+		expect(process.env[uniqueKey]).toBe('shell_value');
+
+		// Cleanup
+		delete process.env[uniqueKey];
+	});
+
+	it('loadDotEnv silently skips when no .env file exists', async () => {
+		const envDir = join(testDir, 'project3');
+		await mkdir(envDir, { recursive: true });
+
+		await writeFile(
+			join(envDir, 'orgloop.yaml'),
+			'project:\n  name: test\nsources: []\nactors: []\nroutes: []\ntransforms: []\nloggers: []\n',
+			'utf-8',
+		);
+
+		const { loadDotEnv } = await import('../dotenv.js');
+		const loaded = await loadDotEnv(join(envDir, 'orgloop.yaml'));
+		expect(loaded).toEqual([]);
 	});
 });

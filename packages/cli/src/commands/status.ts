@@ -12,6 +12,7 @@ import type { ModuleStatus, RuntimeStatus, SourceHealthState } from '@orgloop/sd
 import chalk from 'chalk';
 import type { Command } from 'commander';
 import { loadCliConfig } from '../config.js';
+import { probeControlPort } from '../daemon-client.js';
 import { readModulesState } from '../module-registry.js';
 import * as output from '../output.js';
 
@@ -208,6 +209,30 @@ export function registerStatusCommand(program: Command): void {
 				}
 
 				if (!running) {
+					// Probe the control port to detect orphaned daemons (issue #95)
+					let orphanPort: number | null = null;
+					try {
+						const portStr = await readFile(PORT_FILE, 'utf-8');
+						const port = Number.parseInt(portStr.trim(), 10);
+						if (!Number.isNaN(port) && (await probeControlPort(port))) {
+							orphanPort = port;
+						}
+					} catch {
+						// No port file
+					}
+
+					if (orphanPort) {
+						if (output.isJsonMode()) {
+							output.json({ running: false, orphanPort, portResponding: true });
+						} else {
+							output.warn(
+								`OrgLoop is not running (stale PID), but port ${orphanPort} is still responding.`,
+							);
+							output.info('Run `orgloop stop --force` to release the port, then restart.');
+						}
+						return;
+					}
+
 					if (output.isJsonMode()) {
 						output.json({ running: false });
 					} else {

@@ -6,6 +6,7 @@
  */
 
 import { readFile } from 'node:fs/promises';
+import { createConnection } from 'node:net';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { ModuleStatus, RuntimeStatus } from '@orgloop/sdk';
@@ -133,6 +134,42 @@ export async function shutdownDaemon(port: number): Promise<boolean> {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			signal: AbortSignal.timeout(5_000),
+		});
+		return res.ok;
+	} catch {
+		return false;
+	}
+}
+
+/** Check if a TCP port is in use by attempting to connect. */
+export function isPortInUse(port: number): Promise<boolean> {
+	return new Promise((resolve) => {
+		const socket = createConnection({ port, host: '127.0.0.1' });
+		socket.once('connect', () => {
+			socket.destroy();
+			resolve(true);
+		});
+		socket.once('error', () => {
+			resolve(false);
+		});
+	});
+}
+
+/** Wait for a port to be released, polling until timeout. */
+export async function waitForPortRelease(port: number, timeoutMs: number): Promise<boolean> {
+	const start = Date.now();
+	while (Date.now() - start < timeoutMs) {
+		if (!(await isPortInUse(port))) return true;
+		await new Promise((r) => setTimeout(r, 200));
+	}
+	return false;
+}
+
+/** Probe the control port to check if a daemon is actually responding. */
+export async function probeControlPort(port: number): Promise<boolean> {
+	try {
+		const res = await fetch(`http://127.0.0.1:${port}/control/status`, {
+			signal: AbortSignal.timeout(2_000),
 		});
 		return res.ok;
 	} catch {

@@ -14,7 +14,12 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import type { Command } from 'commander';
 import { resolveConfigPath } from '../config.js';
-import { isProcessRunning, shutdownDaemon, unloadModuleFromDaemon } from '../daemon-client.js';
+import {
+	isProcessRunning,
+	shutdownDaemon,
+	unloadModuleFromDaemon,
+	waitForPortRelease,
+} from '../daemon-client.js';
 import {
 	clearModulesState,
 	findModuleByDir,
@@ -53,6 +58,12 @@ async function fullShutdown(pid: number, port: number | null, force: boolean): P
 	if (force) {
 		process.kill(pid, 'SIGKILL');
 		output.success('Force killed.');
+		if (port) {
+			const released = await waitForPortRelease(port, 5_000);
+			if (!released) {
+				output.warn(`Port ${port} still in use after force kill. It may take a moment to release.`);
+			}
+		}
 		await cleanupFiles();
 		await clearModulesState();
 		return;
@@ -81,6 +92,16 @@ async function fullShutdown(pid: number, port: number | null, force: boolean): P
 			/* already dead */
 		}
 		output.success('Force killed.');
+	}
+
+	// Wait for port to be released to prevent EADDRINUSE on restart (issue #95)
+	if (port) {
+		const released = await waitForPortRelease(port, 5_000);
+		if (!released) {
+			output.warn(
+				`Port ${port} still in use. Subsequent start may fail until the port is released.`,
+			);
+		}
 	}
 
 	await cleanupFiles();
