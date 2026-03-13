@@ -97,6 +97,15 @@ importers:
         specifier: workspace:*
         version: link:../../packages/sdk
 
+  connectors/linear-webhook:
+    dependencies:
+      '@orgloop/connector-linear':
+        specifier: workspace:*
+        version: link:../linear
+      '@orgloop/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+
   connectors/openclaw:
     dependencies:
       '@orgloop/sdk':

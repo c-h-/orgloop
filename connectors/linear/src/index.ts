@@ -6,6 +6,15 @@ import type { ConnectorRegistration } from '@orgloop/sdk';
 import { LinearSource } from './source.js';
 import { LinearCredentialValidator } from './validator.js';
 
+export {
+	normalizeAssigneeChange,
+	normalizeComment,
+	normalizeIssueStateChange,
+	normalizeLabelChange,
+	normalizeNewIssue,
+	normalizePriorityChange,
+} from './normalizer.js';
+
 export default function register(): ConnectorRegistration {
 	return {
 		id: 'linear',
