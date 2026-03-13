@@ -690,6 +690,128 @@ describe('LinearWebhookSource', () => {
 		});
 	});
 
+	// ─── State normalization edge cases ─────────────────────────────────────
+
+	describe('state normalization edge cases', () => {
+		beforeEach(async () => {
+			await source.init({
+				id: 'linear-wh',
+				connector: '@orgloop/connector-linear-webhook',
+				config: {},
+			});
+		});
+
+		it('handles state as object with id/name/type (real webhook shape)', async () => {
+			const handler = source.webhook();
+			const body = JSON.stringify({
+				action: 'update',
+				type: 'Issue',
+				url: 'https://linear.app/team/issue/TEAM-42',
+				updatedFrom: {
+					state: { id: 'state-uuid-old', name: 'Backlog', type: 'backlog' },
+				},
+				data: {
+					id: 'issue-uuid-1',
+					identifier: 'TEAM-42',
+					title: 'Fix login bug',
+					url: 'https://linear.app/team/issue/TEAM-42',
+					state: { id: 'state-uuid-new', name: 'Todo', type: 'unstarted' },
+					assignee: null,
+					updatedAt: '2024-01-15T11:00:00.000Z',
+				},
+			});
+			const req = createMockRequest(body, 'POST', {});
+			const res = createMockResponse();
+
+			const events = await handler(req, res);
+			expect(events).toHaveLength(1);
+			expect(events[0].payload.previous_state).toBe('Backlog');
+			expect(events[0].payload.new_state).toBe('Todo');
+		});
+
+		it('handles updatedFrom with only stateId (no state object)', async () => {
+			const handler = source.webhook();
+			const body = JSON.stringify({
+				action: 'update',
+				type: 'Issue',
+				url: 'https://linear.app/team/issue/TEAM-42',
+				updatedFrom: {
+					stateId: 'old-state-uuid',
+				},
+				data: {
+					id: 'issue-uuid-1',
+					identifier: 'TEAM-42',
+					title: 'Fix login bug',
+					url: 'https://linear.app/team/issue/TEAM-42',
+					state: { id: 'state-uuid-new', name: 'In Progress', type: 'started' },
+					assignee: null,
+					updatedAt: '2024-01-15T11:00:00.000Z',
+				},
+			});
+			const req = createMockRequest(body, 'POST', {});
+			const res = createMockResponse();
+
+			const events = await handler(req, res);
+			expect(events).toHaveLength(1);
+			expect(events[0].provenance.platform_event).toBe('issue.state_changed');
+			expect(events[0].payload.new_state).toBe('In Progress');
+			expect(events[0].payload.previous_state).toBe('Unknown');
+		});
+
+		it('handles state as plain string', async () => {
+			const handler = source.webhook();
+			const body = JSON.stringify({
+				action: 'update',
+				type: 'Issue',
+				url: 'https://linear.app/team/issue/TEAM-42',
+				updatedFrom: {
+					state: 'Backlog',
+				},
+				data: {
+					id: 'issue-uuid-1',
+					identifier: 'TEAM-42',
+					title: 'Fix login bug',
+					url: 'https://linear.app/team/issue/TEAM-42',
+					state: 'Done',
+					assignee: null,
+					updatedAt: '2024-01-15T11:00:00.000Z',
+				},
+			});
+			const req = createMockRequest(body, 'POST', {});
+			const res = createMockResponse();
+
+			const events = await handler(req, res);
+			expect(events).toHaveLength(1);
+			expect(events[0].payload.previous_state).toBe('Backlog');
+			expect(events[0].payload.new_state).toBe('Done');
+		});
+
+		it('uses Unknown fallback when state name is missing from object', async () => {
+			const handler = source.webhook();
+			const body = JSON.stringify({
+				action: 'create',
+				type: 'Issue',
+				url: 'https://linear.app/team/issue/TEAM-99',
+				data: {
+					id: 'issue-uuid-2',
+					identifier: 'TEAM-99',
+					title: 'Orphan issue',
+					description: null,
+					url: 'https://linear.app/team/issue/TEAM-99',
+					state: { id: 'state-uuid-only' },
+					creator: null,
+					createdAt: '2024-01-15T10:00:00.000Z',
+				},
+			});
+			const req = createMockRequest(body, 'POST', {});
+			const res = createMockResponse();
+
+			const events = await handler(req, res);
+			expect(events).toHaveLength(1);
+			expect(events[0].provenance.state).toBe('Unknown');
+		});
+	});
+
 	// ─── normalizeWebhookPayload direct tests ────────────────────────────────
 
 	describe('normalizeWebhookPayload', () => {
