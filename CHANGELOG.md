@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-03-13
+
+feat: add @orgloop/connector-linear-webhook for real-time Linear events
+
+
 ## [0.7.1] - 2026-03-12
 
 Publish @orgloop/connector-github-webhook (real-time GitHub events via webhooks). Fix connector-openclaw to forward model/thinking/timeout_seconds fields to agent sessions.
