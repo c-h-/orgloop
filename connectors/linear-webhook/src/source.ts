@@ -56,6 +56,23 @@ function resolveEnvVar(value: string): string {
 	return value;
 }
 
+/**
+ * Extract a human-readable state name from a webhook state value.
+ * Linear webhooks may send state as:
+ *   - an object like { id, name, type } → use .name
+ *   - a plain string (state name) → use directly
+ *   - undefined (e.g. updatedFrom only has stateId) → use fallback
+ */
+function resolveStateName(state: unknown, fallback = 'Unknown'): string {
+	if (state == null) return fallback;
+	if (typeof state === 'string') return state;
+	if (typeof state === 'object') {
+		const name = (state as Record<string, unknown>).name;
+		if (typeof name === 'string') return name;
+	}
+	return fallback;
+}
+
 export class LinearWebhookSource implements SourceConnector {
 	readonly id = 'linear-webhook';
 	private secret?: string;
@@ -234,7 +251,7 @@ export class LinearWebhookSource implements SourceConnector {
 					title: data.title as string,
 					description: data.description as string | null,
 					url: data.url as string,
-					state: { name: ((data.state as Record<string, unknown>)?.name as string) ?? 'Unknown' },
+					state: { name: resolveStateName(data.state) },
 					creator: data.creator as { name: string; isBot?: boolean } | null,
 					createdAt: data.createdAt as string,
 				}),
@@ -251,12 +268,10 @@ export class LinearWebhookSource implements SourceConnector {
 				updatedAt: data.updatedAt as string,
 			};
 
-			// State change
-			if (updatedFrom.state !== undefined) {
-				const previousState = (updatedFrom.state as Record<string, unknown>)?.name as
-					| string
-					| undefined;
-				const currentState = ((data.state as Record<string, unknown>)?.name as string) ?? 'Unknown';
+			// State change — detect via updatedFrom.state or updatedFrom.stateId
+			if (updatedFrom.state !== undefined || updatedFrom.stateId !== undefined) {
+				const previousState = resolveStateName(updatedFrom.state, 'Unknown');
+				const currentState = resolveStateName(data.state);
 				events.push(
 					normalizeIssueStateChange(
 						this.sourceId,
