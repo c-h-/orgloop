@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.7.4] - 2026-03-20
+
+fix(connector-linear-webhook): recognize stateId in updatedFrom for state change detection
+
+
 ## [0.7.4] - 2026-03-19
 
 fix: re-export normalizer functions from connector-linear and connector-github entry points
