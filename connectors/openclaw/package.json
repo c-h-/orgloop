@@ -1,6 +1,6 @@
 {
   "name": "@orgloop/connector-openclaw",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "OrgLoop OpenClaw connector — webhook target for agent waking",
   "type": "module",
   "main": "dist/index.js",
