@@ -61,6 +61,13 @@ echo "📦 Releasing v${NEW_VERSION} (${BUMP} bump from ${CURRENT_VERSION})"
 
 if $DRY_RUN; then
   echo "🏜️  Dry run — would create branch ${BRANCH}, bump to ${NEW_VERSION}"
+  echo ""
+  echo "📦 Packages that would be bumped:"
+  for pkg in package.json packages/*/package.json connectors/*/package.json transforms/*/package.json loggers/*/package.json; do
+    if [[ -f "$pkg" ]]; then
+      echo "   - ${pkg}"
+    fi
+  done
   exit 0
 fi
 
@@ -70,7 +77,8 @@ git checkout -b "$BRANCH" origin/main
 echo "🌿 Created branch ${BRANCH}"
 
 # Bump version in all package.json files
-for pkg in package.json packages/*/package.json; do
+BUMPED_PACKAGES=()
+for pkg in package.json packages/*/package.json connectors/*/package.json transforms/*/package.json loggers/*/package.json; do
   if [[ -f "$pkg" ]]; then
     node -e "
       const fs = require('fs');
@@ -78,8 +86,15 @@ for pkg in package.json packages/*/package.json; do
       p.version = '${NEW_VERSION}';
       fs.writeFileSync('$pkg', JSON.stringify(p, null, 2) + '\n');
     "
+    BUMPED_PACKAGES+=("$pkg")
     echo "  📝 Bumped ${pkg}"
   fi
+done
+
+echo ""
+echo "📦 Bumped ${#BUMPED_PACKAGES[@]} packages to v${NEW_VERSION}:"
+for pkg in "${BUMPED_PACKAGES[@]}"; do
+  echo "   - ${pkg}"
 done
 
 # Update CHANGELOG.md
