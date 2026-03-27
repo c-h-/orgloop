@@ -1,0 +1,29 @@
+name: Mirror to Public
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push to public mirror
+        env:
+          MIRROR_TOKEN: ${{ secrets.PUBLIC_MIRROR_TOKEN }}
+          MIRROR_REPO: ${{ vars.PUBLIC_MIRROR_REPO }}
+        run: |
+          git remote add mirror "https://x-access-token:${MIRROR_TOKEN}@github.com/${MIRROR_REPO}.git"
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            git push mirror "${{ github.ref_name }}" --force
+          else
+            git push mirror main --force
+          fi
