@@ -226,8 +226,11 @@ describe('Engine webhook integration', () => {
 		}
 	});
 
-	it('does not add webhook sources to scheduler (no polling)', async () => {
-		const webhookSource = new WebhookMockSource('webhook-source', []);
+	it('webhook source with poll.interval is polled (hybrid mode); without poll.interval is not', async () => {
+		// webhookWithPoll: has both webhook() and poll.interval → gets both handler and polling
+		const webhookWithPoll = new WebhookMockSource('webhook-source', []);
+		// webhookOnly: has webhook() but no poll.interval → webhook handler only, no polling
+		const webhookOnly = new WebhookMockSource('webhook-only-source', []);
 		const pollSource = new MockSource('poll-source');
 		const actor = new MockActor('test-actor');
 		const port = randomPort();
@@ -235,13 +238,15 @@ describe('Engine webhook integration', () => {
 		const config = makeConfig({
 			sources: [
 				{ id: 'webhook-source', connector: 'mock', config: {}, poll: { interval: '5m' } },
+				{ id: 'webhook-only-source', connector: 'mock', config: {} },
 				{ id: 'poll-source', connector: 'mock', config: {}, poll: { interval: '5m' } },
 			],
 		});
 
 		const engine = new OrgLoop(config, {
 			sources: new Map([
-				['webhook-source', webhookSource],
+				['webhook-source', webhookWithPoll],
+				['webhook-only-source', webhookOnly],
 				['poll-source', pollSource],
 			]),
 			actors: new Map([['test-actor', actor]]),
@@ -254,9 +259,12 @@ describe('Engine webhook integration', () => {
 			// Wait a tick for the initial poll to fire
 			await new Promise((r) => setTimeout(r, 50));
 
-			// Poll source should have been polled, webhook source should not
+			// Poll source should be polled
 			expect(pollSource.totalPolls).toBeGreaterThan(0);
-			expect(webhookSource.totalPolls).toBe(0);
+			// Webhook source with poll.interval should also be polled (hybrid mode)
+			expect(webhookWithPoll.totalPolls).toBeGreaterThan(0);
+			// Pure webhook source (no poll.interval) should NOT be polled
+			expect(webhookOnly.totalPolls).toBe(0);
 
 			const status = engine.status();
 			expect(status.httpPort).toBe(port);

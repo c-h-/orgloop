@@ -320,8 +320,13 @@ class Runtime extends EventEmitter implements RuntimeControl {
 				// Webhook-based source: register with shared server
 				this.webhookServer.addHandler(srcCfg.id, connector.webhook());
 				hasWebhooks = true;
-			} else {
-				// Poll-based source: register with shared scheduler
+			}
+			// Register for polling — not exclusive with webhook.
+			// Hybrid sources (e.g. connector-webhook with buffer_dir) have both webhook()
+			// and a poll.interval so they can drain a local buffer file.
+			// Pure webhook sources without a poll.interval skip polling as before.
+			const isWebhook = typeof connector.webhook === 'function';
+			if (srcCfg.poll?.interval || !isWebhook) {
 				const interval = srcCfg.poll?.interval ?? defaultInterval;
 				this.scheduler.addSource(srcCfg.id, interval, mod.name);
 			}

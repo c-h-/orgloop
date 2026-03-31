@@ -3,15 +3,70 @@
  */
 
 import { mkdtemp, rm } from 'node:fs/promises';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { OrgLoopEvent } from '@orgloop/sdk';
+import type {
+	OrgLoopEvent,
+	PollResult,
+	SourceConfig,
+	SourceConnector,
+	WebhookHandler,
+} from '@orgloop/sdk';
 import { createTestEvent, MockActor, MockSource, MockTransform } from '@orgloop/sdk';
 import { afterEach, describe, expect, it } from 'vitest';
 import { InMemoryBus } from '../bus.js';
 import type { ModuleConfig } from '../module-instance.js';
 import { Runtime } from '../runtime.js';
 import { FileCheckpointStore, InMemoryCheckpointStore } from '../store.js';
+
+/**
+ * Hybrid source: has both webhook() and poll().
+ * Models connector-webhook with buffer_dir — receives real-time webhooks AND
+ * drains a local buffer file via poll().
+ */
+class MockHybridSource implements SourceConnector {
+	readonly id: string;
+	private pollCount = 0;
+	private bufferedEvents: OrgLoopEvent[] = [];
+	initialized = false;
+	shutdownCalled = false;
+	webhookHandlerCalled = false;
+
+	constructor(id = 'mock-hybrid-source') {
+		this.id = id;
+	}
+
+	addBufferedEvents(...events: OrgLoopEvent[]): void {
+		this.bufferedEvents.push(...events);
+	}
+
+	async init(_config: SourceConfig): Promise<void> {
+		this.initialized = true;
+	}
+
+	async poll(_checkpoint: string | null): Promise<PollResult> {
+		this.pollCount++;
+		const events = [...this.bufferedEvents];
+		this.bufferedEvents = [];
+		return { events, checkpoint: `hybrid-cp-${this.pollCount}` };
+	}
+
+	webhook(): WebhookHandler {
+		return async (_req: IncomingMessage, _res: ServerResponse) => {
+			this.webhookHandlerCalled = true;
+			return [];
+		};
+	}
+
+	async shutdown(): Promise<void> {
+		this.shutdownCalled = true;
+	}
+
+	get totalPolls(): number {
+		return this.pollCount;
+	}
+}
 
 function makeModuleConfig(name: string, overrides?: Partial<ModuleConfig>): ModuleConfig {
 	return {
@@ -440,6 +495,138 @@ describe('Runtime', () => {
 		});
 
 		expect(status.state).toBe('active');
+	});
+
+	// ─── Hybrid webhook + poll source (orgloop#21) ──────────────────────────
+
+	it('hybrid source (webhook + poll.interval) gets both webhook handler and poll scheduling', async () => {
+		runtime = new Runtime({ bus: new InMemoryBus(), crashHandlers: false, httpPort: 0 });
+		await runtime.start();
+
+		const source = new MockHybridSource('hybrid-source');
+		const actor = new MockActor('hybrid-actor');
+
+		const config: ModuleConfig = {
+			name: 'hybrid-mod',
+			sources: [
+				{
+					id: 'hybrid-source',
+					connector: 'mock-hybrid',
+					config: {},
+					poll: { interval: '100ms' }, // fast interval so poll fires in test
+				},
+			],
+			actors: [{ id: 'hybrid-actor', connector: 'mock', config: {} }],
+			routes: [
+				{
+					name: 'hybrid-route',
+					when: { source: 'hybrid-source', events: ['resource.changed'] },
+					then: { actor: 'hybrid-actor' },
+				},
+			],
+			transforms: [],
+			loggers: [],
+		};
+
+		await runtime.loadModule(config, {
+			sources: new Map([['hybrid-source', source]]),
+			actors: new Map([['hybrid-actor', actor]]),
+		});
+
+		// The scheduler fires poll() immediately when a source is added to a running
+		// scheduler. Give it a tick to complete.
+		await new Promise((resolve) => setTimeout(resolve, 50));
+
+		// poll() should have been called (buffer draining)
+		expect(source.totalPolls).toBeGreaterThan(0);
+	});
+
+	it('hybrid source delivers buffered events via poll()', async () => {
+		runtime = new Runtime({ bus: new InMemoryBus(), crashHandlers: false, httpPort: 0 });
+		await runtime.start();
+
+		const source = new MockHybridSource('hybrid-source');
+		const actor = new MockActor('hybrid-actor');
+
+		const bufferedEvent = createTestEvent({
+			source: 'hybrid-source',
+			type: 'resource.changed',
+		});
+		source.addBufferedEvents(bufferedEvent);
+
+		const config: ModuleConfig = {
+			name: 'hybrid-mod',
+			sources: [
+				{
+					id: 'hybrid-source',
+					connector: 'mock-hybrid',
+					config: {},
+					poll: { interval: '100ms' },
+				},
+			],
+			actors: [{ id: 'hybrid-actor', connector: 'mock', config: {} }],
+			routes: [
+				{
+					name: 'hybrid-route',
+					when: { source: 'hybrid-source', events: ['resource.changed'] },
+					then: { actor: 'hybrid-actor' },
+				},
+			],
+			transforms: [],
+			loggers: [],
+		};
+
+		await runtime.loadModule(config, {
+			sources: new Map([['hybrid-source', source]]),
+			actors: new Map([['hybrid-actor', actor]]),
+		});
+
+		// Wait for the initial poll to complete and deliver the buffered event
+		await new Promise((resolve) => setTimeout(resolve, 100));
+
+		expect(actor.delivered).toHaveLength(1);
+		expect(actor.delivered[0].event.id).toBe(bufferedEvent.id);
+	});
+
+	it('pure webhook source without poll.interval does not get poll scheduling', async () => {
+		runtime = new Runtime({ bus: new InMemoryBus(), crashHandlers: false, httpPort: 0 });
+		await runtime.start();
+
+		const source = new MockHybridSource('webhook-only-source');
+		const actor = new MockActor('webhook-only-actor');
+
+		const config: ModuleConfig = {
+			name: 'webhook-only-mod',
+			sources: [
+				{
+					// No poll.interval — pure webhook source
+					id: 'webhook-only-source',
+					connector: 'mock-hybrid',
+					config: {},
+				},
+			],
+			actors: [{ id: 'webhook-only-actor', connector: 'mock', config: {} }],
+			routes: [
+				{
+					name: 'webhook-only-route',
+					when: { source: 'webhook-only-source', events: ['resource.changed'] },
+					then: { actor: 'webhook-only-actor' },
+				},
+			],
+			transforms: [],
+			loggers: [],
+		};
+
+		await runtime.loadModule(config, {
+			sources: new Map([['webhook-only-source', source]]),
+			actors: new Map([['webhook-only-actor', actor]]),
+		});
+
+		// Give time for any accidental poll to fire
+		await new Promise((resolve) => setTimeout(resolve, 100));
+
+		// poll() should NOT have been called — pure webhook source with no poll interval
+		expect(source.totalPolls).toBe(0);
 	});
 
 	it('stop() shuts down all modules', async () => {
