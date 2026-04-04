@@ -9,6 +9,7 @@ import { LinearCredentialValidator } from './validator.js';
 export {
 	normalizeAssigneeChange,
 	normalizeComment,
+	normalizeDelegateChange,
 	normalizeIssueStateChange,
 	normalizeLabelChange,
 	normalizeNewIssue,
