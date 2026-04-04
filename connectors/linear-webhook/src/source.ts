@@ -14,6 +14,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import {
 	normalizeAssigneeChange,
 	normalizeComment,
+	normalizeDelegateChange,
 	normalizeIssueStateChange,
 	normalizeLabelChange,
 	normalizeNewIssue,
@@ -222,10 +223,12 @@ export class LinearWebhookSource implements SourceConnector {
 
 		const updatedFrom = payload.updatedFrom as Record<string, unknown> | undefined;
 
+		const actor = payload.actor as { name: string } | null | undefined;
+
 		switch (resourceType) {
 			case 'Issue': {
 				if (!this.isEventAllowed('Issue')) return [];
-				return this.normalizeIssueEvent(action, data, updatedFrom);
+				return this.normalizeIssueEvent(action, data, updatedFrom, actor ?? null);
 			}
 
 			case 'Comment': {
@@ -243,6 +246,7 @@ export class LinearWebhookSource implements SourceConnector {
 		action: string,
 		data: Record<string, unknown>,
 		updatedFrom?: Record<string, unknown>,
+		actor?: { name: string } | null,
 	): OrgLoopEvent[] {
 		if (action === 'create') {
 			return [
@@ -308,6 +312,21 @@ export class LinearWebhookSource implements SourceConnector {
 				);
 				const newLabels = ((data.labels as Array<{ name: string }>) ?? []).map((l) => l.name);
 				events.push(normalizeLabelChange(this.sourceId, issueBase, prevLabels, newLabels));
+			}
+
+			// Delegate change
+			if (updatedFrom.delegateId !== undefined) {
+				const oldDelegateId = (updatedFrom.delegateId as string) ?? null;
+				const newDelegate = data.delegate as { id: string; name: string } | null;
+				events.push(
+					normalizeDelegateChange(
+						this.sourceId,
+						issueBase,
+						actor ?? null,
+						oldDelegateId,
+						newDelegate,
+					),
+				);
 			}
 
 			if (events.length > 0) return events;

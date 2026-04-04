@@ -164,6 +164,58 @@ const sampleIssueLabelChanged = {
 	},
 };
 
+const sampleIssueDelegateChanged = {
+	action: 'update',
+	createdAt: '2024-01-15T15:00:00.000Z',
+	type: 'Issue',
+	url: 'https://linear.app/team/issue/TEAM-42',
+	actor: { name: 'Alice' },
+	updatedFrom: {
+		delegateId: 'old-delegate-uuid',
+	},
+	data: {
+		id: 'issue-uuid-1',
+		identifier: 'TEAM-42',
+		title: 'Fix login bug',
+		url: 'https://linear.app/team/issue/TEAM-42',
+		state: { name: 'In Progress' },
+		assignee: { name: 'Bob', isBot: false },
+		creator: { name: 'Alice', isBot: false },
+		delegate: { id: 'new-delegate-uuid', name: 'Carol' },
+		createdAt: '2024-01-15T10:00:00.000Z',
+		updatedAt: '2024-01-15T15:00:00.000Z',
+		priority: 2,
+		labels: [],
+		team: { key: 'TEAM' },
+	},
+};
+
+const sampleIssueDelegateRemoved = {
+	action: 'update',
+	createdAt: '2024-01-15T16:00:00.000Z',
+	type: 'Issue',
+	url: 'https://linear.app/team/issue/TEAM-42',
+	actor: { name: 'Bob' },
+	updatedFrom: {
+		delegateId: 'old-delegate-uuid',
+	},
+	data: {
+		id: 'issue-uuid-1',
+		identifier: 'TEAM-42',
+		title: 'Fix login bug',
+		url: 'https://linear.app/team/issue/TEAM-42',
+		state: { name: 'In Progress' },
+		assignee: { name: 'Bob', isBot: false },
+		creator: { name: 'Alice', isBot: false },
+		delegate: null,
+		createdAt: '2024-01-15T10:00:00.000Z',
+		updatedAt: '2024-01-15T16:00:00.000Z',
+		priority: 2,
+		labels: [],
+		team: { key: 'TEAM' },
+	},
+};
+
 const sampleCommentCreated = {
 	action: 'create',
 	createdAt: '2024-01-15T11:30:00.000Z',
@@ -400,6 +452,69 @@ describe('LinearWebhookSource', () => {
 			expect(events[0].provenance.platform_event).toBe('issue.labels_changed');
 			expect(events[0].payload.action).toBe('labels_changed');
 			expect(events[0].payload.added_labels).toContain('urgent');
+		});
+
+		it('normalizes issue delegate change', async () => {
+			const handler = source.webhook();
+			const body = JSON.stringify(sampleIssueDelegateChanged);
+			const req = createMockRequest(body, 'POST', {});
+			const res = createMockResponse();
+
+			const events = await handler(req, res);
+			expect(events).toHaveLength(1);
+			expect(events[0].provenance.platform_event).toBe('issue.delegate_changed');
+			expect(events[0].provenance.author).toBe('Alice');
+			expect(events[0].payload.action).toBe('delegate_changed');
+			expect(events[0].payload.issue_id).toBe('TEAM-42');
+			expect(events[0].payload.old_delegate_id).toBe('old-delegate-uuid');
+			expect(events[0].payload.new_delegate).toBe('Carol');
+			expect(events[0].payload.new_delegate_id).toBe('new-delegate-uuid');
+		});
+
+		it('normalizes delegate removal (set to null)', async () => {
+			const handler = source.webhook();
+			const body = JSON.stringify(sampleIssueDelegateRemoved);
+			const req = createMockRequest(body, 'POST', {});
+			const res = createMockResponse();
+
+			const events = await handler(req, res);
+			expect(events).toHaveLength(1);
+			expect(events[0].provenance.platform_event).toBe('issue.delegate_changed');
+			expect(events[0].provenance.author).toBe('Bob');
+			expect(events[0].payload.action).toBe('delegate_changed');
+			expect(events[0].payload.old_delegate_id).toBe('old-delegate-uuid');
+			expect(events[0].payload.new_delegate).toBeNull();
+			expect(events[0].payload.new_delegate_id).toBeNull();
+		});
+
+		it('normalizes delegate set from null (no previous delegate)', async () => {
+			const handler = source.webhook();
+			const body = JSON.stringify({
+				action: 'update',
+				type: 'Issue',
+				url: 'https://linear.app/team/issue/TEAM-42',
+				actor: { name: 'Alice' },
+				updatedFrom: {
+					delegateId: null,
+				},
+				data: {
+					id: 'issue-uuid-1',
+					identifier: 'TEAM-42',
+					title: 'Fix login bug',
+					url: 'https://linear.app/team/issue/TEAM-42',
+					state: { name: 'In Progress' },
+					assignee: { name: 'Bob', isBot: false },
+					delegate: { id: 'new-delegate-uuid', name: 'Carol' },
+					updatedAt: '2024-01-15T15:00:00.000Z',
+				},
+			});
+			const req = createMockRequest(body, 'POST', {});
+			const res = createMockResponse();
+
+			const events = await handler(req, res);
+			expect(events).toHaveLength(1);
+			expect(events[0].payload.old_delegate_id).toBeNull();
+			expect(events[0].payload.new_delegate).toBe('Carol');
 		});
 
 		it('emits raw event for issue removal', async () => {

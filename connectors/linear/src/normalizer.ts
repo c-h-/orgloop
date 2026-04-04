@@ -183,6 +183,40 @@ export function normalizePriorityChange(
 	});
 }
 
+/** Normalize a Linear issue delegate change */
+export function normalizeDelegateChange(
+	sourceId: string,
+	issue: {
+		identifier: string;
+		title: string;
+		url: string;
+		updatedAt: string;
+	},
+	actor: { name: string } | null,
+	oldDelegateId: string | null,
+	newDelegate: { id: string; name: string } | null,
+): OrgLoopEvent {
+	return buildEvent({
+		source: sourceId,
+		type: 'resource.changed',
+		provenance: {
+			platform: 'linear',
+			platform_event: 'issue.delegate_changed',
+			author: actor?.name ?? 'unknown',
+			issue_id: issue.identifier,
+			url: issue.url,
+		},
+		payload: {
+			action: 'delegate_changed',
+			issue_id: issue.identifier,
+			issue_title: issue.title,
+			old_delegate_id: oldDelegateId,
+			new_delegate: newDelegate?.name ?? null,
+			new_delegate_id: newDelegate?.id ?? null,
+		},
+	});
+}
+
 /** Normalize a Linear issue label change */
 export function normalizeLabelChange(
 	sourceId: string,
