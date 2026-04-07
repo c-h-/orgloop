@@ -36,6 +36,12 @@ export interface GitHubWebhookConfig {
 	buffer_dir?: string;
 	/** Maximum buffer file size (e.g. "50MB", "1GB"). Default: 50MB. */
 	max_buffer_size?: string;
+	/** GitHub API token for enriching events (e.g. workflow_run PR lookup) */
+	token?: string;
+	/** GitHub repo owner (e.g. "UsableMachines") for PR lookups */
+	repo_owner?: string;
+	/** GitHub repo name (e.g. "mono") for PR lookups */
+	repo_name?: string;
 }
 
 /** Resolve env var references like ${WEBHOOK_SECRET} */
@@ -58,6 +64,9 @@ export class GitHubWebhookSource implements SourceConnector {
 	private allowedEvents?: Set<string>;
 	private pendingEvents: OrgLoopEvent[] = [];
 	private buffer?: EventBuffer;
+	private githubToken?: string;
+	private repoOwner?: string;
+	private repoName?: string;
 
 	async init(config: SourceConfig): Promise<void> {
 		this.sourceId = config.id;
@@ -69,6 +78,16 @@ export class GitHubWebhookSource implements SourceConnector {
 
 		if (cfg.events && cfg.events.length > 0) {
 			this.allowedEvents = new Set(cfg.events);
+		}
+
+		if (cfg.token) {
+			this.githubToken = resolveEnvVar(cfg.token);
+		}
+		if (cfg.repo_owner) {
+			this.repoOwner = resolveEnvVar(cfg.repo_owner);
+		}
+		if (cfg.repo_name) {
+			this.repoName = resolveEnvVar(cfg.repo_name);
 		}
 
 		if (cfg.buffer_dir) {
@@ -145,7 +164,7 @@ export class GitHubWebhookSource implements SourceConnector {
 				return [];
 			}
 
-			const events = this.normalizeWebhookPayload(githubEvent, payload);
+			const events = await this.normalizeWebhookPayload(githubEvent, payload);
 
 			for (const event of events) {
 				this.persistEvent(event);
@@ -171,7 +190,7 @@ export class GitHubWebhookSource implements SourceConnector {
 	 * Normalize a GitHub webhook payload into OrgLoop events.
 	 * Uses the same normalizer functions as the polling connector.
 	 */
-	normalizeWebhookPayload(githubEvent: string, payload: Record<string, unknown>): OrgLoopEvent[] {
+	async normalizeWebhookPayload(githubEvent: string, payload: Record<string, unknown>): Promise<OrgLoopEvent[]> {
 		const action = payload.action as string | undefined;
 		const repo = (payload.repository as Record<string, unknown>) ?? {};
 
@@ -227,10 +246,12 @@ export class GitHubWebhookSource implements SourceConnector {
 			case 'workflow_run': {
 				if (!this.isEventAllowed('workflow_run.completed')) return [];
 				if (action !== 'completed') return [];
-				const run = payload.workflow_run as Record<string, unknown>;
+				let run = payload.workflow_run as Record<string, unknown>;
 				if (!run) return [];
 				const conclusion = run.conclusion as string;
 				if (conclusion === 'failure') {
+					// Enrich workflow_run with PR data when pull_requests is empty
+					run = await this.enrichWorkflowRun(run, repo);
 					return [normalizeWorkflowRunFailed(this.sourceId, run, repo)];
 				}
 				// Non-failure workflow runs — emit raw event
@@ -248,6 +269,82 @@ export class GitHubWebhookSource implements SourceConnector {
 			default:
 				// Unknown event type — emit raw event for extensibility
 				return this.buildRawEvent(githubEvent, action, payload);
+		}
+	}
+
+	/**
+	 * Enrich a workflow_run payload with PR labels and author when the
+	 * pull_requests array is empty. GitHub often omits PR data from
+	 * workflow_run webhooks for cross-fork or rebased PRs.
+	 *
+	 * Looks up PRs by head_branch using the GitHub API. Falls back
+	 * gracefully if no token is configured or the API call fails.
+	 */
+	private async enrichWorkflowRun(
+		run: Record<string, unknown>,
+		repo: Record<string, unknown>,
+	): Promise<Record<string, unknown>> {
+		const prs = run.pull_requests as Array<Record<string, unknown>> | undefined;
+		if (prs && prs.length > 0) {
+			// Already has PR data — no enrichment needed
+			return run;
+		}
+
+		if (!this.githubToken) {
+			// No token configured — can't enrich, pass through as-is
+			return run;
+		}
+
+		const headBranch = run.head_branch as string | undefined;
+		if (!headBranch) {
+			return run;
+		}
+
+		// Determine repo owner/name from config or from the webhook payload
+		const repoFullName = repo.full_name as string | undefined;
+		let owner = this.repoOwner;
+		let name = this.repoName;
+		if (!owner || !name) {
+			if (repoFullName) {
+				const parts = repoFullName.split('/');
+				owner = owner ?? parts[0];
+				name = name ?? parts[1];
+			}
+		}
+		if (!owner || !name) {
+			return run;
+		}
+
+		try {
+			// Search for open PRs matching this head branch
+			const response = await fetch(
+				`https://api.github.com/repos/${owner}/${name}/pulls?head=${owner}:${headBranch}&state=open&per_page=1`,
+				{
+					headers: {
+						Authorization: `Bearer ${this.githubToken}`,
+						Accept: 'application/vnd.github+json',
+						'X-GitHub-Api-Version': '2022-11-28',
+					},
+				},
+			);
+
+			if (!response.ok) {
+				// API error — don't block the event, just pass through without enrichment
+				return run;
+			}
+
+			const pullRequests = (await response.json()) as Array<Record<string, unknown>>;
+			if (pullRequests.length === 0) {
+				// No matching PR found — pass through as-is
+				return run;
+			}
+
+			// Inject the found PR into the run's pull_requests array
+			// so the normalizer can extract labels and pr_author
+			return { ...run, pull_requests: pullRequests };
+		} catch {
+			// Network error or other failure — don't drop the event
+			return run;
 		}
 	}
 

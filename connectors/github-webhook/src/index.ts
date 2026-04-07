@@ -20,6 +20,12 @@ export default function register(): ConnectorRegistration {
 					help_url:
 						'https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries',
 				},
+				{
+					name: 'GITHUB_TOKEN',
+					description:
+						'GitHub personal access token for enriching events (e.g. workflow_run PR lookup). Optional.',
+					help_url: 'https://github.com/settings/tokens/new?scopes=repo',
+				},
 			],
 			integrations: [
 				{
