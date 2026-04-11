@@ -28,6 +28,8 @@ import type { EventHistoryOptions, EventHistoryQuery, EventRecord } from './even
 import { EventHistory } from './event-history.js';
 import type { RuntimeControl } from './http.js';
 import { DEFAULT_HTTP_PORT, WebhookServer } from './http.js';
+import type { InboxConfig, InboxManagerOptions } from './inbox.js';
+import { InboxManager } from './inbox.js';
 import { LoggerManager } from './logger.js';
 import type { LoopCheckResult, LoopDetectorOptions } from './loop-detector.js';
 import { LoopDetector } from './loop-detector.js';
@@ -89,6 +91,8 @@ export interface RuntimeOptions {
 	outputValidator?: OutputValidatorOptions;
 	/** Loop detector options */
 	loopDetector?: LoopDetectorOptions;
+	/** Inbox manager options (enables event batching per session key) */
+	inbox?: InboxManagerOptions;
 }
 
 export interface LoadModuleOptions {
@@ -155,6 +159,9 @@ class Runtime extends EventEmitter implements RuntimeControl {
 	private readonly outputValidator: OutputValidator;
 	private readonly loopDetector: LoopDetector;
 
+	// Inbox manager (opt-in per route via inbox: true)
+	private readonly inboxManager: InboxManager | null;
+
 	constructor(options?: RuntimeOptions) {
 		super();
 		this.bus = options?.bus ?? new InMemoryBus();
@@ -190,6 +197,9 @@ class Runtime extends EventEmitter implements RuntimeControl {
 		this.auditTrail = new AuditTrail(options?.auditTrail);
 		this.outputValidator = new OutputValidator(options?.outputValidator);
 		this.loopDetector = new LoopDetector(options?.loopDetector);
+
+		// Inbox manager — always created (lightweight), routes opt-in via inbox: true
+		this.inboxManager = options?.inbox !== undefined ? new InboxManager(options.inbox) : null;
 	}
 
 	// ─── Lifecycle ───────────────────────────────────────────────────────────
@@ -271,6 +281,11 @@ class Runtime extends EventEmitter implements RuntimeControl {
 		// Stop metrics server
 		if (this.metricsServer?.isStarted()) {
 			await this.metricsServer.stop();
+		}
+
+		// Close inbox manager
+		if (this.inboxManager) {
+			await this.inboxManager.close();
 		}
 
 		// Remove crash handlers
@@ -658,6 +673,78 @@ class Runtime extends EventEmitter implements RuntimeControl {
 			const deliveryConfig: RouteDeliveryConfig = {
 				...interpolateConfig(route.then.config ?? {}, event),
 			};
+
+			// ─── Inbox Interception ─────────────────────────────────────────
+			// If inbox is enabled for this route, enqueue instead of delivering
+			if (this.inboxManager && deliveryConfig.inbox === true && deliveryConfig.session_key) {
+				const sessionKey = String(deliveryConfig.session_key);
+				const inboxConfig: InboxConfig = {
+					inbox: true,
+					session_key: sessionKey,
+					inbox_ttl: deliveryConfig.inbox_ttl as string | undefined,
+					inbox_max_batch: deliveryConfig.inbox_max_batch as number | undefined,
+				};
+
+				try {
+					await this.inboxManager.enqueue(sessionKey, event, inboxConfig);
+					deliveryStatus = 'delivered';
+					await this.emitLog('deliver.success', {
+						event_id: event.id,
+						trace_id: event.trace_id,
+						route: routeName,
+						target: actorId,
+						module: mod.name,
+						result: `Enqueued to inbox for session: ${sessionKey}`,
+					});
+					this.emit('delivery', {
+						event,
+						route: routeName,
+						actor: actorId,
+						status: 'delivered',
+						inbox: true,
+					});
+				} catch (err) {
+					// Graceful degradation: inbox failure → fall through to direct delivery
+					await this.emitLog('deliver.failure', {
+						event_id: event.id,
+						trace_id: event.trace_id,
+						route: routeName,
+						target: actorId,
+						module: mod.name,
+						error: err instanceof Error ? err.message : String(err),
+					});
+					// Fall through to normal delivery below
+				}
+
+				// If inbox enqueue succeeded, skip direct delivery
+				if (deliveryStatus === 'delivered') {
+					// Record audit trail for inbox delivery and return early
+					const durationMs = Date.now() - startTime;
+					const chainDepth = event.trace_id ? this.loopDetector.getChainDepth(event.trace_id) : 1;
+					const auditRecord: AuditRecord = {
+						id: generateAuditId(),
+						timestamp: new Date().toISOString(),
+						trace_id: event.trace_id ?? '',
+						input_event_id: event.id,
+						input_source: event.source,
+						input_type: event.type,
+						input_content_hash: contentHash(event.payload),
+						route: routeName,
+						sop_file: route.with?.prompt_file ?? null,
+						module: mod.name,
+						actor: actorId,
+						delivery_status: 'delivered',
+						duration_ms: durationMs,
+						outputs: [],
+						chain_depth: chainDepth,
+						parent_event_id: null,
+						held_for_review: false,
+						flags: [],
+					};
+					this.auditTrail.record(auditRecord);
+					return;
+				}
+			}
 
 			// Resolve launch prompt if configured
 			if (route.with?.prompt_file) {
@@ -1248,6 +1335,11 @@ class Runtime extends EventEmitter implements RuntimeControl {
 	/** Get the webhook server for API handler registration. */
 	getWebhookServer(): WebhookServer {
 		return this.webhookServer;
+	}
+
+	/** Get the inbox manager (null if inbox not configured). */
+	getInboxManager(): InboxManager | null {
+		return this.inboxManager;
 	}
 
 	// ─── Logging ─────────────────────────────────────────────────────────────

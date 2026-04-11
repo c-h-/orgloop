@@ -32,6 +32,12 @@ export { EventHistory } from './event-history.js';
 export type { ApiHandler, RuntimeControl } from './http.js';
 // HTTP webhook server
 export { DEFAULT_HTTP_PORT, WebhookServer } from './http.js';
+export type { InboxConfig, InboxManagerOptions } from './inbox.js';
+export { InboxManager } from './inbox.js';
+export { registerInboxApi } from './inbox-api.js';
+// Inbox
+export type { DrainResult, InboxEntry, InboxStore } from './inbox-store.js';
+export { InMemoryInboxStore } from './inbox-store.js';
 // Logger manager
 export { LoggerManager } from './logger.js';
 export type { ChainNode, LoopCheckResult, LoopDetectorOptions } from './loop-detector.js';
