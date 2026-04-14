@@ -53,6 +53,38 @@ interface LogEntry {
 	result?: string;
 }
 
+// Priority order: deliver.success wins over deliver.failure which wins over transform.drop.
+// This prevents a transform.drop on one route from overshadowing a successful delivery on
+// another route for the same event_id.
+const PHASE_PRIORITY: Record<string, number> = {
+	'deliver.success': 3,
+	'deliver.failure': 2,
+	'transform.drop': 1,
+};
+
+/**
+ * Deduplicate log entries by event_id, keeping the highest-priority phase per event.
+ * Returns the most-recent `count` unique events sorted oldest-first.
+ */
+export function selectRecentEvents(entries: LogEntry[], count: number): LogEntry[] {
+	const eventMap = new Map<string, LogEntry>();
+
+	for (const entry of entries) {
+		const priority = PHASE_PRIORITY[entry.phase];
+		if (priority === undefined) continue;
+
+		const existing = eventMap.get(entry.event_id);
+		const existingPriority = existing ? (PHASE_PRIORITY[existing.phase] ?? 0) : 0;
+		if (!existing || priority > existingPriority) {
+			eventMap.set(entry.event_id, entry);
+		}
+	}
+
+	return [...eventMap.values()]
+		.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+		.slice(-count);
+}
+
 function healthStatusColor(status: string): string {
 	switch (status) {
 		case 'healthy':
@@ -82,24 +114,21 @@ async function getRecentEvents(count: number): Promise<LogEntry[]> {
 	try {
 		const content = await readFile(LOG_FILE, 'utf-8');
 		const lines = content.trim().split('\n').filter(Boolean);
-		const entries: LogEntry[] = [];
 
-		for (const line of lines.slice(-count * 3)) {
+		// Read enough trailing lines to find `count` unique events after deduplication.
+		const candidates: LogEntry[] = [];
+		for (const line of lines.slice(-count * 20)) {
 			try {
 				const entry = JSON.parse(line) as LogEntry;
-				if (
-					entry.phase === 'deliver.success' ||
-					entry.phase === 'deliver.failure' ||
-					entry.phase === 'transform.drop'
-				) {
-					entries.push(entry);
+				if (entry.phase in PHASE_PRIORITY) {
+					candidates.push(entry);
 				}
 			} catch {
 				/* skip malformed */
 			}
 		}
 
-		return entries.slice(-count);
+		return selectRecentEvents(candidates, count);
 	} catch {
 		return [];
 	}
