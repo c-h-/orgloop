@@ -26,7 +26,6 @@
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
-    "@types/uuid": "^11.0.0",
     "fast-check": "^4.6.0"
   },
   "files": [
