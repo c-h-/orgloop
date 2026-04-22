@@ -331,17 +331,17 @@ export class GitHubWebhookSource implements SourceConnector {
 			return run;
 		}
 
-		// Determine repo owner/name from config or from the webhook payload
+		// Determine repo owner/name — prefer webhook payload, fall back to config
 		const repoFullName = repo.full_name as string | undefined;
-		let owner = this.repoOwner;
-		let name = this.repoName;
-		if (!owner || !name) {
-			if (repoFullName) {
-				const parts = repoFullName.split('/');
-				owner = owner ?? parts[0];
-				name = name ?? parts[1];
-			}
+		let owner: string | undefined;
+		let name: string | undefined;
+		if (repoFullName) {
+			const parts = repoFullName.split('/');
+			owner = parts[0];
+			name = parts[1];
 		}
+		owner = owner ?? this.repoOwner;
+		name = name ?? this.repoName;
 		if (!owner || !name) {
 			return run;
 		}
