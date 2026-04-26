@@ -77,7 +77,7 @@ The scaffolded `package.json` lists `@orgloop/*` packages as dependencies. This 
   "private": true,
   "description": "OrgLoop project: my-org",
   "dependencies": {
-    "@orgloop/connector-claude-code": "^0.1.9",
+    "@orgloop/connector-coding-agent": "^0.1.9",
     "@orgloop/connector-github": "^0.1.9",
     "@orgloop/connector-linear": "^0.1.9",
     "@orgloop/connector-openclaw": "^0.1.9",

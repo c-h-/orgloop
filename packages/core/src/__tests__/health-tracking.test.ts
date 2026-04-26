@@ -1,12 +1,15 @@
 import type { OrgLoopConfig, SourceHealthState } from '@orgloop/sdk';
 import { createTestEvent, MockActor, MockSource } from '@orgloop/sdk';
 import { describe, expect, it, vi } from 'vitest';
-import { OrgLoop } from '../engine.js';
+import { Runtime } from '../runtime.js';
 
-function getHealth(engine: OrgLoop, sourceId: string): SourceHealthState {
-	const h = engine.health().find((s) => s.sourceId === sourceId);
-	if (!h) throw new Error(`No health state for ${sourceId}`);
-	return h;
+function getHealth(runtime: Runtime, sourceId: string): SourceHealthState {
+	const status = runtime.status();
+	for (const mod of status.modules) {
+		const h = mod.health?.find((s) => s.sourceId === sourceId);
+		if (h) return h;
+	}
+	throw new Error(`No health state for ${sourceId}`);
 }
 
 function makeConfig(overrides?: Partial<OrgLoopConfig>): OrgLoopConfig {
@@ -45,94 +48,96 @@ function makeConfig(overrides?: Partial<OrgLoopConfig>): OrgLoopConfig {
 	};
 }
 
+function makeRuntime(
+	config: OrgLoopConfig,
+	loadOptions: import('../runtime.js').LoadModuleOptions,
+	runtimeOptions?: import('../runtime.js').RuntimeOptions,
+): Runtime {
+	return Runtime.singleModule(config, {
+		load: loadOptions,
+		runtime: { crashHandlers: false, ...(runtimeOptions ?? {}) },
+	});
+}
+
 describe('Source health tracking', () => {
 	it('initializes health state for all sources on start', async () => {
 		const source = new MockSource('test-source');
 		const actor = new MockActor('test-actor');
 
-		const engine = new OrgLoop(makeConfig(), {
+		const runtime = makeRuntime(makeConfig(), {
 			sources: new Map([['test-source', source]]),
 			actors: new Map([['test-actor', actor]]),
 		});
 
-		await engine.start();
+		await runtime.start();
 
-		const health = engine.health();
-		expect(health).toHaveLength(1);
-		expect(health[0].sourceId).toBe('test-source');
-		expect(health[0].status).toBe('healthy');
-		expect(health[0].consecutiveErrors).toBe(0);
-		expect(health[0].circuitOpen).toBe(false);
-		expect(health[0].totalEventsEmitted).toBe(0);
+		const h = getHealth(runtime, 'test-source');
+		expect(h.sourceId).toBe('test-source');
+		expect(h.status).toBe('healthy');
+		expect(h.consecutiveErrors).toBe(0);
+		expect(h.circuitOpen).toBe(false);
+		expect(h.totalEventsEmitted).toBe(0);
 
-		await engine.stop();
+		await runtime.stop();
 	});
 
 	it('tracks successful polls and event counts', async () => {
 		const source = new MockSource('test-source');
 		const actor = new MockActor('test-actor');
 
-		const engine = new OrgLoop(makeConfig(), {
+		const runtime = makeRuntime(makeConfig(), {
 			sources: new Map([['test-source', source]]),
 			actors: new Map([['test-actor', actor]]),
 		});
 
-		await engine.start();
+		await runtime.start();
 
-		// Inject events (simulates what poll does after processing)
 		const event1 = createTestEvent({ source: 'test-source', type: 'resource.changed' });
 		const event2 = createTestEvent({ source: 'test-source', type: 'resource.changed' });
 		source.addEvents(event1, event2);
 
-		// Trigger a poll manually by accessing private method
-		// biome-ignore lint: accessing private for test
-		await (engine as any).pollSource('test-source');
+		await runtime.pollSource('test-source');
 
-		const h = getHealth(engine, 'test-source');
+		const h = getHealth(runtime, 'test-source');
 		expect(h.status).toBe('healthy');
 		expect(h.totalEventsEmitted).toBe(2);
 		expect(h.lastSuccessfulPoll).not.toBeNull();
 		expect(h.consecutiveErrors).toBe(0);
 		expect(h.lastError).toBeNull();
 
-		await engine.stop();
+		await runtime.stop();
 	});
 
 	it('tracks consecutive errors on poll failure', async () => {
 		const source = new MockSource('test-source');
 		const actor = new MockActor('test-actor');
 
-		// Make poll throw (also affects the initial scheduler poll)
 		vi.spyOn(source, 'poll').mockRejectedValue(new Error('403 Forbidden'));
 
-		const engine = new OrgLoop(makeConfig(), {
+		const runtime = makeRuntime(makeConfig(), {
 			sources: new Map([['test-source', source]]),
 			actors: new Map([['test-actor', actor]]),
 		});
 
-		// Suppress error events
-		engine.on('error', () => {});
+		runtime.on('error', () => {});
 
-		await engine.start();
-		// Scheduler fires first poll automatically — wait for it
+		await runtime.start();
 		await vi.waitFor(() => {
-			const h = getHealth(engine, 'test-source');
+			const h = getHealth(runtime, 'test-source');
 			expect(h.consecutiveErrors).toBeGreaterThanOrEqual(1);
 		});
 
-		let h = getHealth(engine, 'test-source');
+		let h = getHealth(runtime, 'test-source');
 		const errorsAfterStart = h.consecutiveErrors;
 		expect(h.status).toBe('degraded');
 		expect(h.lastError).toBe('403 Forbidden');
 
-		// Another failure
-		// biome-ignore lint: accessing private for test
-		await (engine as any).pollSource('test-source');
+		await runtime.pollSource('test-source');
 
-		h = getHealth(engine, 'test-source');
+		h = getHealth(runtime, 'test-source');
 		expect(h.consecutiveErrors).toBe(errorsAfterStart + 1);
 
-		await engine.stop();
+		await runtime.stop();
 	});
 
 	it('resets error count on successful poll after failures', async () => {
@@ -140,64 +145,59 @@ describe('Source health tracking', () => {
 		const actor = new MockActor('test-actor');
 		const pollSpy = vi.spyOn(source, 'poll');
 
-		// First two polls fail (initial scheduler poll + one manual)
 		pollSpy.mockRejectedValueOnce(new Error('network error'));
 		pollSpy.mockRejectedValueOnce(new Error('network error'));
 
-		const engine = new OrgLoop(makeConfig(), {
+		const runtime = makeRuntime(makeConfig(), {
 			sources: new Map([['test-source', source]]),
 			actors: new Map([['test-actor', actor]]),
 		});
 
-		engine.on('error', () => {});
+		runtime.on('error', () => {});
 
-		await engine.start();
-		// Wait for initial scheduler poll
+		await runtime.start();
 		await vi.waitFor(() => {
-			const h = getHealth(engine, 'test-source');
+			const h = getHealth(runtime, 'test-source');
 			expect(h.consecutiveErrors).toBeGreaterThanOrEqual(1);
 		});
 
-		// Trigger another failed poll
-		// biome-ignore lint: accessing private for test
-		await (engine as any).pollSource('test-source');
+		await runtime.pollSource('test-source');
 
-		let h = getHealth(engine, 'test-source');
+		let h = getHealth(runtime, 'test-source');
 		expect(h.consecutiveErrors).toBeGreaterThanOrEqual(2);
 		expect(h.status).toBe('degraded');
 
-		// Restore normal behavior — next poll succeeds
 		pollSpy.mockRestore();
 
-		// biome-ignore lint: accessing private for test
-		await (engine as any).pollSource('test-source');
+		await runtime.pollSource('test-source');
 
-		h = getHealth(engine, 'test-source');
+		h = getHealth(runtime, 'test-source');
 		expect(h.consecutiveErrors).toBe(0);
 		expect(h.status).toBe('healthy');
 		expect(h.lastError).toBeNull();
 		expect(h.lastSuccessfulPoll).not.toBeNull();
 
-		await engine.stop();
+		await runtime.stop();
 	});
 
-	it('health data is included in engine status', async () => {
+	it('health data is included in runtime status', async () => {
 		const source = new MockSource('test-source');
 		const actor = new MockActor('test-actor');
 
-		const engine = new OrgLoop(makeConfig(), {
+		const runtime = makeRuntime(makeConfig(), {
 			sources: new Map([['test-source', source]]),
 			actors: new Map([['test-actor', actor]]),
 		});
 
-		await engine.start();
+		await runtime.start();
 
-		const status = engine.status();
-		expect(status.health).toBeDefined();
-		expect(status.health).toHaveLength(1);
-		expect(status.health?.[0].sourceId).toBe('test-source');
+		const status = runtime.status();
+		expect(status.modules).toHaveLength(1);
+		expect(status.modules[0].health).toBeDefined();
+		expect(status.modules[0].health).toHaveLength(1);
+		expect(status.modules[0].health?.[0].sourceId).toBe('test-source');
 
-		await engine.stop();
+		await runtime.stop();
 	});
 
 	it('tracks health for multiple sources independently', async () => {
@@ -226,7 +226,7 @@ describe('Source health tracking', () => {
 			],
 		});
 
-		const engine = new OrgLoop(config, {
+		const runtime = makeRuntime(config, {
 			sources: new Map([
 				['source-1', source1],
 				['source-2', source2],
@@ -234,24 +234,23 @@ describe('Source health tracking', () => {
 			actors: new Map([['test-actor', actor]]),
 		});
 
-		engine.on('error', () => {});
+		runtime.on('error', () => {});
 
-		await engine.start();
-		// Wait for initial scheduler polls to complete
+		await runtime.start();
 		await vi.waitFor(() => {
-			const h1 = getHealth(engine, 'source-1');
+			const h1 = getHealth(runtime, 'source-1');
 			expect(h1.consecutiveErrors).toBeGreaterThanOrEqual(1);
 		});
 
-		const h1 = getHealth(engine, 'source-1');
-		const h2 = getHealth(engine, 'source-2');
+		const h1 = getHealth(runtime, 'source-1');
+		const h2 = getHealth(runtime, 'source-2');
 
 		expect(h1.status).toBe('degraded');
 		expect(h1.consecutiveErrors).toBeGreaterThanOrEqual(1);
 		expect(h2.status).toBe('healthy');
 		expect(h2.consecutiveErrors).toBe(0);
 
-		await engine.stop();
+		await runtime.stop();
 	});
 });
 
@@ -262,27 +261,25 @@ describe('Circuit breaker', () => {
 
 		vi.spyOn(source, 'poll').mockRejectedValue(new Error('403 Forbidden'));
 
-		const engine = new OrgLoop(makeConfig(), {
+		const runtime = makeRuntime(makeConfig(), {
 			sources: new Map([['test-source', source]]),
 			actors: new Map([['test-actor', actor]]),
 		});
 
-		engine.on('error', () => {});
+		runtime.on('error', () => {});
 
-		await engine.start();
+		await runtime.start();
 
-		// 5 consecutive failures
 		for (let i = 0; i < 5; i++) {
-			// biome-ignore lint: accessing private for test
-			await (engine as any).pollSource('test-source');
+			await runtime.pollSource('test-source');
 		}
 
-		const h = getHealth(engine, 'test-source');
+		const h = getHealth(runtime, 'test-source');
 		expect(h.status).toBe('unhealthy');
 		expect(h.circuitOpen).toBe(true);
 		expect(h.consecutiveErrors).toBe(5);
 
-		await engine.stop();
+		await runtime.stop();
 	});
 
 	it('respects custom failure threshold', async () => {
@@ -291,41 +288,37 @@ describe('Circuit breaker', () => {
 
 		vi.spyOn(source, 'poll').mockRejectedValue(new Error('timeout'));
 
-		// Set threshold to 4 to account for the initial scheduler poll
-		const engine = new OrgLoop(makeConfig(), {
-			sources: new Map([['test-source', source]]),
-			actors: new Map([['test-actor', actor]]),
-			circuitBreaker: { failureThreshold: 4 },
-		});
+		const runtime = makeRuntime(
+			makeConfig(),
+			{
+				sources: new Map([['test-source', source]]),
+				actors: new Map([['test-actor', actor]]),
+			},
+			{ circuitBreaker: { failureThreshold: 4 } },
+		);
 
-		engine.on('error', () => {});
+		runtime.on('error', () => {});
 
-		await engine.start();
-		// Wait for initial scheduler poll
+		await runtime.start();
 		await vi.waitFor(() => {
-			const h = getHealth(engine, 'test-source');
+			const h = getHealth(runtime, 'test-source');
 			expect(h.consecutiveErrors).toBeGreaterThanOrEqual(1);
 		});
 
-		// 2 more manual failures (total: 3 with scheduler poll = under threshold of 4)
-		// biome-ignore lint: accessing private for test
-		await (engine as any).pollSource('test-source');
-		// biome-ignore lint: accessing private for test
-		await (engine as any).pollSource('test-source');
+		await runtime.pollSource('test-source');
+		await runtime.pollSource('test-source');
 
-		let h = getHealth(engine, 'test-source');
+		let h = getHealth(runtime, 'test-source');
 		expect(h.circuitOpen).toBe(false);
 		expect(h.status).toBe('degraded');
 
-		// One more — reaches threshold of 4
-		// biome-ignore lint: accessing private for test
-		await (engine as any).pollSource('test-source');
+		await runtime.pollSource('test-source');
 
-		h = getHealth(engine, 'test-source');
+		h = getHealth(runtime, 'test-source');
 		expect(h.circuitOpen).toBe(true);
 		expect(h.status).toBe('unhealthy');
 
-		await engine.stop();
+		await runtime.stop();
 	});
 
 	it('skips polling when circuit is open', async () => {
@@ -333,34 +326,31 @@ describe('Circuit breaker', () => {
 		const actor = new MockActor('test-actor');
 		const pollSpy = vi.spyOn(source, 'poll').mockRejectedValue(new Error('error'));
 
-		const engine = new OrgLoop(makeConfig(), {
-			sources: new Map([['test-source', source]]),
-			actors: new Map([['test-actor', actor]]),
-			circuitBreaker: { failureThreshold: 2 },
-		});
+		const runtime = makeRuntime(
+			makeConfig(),
+			{
+				sources: new Map([['test-source', source]]),
+				actors: new Map([['test-actor', actor]]),
+			},
+			{ circuitBreaker: { failureThreshold: 2 } },
+		);
 
-		engine.on('error', () => {});
+		runtime.on('error', () => {});
 
-		await engine.start();
+		await runtime.start();
 
-		// Open circuit (2 failures)
-		// biome-ignore lint: accessing private for test
-		await (engine as any).pollSource('test-source');
-		// biome-ignore lint: accessing private for test
-		await (engine as any).pollSource('test-source');
+		await runtime.pollSource('test-source');
+		await runtime.pollSource('test-source');
 
-		expect(getHealth(engine, 'test-source').circuitOpen).toBe(true);
+		expect(getHealth(runtime, 'test-source').circuitOpen).toBe(true);
 
 		const callCount = pollSpy.mock.calls.length;
 
-		// Try polling again — should be skipped
-		// biome-ignore lint: accessing private for test
-		await (engine as any).pollSource('test-source');
+		await runtime.pollSource('test-source');
 
-		// poll() should NOT have been called again
 		expect(pollSpy.mock.calls.length).toBe(callCount);
 
-		await engine.stop();
+		await runtime.stop();
 	});
 
 	it('retries after backoff period and recovers on success', async () => {
@@ -370,41 +360,37 @@ describe('Circuit breaker', () => {
 		const actor = new MockActor('test-actor');
 		const pollSpy = vi.spyOn(source, 'poll');
 
-		// First 2 polls fail
 		pollSpy.mockRejectedValueOnce(new Error('error'));
 		pollSpy.mockRejectedValueOnce(new Error('error'));
-		// Recovery poll succeeds
 		pollSpy.mockResolvedValueOnce({ events: [], checkpoint: 'ok' });
 
-		const engine = new OrgLoop(makeConfig(), {
-			sources: new Map([['test-source', source]]),
-			actors: new Map([['test-actor', actor]]),
-			circuitBreaker: { failureThreshold: 2, retryAfterMs: 5000 },
-		});
+		const runtime = makeRuntime(
+			makeConfig(),
+			{
+				sources: new Map([['test-source', source]]),
+				actors: new Map([['test-actor', actor]]),
+			},
+			{ circuitBreaker: { failureThreshold: 2, retryAfterMs: 5000 } },
+		);
 
-		engine.on('error', () => {});
+		runtime.on('error', () => {});
 
-		await engine.start();
+		await runtime.start();
 
-		// Trigger 2 failures to open circuit
-		// biome-ignore lint: accessing private for test
-		await (engine as any).pollSource('test-source');
-		// biome-ignore lint: accessing private for test
-		await (engine as any).pollSource('test-source');
+		await runtime.pollSource('test-source');
+		await runtime.pollSource('test-source');
 
-		expect(getHealth(engine, 'test-source').circuitOpen).toBe(true);
+		expect(getHealth(runtime, 'test-source').circuitOpen).toBe(true);
 
-		// Advance past backoff
 		await vi.advanceTimersByTimeAsync(5000);
 
-		// After retry, circuit should be closed
-		const h = getHealth(engine, 'test-source');
+		const h = getHealth(runtime, 'test-source');
 		expect(h.circuitOpen).toBe(false);
 		expect(h.consecutiveErrors).toBe(0);
 		expect(h.status).toBe('healthy');
 
 		vi.useRealTimers();
-		await engine.stop();
+		await runtime.stop();
 	});
 
 	it('stays in circuit-open state if retry fails', async () => {
@@ -415,33 +401,32 @@ describe('Circuit breaker', () => {
 
 		vi.spyOn(source, 'poll').mockRejectedValue(new Error('still broken'));
 
-		const engine = new OrgLoop(makeConfig(), {
-			sources: new Map([['test-source', source]]),
-			actors: new Map([['test-actor', actor]]),
-			circuitBreaker: { failureThreshold: 2, retryAfterMs: 5000 },
-		});
+		const runtime = makeRuntime(
+			makeConfig(),
+			{
+				sources: new Map([['test-source', source]]),
+				actors: new Map([['test-actor', actor]]),
+			},
+			{ circuitBreaker: { failureThreshold: 2, retryAfterMs: 5000 } },
+		);
 
-		engine.on('error', () => {});
+		runtime.on('error', () => {});
 
-		await engine.start();
+		await runtime.start();
 
-		// Open circuit
-		// biome-ignore lint: accessing private for test
-		await (engine as any).pollSource('test-source');
-		// biome-ignore lint: accessing private for test
-		await (engine as any).pollSource('test-source');
+		await runtime.pollSource('test-source');
+		await runtime.pollSource('test-source');
 
-		expect(getHealth(engine, 'test-source').circuitOpen).toBe(true);
+		expect(getHealth(runtime, 'test-source').circuitOpen).toBe(true);
 
-		// Advance past backoff — retry will also fail
 		await vi.advanceTimersByTimeAsync(5000);
 
-		const h = getHealth(engine, 'test-source');
+		const h = getHealth(runtime, 'test-source');
 		expect(h.circuitOpen).toBe(true);
 		expect(h.status).toBe('unhealthy');
 
 		vi.useRealTimers();
-		await engine.stop();
+		await runtime.stop();
 	});
 
 	it('cleans up retry timers on stop', async () => {
@@ -452,26 +437,24 @@ describe('Circuit breaker', () => {
 
 		vi.spyOn(source, 'poll').mockRejectedValue(new Error('error'));
 
-		const engine = new OrgLoop(makeConfig(), {
-			sources: new Map([['test-source', source]]),
-			actors: new Map([['test-actor', actor]]),
-			circuitBreaker: { failureThreshold: 2, retryAfterMs: 60000 },
-		});
+		const runtime = makeRuntime(
+			makeConfig(),
+			{
+				sources: new Map([['test-source', source]]),
+				actors: new Map([['test-actor', actor]]),
+			},
+			{ circuitBreaker: { failureThreshold: 2, retryAfterMs: 60000 } },
+		);
 
-		engine.on('error', () => {});
+		runtime.on('error', () => {});
 
-		await engine.start();
+		await runtime.start();
 
-		// Open circuit
-		// biome-ignore lint: accessing private for test
-		await (engine as any).pollSource('test-source');
-		// biome-ignore lint: accessing private for test
-		await (engine as any).pollSource('test-source');
+		await runtime.pollSource('test-source');
+		await runtime.pollSource('test-source');
 
-		// Stop engine — should clear timers without error
-		await engine.stop();
+		await runtime.stop();
 
-		// Advancing time should not cause errors
 		await vi.advanceTimersByTimeAsync(60000);
 
 		vi.useRealTimers();

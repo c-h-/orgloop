@@ -11,8 +11,8 @@ import type {
 } from '@orgloop/sdk';
 import { createTestContext, createTestEvent, MockActor, MockSource } from '@orgloop/sdk';
 import { describe, expect, it, vi } from 'vitest';
-import { OrgLoop } from '../engine.js';
 import { TransformError } from '../errors.js';
+import { Runtime } from '../runtime.js';
 import { executeTransformPipeline } from '../transform.js';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -237,24 +237,27 @@ describe('transform error policy — engine integration', () => {
 			],
 		});
 
-		const engine = new OrgLoop(config, {
-			sources: new Map([['test-source', source]]),
-			actors: new Map([['test-actor', actor]]),
-			transforms: new Map([['boom', new FailingTransform()]]),
+		const runtime = Runtime.singleModule(config, {
+			load: {
+				sources: new Map([['test-source', source]]),
+				actors: new Map([['test-actor', actor]]),
+				transforms: new Map([['boom', new FailingTransform()]]),
+			},
+			runtime: { crashHandlers: false },
 		});
 
-		await engine.start();
+		await runtime.start();
 
 		const event = createTestEvent({
 			source: 'test-source',
 			type: 'resource.changed',
 		});
-		await engine.inject(event);
+		await runtime.inject(event);
 
 		// pass policy: event should still be delivered
 		expect(actor.delivered).toHaveLength(1);
 
-		await engine.stop();
+		await runtime.stop();
 	});
 
 	it('drop: event is not delivered when transform errors with drop policy', async () => {
@@ -272,24 +275,27 @@ describe('transform error policy — engine integration', () => {
 			],
 		});
 
-		const engine = new OrgLoop(config, {
-			sources: new Map([['test-source', source]]),
-			actors: new Map([['test-actor', actor]]),
-			transforms: new Map([['boom', new FailingTransform()]]),
+		const runtime = Runtime.singleModule(config, {
+			load: {
+				sources: new Map([['test-source', source]]),
+				actors: new Map([['test-actor', actor]]),
+				transforms: new Map([['boom', new FailingTransform()]]),
+			},
+			runtime: { crashHandlers: false },
 		});
 
-		await engine.start();
+		await runtime.start();
 
 		const event = createTestEvent({
 			source: 'test-source',
 			type: 'resource.changed',
 		});
-		await engine.inject(event);
+		await runtime.inject(event);
 
 		// drop policy: event should NOT be delivered
 		expect(actor.delivered).toHaveLength(0);
 
-		await engine.stop();
+		await runtime.stop();
 	});
 
 	it('halt: event is not delivered and engine emits error', async () => {
@@ -307,30 +313,33 @@ describe('transform error policy — engine integration', () => {
 			],
 		});
 
-		const engine = new OrgLoop(config, {
-			sources: new Map([['test-source', source]]),
-			actors: new Map([['test-actor', actor]]),
-			transforms: new Map([['boom', new FailingTransform()]]),
+		const runtime = Runtime.singleModule(config, {
+			load: {
+				sources: new Map([['test-source', source]]),
+				actors: new Map([['test-actor', actor]]),
+				transforms: new Map([['boom', new FailingTransform()]]),
+			},
+			runtime: { crashHandlers: false },
 		});
 
-		await engine.start();
+		await runtime.start();
 
 		const errors: Error[] = [];
-		engine.on('error', (err: Error) => errors.push(err));
+		runtime.on('error', (err: Error) => errors.push(err));
 
 		const event = createTestEvent({
 			source: 'test-source',
 			type: 'resource.changed',
 		});
-		await engine.inject(event);
+		await runtime.inject(event);
 
 		// halt policy: event should NOT be delivered
 		expect(actor.delivered).toHaveLength(0);
 
-		// Engine should have emitted a TransformError
+		// Runtime should have emitted a TransformError
 		expect(errors).toHaveLength(1);
 		expect(errors[0]).toBeInstanceOf(TransformError);
 
-		await engine.stop();
+		await runtime.stop();
 	});
 });

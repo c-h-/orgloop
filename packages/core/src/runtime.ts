@@ -7,28 +7,31 @@
  */
 
 import { EventEmitter } from 'node:events';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type {
+	ActorConnector,
 	LogEntry,
+	Logger,
 	LogPhase,
 	ModuleStatus,
+	OrgLoopConfig,
 	OrgLoopEvent,
-	RouteDeliveryConfig,
 	RuntimeStatus,
+	SourceConnector,
+	Transform,
 } from '@orgloop/sdk';
 import { generateTraceId } from '@orgloop/sdk';
-import type { AuditFlag, AuditOutput, AuditRecord, AuditTrailOptions } from './audit.js';
-import { AuditTrail, contentHash, generateAuditId } from './audit.js';
+import type { AuditRecord, AuditTrailOptions } from './audit.js';
+import { AuditTrail } from './audit.js';
 import type { EventBus } from './bus.js';
 import { InMemoryBus } from './bus.js';
-import { ConnectorError, DeliveryError, ModuleNotFoundError } from './errors.js';
+import { ConnectorError, ModuleConflictError, ModuleNotFoundError } from './errors.js';
 import type { EventHistoryOptions, EventHistoryQuery, EventRecord } from './event-history.js';
 import { EventHistory } from './event-history.js';
 import type { RuntimeControl } from './http.js';
 import { DEFAULT_HTTP_PORT, WebhookServer } from './http.js';
-import type { InboxConfig, InboxManagerOptions } from './inbox.js';
+import type { InboxManagerOptions } from './inbox.js';
 import { InboxManager } from './inbox.js';
 import { LoggerManager } from './logger.js';
 import type { LoopCheckResult, LoopDetectorOptions } from './loop-detector.js';
@@ -38,138 +41,105 @@ import type { ModuleConfig } from './module-instance.js';
 import { ModuleInstance } from './module-instance.js';
 import type { OutputValidatorOptions } from './output-validator.js';
 import { OutputValidator } from './output-validator.js';
-import { stripFrontMatter } from './prompt.js';
 import { ModuleRegistry } from './registry.js';
-import { interpolateConfig, matchRoutes } from './router.js';
+import type { DispatchResult } from './route-dispatcher.js';
+import { RouteDispatcher } from './route-dispatcher.js';
+import { matchRoutes } from './router.js';
+import { buildRouteDetails, buildSourceDetails } from './runtime-accessors.js';
+import type { CrashHandlerHandle, HeartbeatHandle } from './runtime-crash-handlers.js';
+import { installCrashHandlers, startHeartbeat } from './runtime-crash-handlers.js';
 import { Scheduler } from './scheduler.js';
 import type { CheckpointStore } from './store.js';
 import { FileCheckpointStore, InMemoryCheckpointStore } from './store.js';
 import type { TransformPipelineOptions } from './transform.js';
 import { executeTransformPipeline } from './transform.js';
-
-// ─── Types ───────────────────────────────────────────────────────────────────
-
 export interface SourceCircuitBreakerOptions {
-	/** Consecutive failures before opening circuit (default: 5) */
 	failureThreshold?: number;
-	/** Backoff period in ms before retry when circuit is open (default: 60000) */
 	retryAfterMs?: number;
 }
 
-/** Per-route statistics tracked by the runtime. */
 export interface RouteStats {
-	/** Number of times this route has fired */
 	fireCount: number;
-	/** ISO 8601 timestamp of the last fire, or null if never fired */
 	lastFiredAt: string | null;
 }
 
 export interface RuntimeOptions {
-	/** Custom event bus (default: InMemoryBus) */
 	bus?: EventBus;
-	/** Shared logger manager (default: new LoggerManager) */
 	loggerManager?: LoggerManager;
-	/** HTTP port for webhook server and control API (default: 4800) */
 	httpPort?: number;
-	/** Circuit breaker options for source polling */
 	circuitBreaker?: SourceCircuitBreakerOptions;
-	/** Data directory for checkpoints and WAL */
 	dataDir?: string;
-	/** Enable crash handlers for uncaught exceptions/rejections (default: true) */
 	crashHandlers?: boolean;
-	/** Enable health heartbeat file (default: true when running as daemon) */
 	heartbeat?: boolean;
-	/** Heartbeat interval in ms (default: 30000) */
 	heartbeatIntervalMs?: number;
-	/** Prometheus metrics port. Metrics only start if ORGLOOP_METRICS_PORT env is set or this is provided. */
 	metricsPort?: number;
-	/** Event history ring buffer options */
 	eventHistory?: EventHistoryOptions;
-	/** Audit trail options */
 	auditTrail?: AuditTrailOptions;
-	/** Output validator options */
 	outputValidator?: OutputValidatorOptions;
-	/** Loop detector options */
 	loopDetector?: LoopDetectorOptions;
-	/** Inbox manager options (enables event batching per session key) */
 	inbox?: InboxManagerOptions;
 }
 
 export interface LoadModuleOptions {
-	/** Pre-instantiated source connectors (keyed by source ID) */
-	sources?: Map<string, import('@orgloop/sdk').SourceConnector>;
-	/** Pre-instantiated actor connectors (keyed by actor ID) */
-	actors?: Map<string, import('@orgloop/sdk').ActorConnector>;
-	/** Pre-instantiated package transforms (keyed by transform name) */
-	transforms?: Map<string, import('@orgloop/sdk').Transform>;
-	/** Pre-instantiated loggers (keyed by logger name) */
-	loggers?: Map<string, import('@orgloop/sdk').Logger>;
-	/** Custom checkpoint store for this module */
+	sources?: Map<string, SourceConnector>;
+	actors?: Map<string, ActorConnector>;
+	transforms?: Map<string, Transform>;
+	loggers?: Map<string, Logger>;
 	checkpointStore?: CheckpointStore;
 }
+export interface SingleModuleOptions {
+	runtime?: RuntimeOptions;
+	load?: LoadModuleOptions;
+	moduleName?: string;
+}
 
-// ─── Runtime Class ───────────────────────────────────────────────────────────
-
+const DEFAULT_SINGLE_MODULE_NAME = 'default';
 class Runtime extends EventEmitter implements RuntimeControl {
-	// Shared infrastructure
 	private readonly bus: EventBus;
 	private readonly scheduler = new Scheduler();
 	private readonly loggerManager: LoggerManager;
 	private readonly registry = new ModuleRegistry();
 	private readonly webhookServer: WebhookServer;
+	private readonly routeDispatcher: RouteDispatcher;
 
-	// Running state
 	private running = false;
 	private httpStarted = false;
 	private startedAt = 0;
 	private readonly httpPort: number;
 	private readonly dataDir?: string;
 
-	// Circuit breaker
 	private readonly circuitBreakerOpts: Required<SourceCircuitBreakerOptions>;
 	private readonly circuitRetryTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
-	// Stored configs for reload
 	private readonly moduleConfigs = new Map<string, ModuleConfig>();
 	private readonly moduleLoadOptions = new Map<string, LoadModuleOptions>();
 
-	// Crash handlers
-	private readonly enableCrashHandlers: boolean;
-	private crashHandlersBound = false;
-	private boundUncaughtHandler: ((err: Error) => void) | null = null;
-	private boundRejectionHandler: ((reason: unknown) => void) | null = null;
+	private pendingSingleModule: { config: ModuleConfig; options: LoadModuleOptions } | null = null;
 
-	// Health heartbeat
+	private readonly pendingSourceIds = new Set<string>();
+
+	private readonly sourceIdToModule = new Map<string, string>();
+
+	private readonly enableCrashHandlers: boolean;
+	private crashHandle: CrashHandlerHandle | null = null;
+
 	private readonly enableHeartbeat: boolean;
 	private readonly heartbeatIntervalMs: number;
-	private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+	private heartbeatHandle: HeartbeatHandle | null = null;
 	private readonly heartbeatDir = join(homedir(), '.orgloop');
 	private readonly heartbeatFile = join(homedir(), '.orgloop', 'heartbeat');
 
-	// Prometheus metrics (opt-in via ORGLOOP_METRICS_PORT env or metricsPort option)
 	private readonly metricsServer: MetricsServer | null;
 	private readonly metricsPort: number | undefined;
 
-	// REST API: event history and route stats
 	private readonly eventHistory: EventHistory;
 	private readonly routeStats = new Map<string, RouteStats>();
 
-	// Audit trail, output validation, and loop detection
 	private readonly auditTrail: AuditTrail;
 	private readonly outputValidator: OutputValidator;
 	private readonly loopDetector: LoopDetector;
 
-	// Inbox manager (opt-in per route via inbox: true)
 	private readonly inboxManager: InboxManager | null;
-
-	// Delivery context per inbox session key (for notification delivery)
-	private readonly inboxDeliveryContext = new Map<
-		string,
-		{
-			actor: import('@orgloop/sdk').ActorConnector;
-			deliveryConfig: RouteDeliveryConfig;
-		}
-	>();
 
 	constructor(options?: RuntimeOptions) {
 		super();
@@ -185,12 +155,14 @@ class Runtime extends EventEmitter implements RuntimeControl {
 			failureThreshold: options?.circuitBreaker?.failureThreshold ?? 5,
 			retryAfterMs: options?.circuitBreaker?.retryAfterMs ?? 60_000,
 		};
-		this.webhookServer = new WebhookServer((event) => this.inject(event));
+		this.webhookServer = new WebhookServer((event) => {
+			const moduleName = this.resolveModuleForSource(event.source);
+			return this.inject(event, moduleName);
+		});
 		this.enableCrashHandlers = options?.crashHandlers ?? true;
 		this.enableHeartbeat = options?.heartbeat ?? !!process.env.ORGLOOP_DAEMON;
 		this.heartbeatIntervalMs = options?.heartbeatIntervalMs ?? 30_000;
 
-		// Prometheus metrics: opt-in via explicit port or ORGLOOP_METRICS_PORT env
 		this.metricsPort = options?.metricsPort;
 		const envPort = process.env.ORGLOOP_METRICS_PORT;
 		if (this.metricsPort != null || envPort) {
@@ -199,45 +171,71 @@ class Runtime extends EventEmitter implements RuntimeControl {
 			this.metricsServer = null;
 		}
 
-		// Event history ring buffer
 		this.eventHistory = new EventHistory(options?.eventHistory);
 
-		// Audit trail, output validation, and loop detection
 		this.auditTrail = new AuditTrail(options?.auditTrail);
 		this.outputValidator = new OutputValidator(options?.outputValidator);
 		this.loopDetector = new LoopDetector(options?.loopDetector);
 
-		// Inbox manager — always created (lightweight), routes opt-in via inbox: true
 		this.inboxManager = options?.inbox !== undefined ? new InboxManager(options.inbox) : null;
-		if (this.inboxManager) {
-			this.inboxManager.onNotify = async (sessionKey, pendingCount, oldestEventAt) => {
-				await this.deliverInboxNotification(sessionKey, pendingCount, oldestEventAt);
-			};
-		}
+
+		this.routeDispatcher = new RouteDispatcher({
+			loggerManager: this.loggerManager,
+			inboxManager: this.inboxManager,
+			loopDetector: this.loopDetector,
+			outputValidator: this.outputValidator,
+			auditTrail: this.auditTrail,
+			metricsServer: this.metricsServer,
+			emit: (event, data) => this.emit(event, data),
+		});
 	}
+	static singleModule(config: OrgLoopConfig, options?: SingleModuleOptions): Runtime {
+		const runtimeOptions: RuntimeOptions = {
+			...(options?.runtime ?? {}),
+			dataDir: options?.runtime?.dataDir ?? config.data_dir,
+		};
+		const runtime = new Runtime(runtimeOptions);
 
-	// ─── Lifecycle ───────────────────────────────────────────────────────────
+		const moduleName = options?.moduleName ?? DEFAULT_SINGLE_MODULE_NAME;
+		const moduleConfig: ModuleConfig = {
+			name: moduleName,
+			sources: config.sources,
+			actors: config.actors,
+			routes: config.routes,
+			transforms: config.transforms,
+			loggers: config.loggers,
+			defaults: config.defaults,
+		};
 
+		runtime.pendingSingleModule = {
+			config: moduleConfig,
+			options: options?.load ?? {},
+		};
+
+		return runtime;
+	}
 	async start(): Promise<void> {
 		if (this.running) return;
 
-		// Install crash handlers
 		if (this.enableCrashHandlers) {
 			this.installCrashHandlers();
 		}
 
-		// Start scheduler
+		if (this.pendingSingleModule) {
+			const pending = this.pendingSingleModule;
+			this.pendingSingleModule = null;
+			await this.loadModule(pending.config, pending.options);
+		}
+
 		this.scheduler.start((sourceId, moduleName) => this.pollSource(sourceId, moduleName));
 
 		this.running = true;
 		this.startedAt = Date.now();
 
-		// Start health heartbeat
 		if (this.enableHeartbeat) {
 			this.startHeartbeat();
 		}
 
-		// Start Prometheus metrics server if configured
 		if (this.metricsServer) {
 			await this.metricsServer.start({ port: this.metricsPort });
 		}
@@ -245,7 +243,6 @@ class Runtime extends EventEmitter implements RuntimeControl {
 		await this.emitLog('runtime.start', { result: 'started' });
 	}
 
-	/** Start the HTTP server for webhooks and control API. */
 	async startHttpServer(): Promise<void> {
 		if (this.httpStarted) return;
 		this.webhookServer.runtime = this;
@@ -253,7 +250,6 @@ class Runtime extends EventEmitter implements RuntimeControl {
 		this.httpStarted = true;
 	}
 
-	/** Whether the HTTP server is currently running. */
 	isHttpStarted(): boolean {
 		return this.httpStarted;
 	}
@@ -263,124 +259,116 @@ class Runtime extends EventEmitter implements RuntimeControl {
 
 		await this.emitLog('runtime.stop', { result: 'stopping' });
 
-		// Deactivate and shutdown all modules
 		for (const mod of this.registry.list()) {
 			try {
 				mod.deactivate();
 				this.scheduler.removeSources(mod.name);
 				await mod.shutdown();
-			} catch {
-				// Non-blocking
-			}
+			} catch {}
 		}
 
-		// Stop webhook server
 		if (this.httpStarted) {
 			await this.webhookServer.stop();
 			this.httpStarted = false;
 		}
 
-		// Stop scheduler
 		this.scheduler.stop();
 
-		// Clear circuit breaker timers
 		for (const timer of this.circuitRetryTimers.values()) {
 			clearTimeout(timer);
 		}
 		this.circuitRetryTimers.clear();
 
-		// Stop heartbeat
 		this.stopHeartbeat();
 
-		// Stop metrics server
 		if (this.metricsServer?.isStarted()) {
 			await this.metricsServer.stop();
 		}
 
-		// Close inbox manager
 		if (this.inboxManager) {
 			await this.inboxManager.close();
 		}
 
-		// Remove crash handlers
 		this.removeCrashHandlers();
 
-		// Flush and shutdown loggers
 		await this.loggerManager.flush();
 		await this.loggerManager.shutdown();
 
 		this.running = false;
 	}
-
-	// ─── Module Management ───────────────────────────────────────────────────
-
 	async loadModule(config: ModuleConfig, options?: LoadModuleOptions): Promise<ModuleStatus> {
-		const checkpointStore = options?.checkpointStore ?? this.resolveCheckpointStore(config);
-
-		const mod = new ModuleInstance(config, {
-			sources: options?.sources ?? new Map(),
-			actors: options?.actors ?? new Map(),
-			transforms: options?.transforms ?? new Map(),
-			loggers: options?.loggers ?? new Map(),
-			checkpointStore,
-		});
-
-		// Initialize all connectors
-		await mod.initialize();
-
-		// Activate and register before adding to scheduler
-		// (so the first poll finds the module in the registry)
-		mod.activate();
-		this.registry.register(mod);
-
-		// Add module loggers to shared LoggerManager (tagged with module name)
-		for (const [, logger] of mod.getLoggers()) {
-			this.loggerManager.addLogger(logger, mod.name);
+		if (this.registry.has(config.name)) {
+			throw new ModuleConflictError(config.name, `Module "${config.name}" is already loaded`);
+		}
+		const incomingSourceIds = config.sources.map((s) => s.id);
+		this.assertSourceIdsUnique(incomingSourceIds, config.name);
+		for (const id of incomingSourceIds) {
+			this.pendingSourceIds.add(id);
 		}
 
-		// Register poll sources with shared scheduler
-		const defaultInterval = config.defaults?.poll_interval ?? '5m';
-		let hasWebhooks = false;
-		for (const srcCfg of config.sources) {
-			const connector = mod.getSource(srcCfg.id);
-			if (!connector) continue;
+		try {
+			const checkpointStore = options?.checkpointStore ?? this.resolveCheckpointStore(config);
 
-			if (typeof connector.webhook === 'function') {
-				// Webhook-based source: register with shared server
-				this.webhookServer.addHandler(srcCfg.id, connector.webhook());
-				hasWebhooks = true;
+			const mod = new ModuleInstance(config, {
+				sources: options?.sources ?? new Map(),
+				actors: options?.actors ?? new Map(),
+				transforms: options?.transforms ?? new Map(),
+				loggers: options?.loggers ?? new Map(),
+				checkpointStore,
+			});
+
+			await mod.initialize();
+
+			mod.activate();
+			this.registry.register(mod);
+
+			for (const id of incomingSourceIds) {
+				this.sourceIdToModule.set(id, config.name);
 			}
-			// Register for polling — not exclusive with webhook.
-			// Hybrid sources (e.g. connector-webhook with buffer_dir) have both webhook()
-			// and a poll.interval so they can drain a local buffer file.
-			// Pure webhook sources without a poll.interval skip polling as before.
-			const isWebhook = typeof connector.webhook === 'function';
-			if (srcCfg.poll?.interval || !isWebhook) {
-				const interval = srcCfg.poll?.interval ?? defaultInterval;
-				this.scheduler.addSource(srcCfg.id, interval, mod.name);
+
+			for (const [, logger] of mod.getLoggers()) {
+				this.loggerManager.addLogger(logger, mod.name);
+			}
+
+			const defaultInterval = config.defaults?.poll_interval ?? '5m';
+			let hasWebhooks = false;
+			for (const srcCfg of config.sources) {
+				const connector = mod.getSource(srcCfg.id);
+				if (!connector) continue;
+
+				if (typeof connector.webhook === 'function') {
+					this.webhookServer.addHandler(srcCfg.id, connector.webhook());
+					hasWebhooks = true;
+				}
+				const isWebhook = typeof connector.webhook === 'function';
+				if (srcCfg.poll?.interval || !isWebhook) {
+					const interval = srcCfg.poll?.interval ?? defaultInterval;
+					this.scheduler.addSource(srcCfg.id, interval, mod.name);
+				}
+			}
+
+			if (hasWebhooks && !this.httpStarted) {
+				await this.startHttpServer();
+			}
+
+			this.metricsServer?.connectedSources.set(this.countAllSources());
+
+			this.moduleConfigs.set(config.name, config);
+			if (options) {
+				this.moduleLoadOptions.set(config.name, options);
+			}
+
+			await this.emitLog('module.active', {
+				result: `module "${config.name}" loaded`,
+				module: config.name,
+			});
+
+			return mod.status();
+		} finally {
+			for (const id of incomingSourceIds) {
+				this.pendingSourceIds.delete(id);
 			}
 		}
-
-		// Start HTTP server on demand when webhook sources are present
-		if (hasWebhooks && !this.httpStarted) {
-			await this.startHttpServer();
-		}
-
-		// Update connected sources gauge
-		this.metricsServer?.connectedSources.set(this.countAllSources());
-
-		// Store config and options for reload
-		this.moduleConfigs.set(config.name, config);
-		if (options) {
-			this.moduleLoadOptions.set(config.name, options);
-		}
-
-		await this.emitLog('module.active', {
-			result: `module "${config.name}" loaded`,
-			module: config.name,
-		});
-
-		return mod.status();
 	}
 
 	async unloadModule(name: string): Promise<void> {
@@ -394,31 +382,24 @@ class Runtime extends EventEmitter implements RuntimeControl {
 			module: name,
 		});
 
-		// Deactivate
 		mod.deactivate();
 
-		// Remove sources from scheduler
 		this.scheduler.removeSources(name);
 
-		// Remove webhook handlers for module sources
 		for (const srcCfg of mod.config.sources) {
 			this.webhookServer.removeHandler(srcCfg.id);
+			this.sourceIdToModule.delete(srcCfg.id);
 		}
 
-		// Shutdown module resources
 		await mod.shutdown();
 
-		// Remove loggers by module tag
 		this.loggerManager.removeLoggersByTag(name);
 
-		// Unregister from registry
 		this.registry.unregister(name);
 
-		// Clean stored config
 		this.moduleConfigs.delete(name);
 		this.moduleLoadOptions.delete(name);
 
-		// Update connected sources gauge
 		this.metricsServer?.connectedSources.set(this.countAllSources());
 
 		await this.emitLog('module.removed', {
@@ -437,29 +418,74 @@ class Runtime extends EventEmitter implements RuntimeControl {
 		await this.unloadModule(name);
 		await this.loadModule(config, options);
 	}
+	private assertSourceIdsUnique(incoming: string[], moduleName: string): void {
+		const seen = new Set<string>();
+		for (const id of incoming) {
+			if (seen.has(id)) {
+				throw new ModuleConflictError(
+					moduleName,
+					`Module "${moduleName}" declares duplicate source id "${id}"`,
+				);
+			}
+			seen.add(id);
+		}
 
-	// ─── Event Processing ────────────────────────────────────────────────────
+		for (const mod of this.registry.list()) {
+			for (const src of mod.config.sources) {
+				if (seen.has(src.id)) {
+					throw new ModuleConflictError(
+						moduleName,
+						`Source id "${src.id}" already registered by module "${mod.name}"`,
+					);
+				}
+			}
+		}
 
+		for (const id of incoming) {
+			if (this.pendingSourceIds.has(id)) {
+				throw new ModuleConflictError(
+					moduleName,
+					`Source id "${id}" is already being loaded by another module (concurrent load)`,
+				);
+			}
+		}
+	}
+	private resolveModuleForSource(sourceId: string): string {
+		const moduleName = this.sourceIdToModule.get(sourceId);
+		if (!moduleName) {
+			throw new ModuleNotFoundError(
+				sourceId,
+				`No module owns source "${sourceId}" — drop or wait for module to load`,
+			);
+		}
+		return moduleName;
+	}
 	async inject(event: OrgLoopEvent, moduleName?: string): Promise<void> {
 		const resolved = event.trace_id ? event : { ...event, trace_id: generateTraceId() };
 
+		const target = this.resolveTargetModule(moduleName, 'inject');
+		await this.processEvent(resolved, target);
+	}
+	private resolveTargetModule(
+		moduleName: string | undefined,
+		op: string,
+	): import('./module-instance.js').ModuleInstance {
 		if (moduleName) {
 			const mod = this.registry.get(moduleName);
 			if (!mod) {
 				throw new ModuleNotFoundError(moduleName);
 			}
-			await this.processEvent(resolved, mod);
-		} else {
-			// Process through all active modules
-			for (const mod of this.registry.list()) {
-				if (mod.getState() === 'active') {
-					await this.processEvent(resolved, mod);
-				}
-			}
+			return mod;
 		}
+		const all = this.registry.list();
+		if (all.length === 1) return all[0];
+		throw new Error(`${op}: moduleName required: ${all.length} active modules`);
 	}
 
-	private async processEvent(event: OrgLoopEvent, mod: ModuleInstance): Promise<void> {
+	private async processEvent(
+		event: OrgLoopEvent,
+		mod: import('./module-instance.js').ModuleInstance,
+	): Promise<void> {
 		const eventStartTime = process.hrtime.bigint();
 		this.emit('event', event);
 
@@ -470,15 +496,13 @@ class Runtime extends EventEmitter implements RuntimeControl {
 			event_type: event.type,
 			module: mod.name,
 		});
-
-		// ─── Loop Detection ──────────────────────────────────────────────
 		if (event.trace_id) {
 			const loopCheck = this.loopDetector.check(
 				event.trace_id,
 				event.id,
 				event.source,
 				event.type,
-				null, // route not yet known
+				null,
 				null,
 			);
 
@@ -515,10 +539,8 @@ class Runtime extends EventEmitter implements RuntimeControl {
 			}
 		}
 
-		// Write to bus (WAL)
 		await this.bus.publish(event);
 
-		// Match routes from this module
 		const matched = matchRoutes(event, mod.getRoutes());
 
 		if (matched.length === 0) {
@@ -529,21 +551,7 @@ class Runtime extends EventEmitter implements RuntimeControl {
 				module: mod.name,
 			});
 
-			// Record event with no matched routes
-			const elapsedMs = Number(process.hrtime.bigint() - eventStartTime) / 1e6;
-			this.eventHistory.push({
-				event_id: event.id,
-				timestamp: event.timestamp,
-				source: event.source,
-				type: event.type,
-				matched_routes: [],
-				sop_files: [],
-				actors: [],
-				processing_ms: Math.round(elapsedMs * 100) / 100,
-				module: mod.name,
-				trace_id: event.trace_id,
-			});
-
+			this.eventHistory.push(this.buildEventRecord(event, mod.name, [], [], [], eventStartTime));
 			await this.bus.ack(event.id);
 			return;
 		}
@@ -553,7 +561,6 @@ class Runtime extends EventEmitter implements RuntimeControl {
 		const actorIds: string[] = [];
 		const now = new Date().toISOString();
 
-		// Process each matched route
 		for (const match of matched) {
 			const { route } = match;
 			const routeStartTime = process.hrtime.bigint();
@@ -564,7 +571,6 @@ class Runtime extends EventEmitter implements RuntimeControl {
 				sopFiles.push(route.with.prompt_file);
 			}
 
-			// Update route stats
 			const stats = this.routeStats.get(route.name);
 			if (stats) {
 				stats.fireCount++;
@@ -582,7 +588,6 @@ class Runtime extends EventEmitter implements RuntimeControl {
 				module: mod.name,
 			});
 
-			// Run transform pipeline
 			let transformedEvent = event;
 			if (route.transforms && route.transforms.length > 0) {
 				const pipelineOptions: TransformPipelineOptions = {
@@ -615,30 +620,54 @@ class Runtime extends EventEmitter implements RuntimeControl {
 					);
 
 					if (result.dropped || !result.event) {
-						continue; // Skip delivery for this route
+						this.recordRouteMetrics(route.name, route.then.actor, 'skipped', routeStartTime);
+						continue;
 					}
 					transformedEvent = result.event;
 				} catch (err) {
-					// halt policy throws TransformError — emit error and skip delivery
 					this.emit('error', err as Error);
+					this.recordRouteMetrics(route.name, route.then.actor, 'error', routeStartTime);
 					continue;
 				}
 			}
 
-			// Deliver to actor
-			await this.deliverToActor(transformedEvent, route.name, route.then.actor, route, mod);
-
-			// Record Prometheus metrics
-			if (this.metricsServer) {
-				const elapsed = Number(process.hrtime.bigint() - routeStartTime) / 1e9;
-				this.metricsServer.eventsRouted.inc({ route: route.name, connector: route.then.actor });
-				this.metricsServer.eventProcessingSeconds.observe({ route: route.name }, elapsed);
-			}
+			const dispatchResult: DispatchResult = await this.routeDispatcher.dispatch(
+				transformedEvent,
+				route,
+				mod,
+			);
+			this.recordRouteMetrics(route.name, route.then.actor, dispatchResult.status, routeStartTime);
 		}
 
-		// Record event in history
-		const totalElapsedMs = Number(process.hrtime.bigint() - eventStartTime) / 1e6;
-		this.eventHistory.push({
+		this.eventHistory.push(
+			this.buildEventRecord(event, mod.name, matchedRouteNames, sopFiles, actorIds, eventStartTime),
+		);
+
+		await this.bus.ack(event.id);
+	}
+
+	private recordRouteMetrics(
+		routeName: string,
+		actor: string,
+		status: DispatchResult['status'],
+		startTime: bigint,
+	): void {
+		if (!this.metricsServer) return;
+		const elapsed = Number(process.hrtime.bigint() - startTime) / 1e9;
+		this.metricsServer.eventsRouted.inc({ route: routeName, connector: actor, status });
+		this.metricsServer.eventProcessingSeconds.observe({ route: routeName, status }, elapsed);
+	}
+
+	private buildEventRecord(
+		event: OrgLoopEvent,
+		moduleName: string,
+		matchedRouteNames: string[],
+		sopFiles: string[],
+		actorIds: string[],
+		startTime: bigint,
+	): EventRecord {
+		const elapsedMs = Number(process.hrtime.bigint() - startTime) / 1e6;
+		return {
 			event_id: event.id,
 			timestamp: event.timestamp,
 			source: event.source,
@@ -646,330 +675,14 @@ class Runtime extends EventEmitter implements RuntimeControl {
 			matched_routes: matchedRouteNames,
 			sop_files: sopFiles,
 			actors: actorIds,
-			processing_ms: Math.round(totalElapsedMs * 100) / 100,
-			module: mod.name,
+			processing_ms: Math.round(elapsedMs * 100) / 100,
+			module: moduleName,
 			trace_id: event.trace_id,
-		});
-
-		// Ack the event after all routes processed
-		await this.bus.ack(event.id);
-	}
-
-	private async deliverInboxNotification(
-		sessionKey: string,
-		pendingCount: number,
-		oldestEventAt: string,
-	): Promise<void> {
-		const ctx = this.inboxDeliveryContext.get(sessionKey);
-		if (!ctx) return;
-
-		const syntheticEvent: OrgLoopEvent = {
-			id: `evt_inbox-notify-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-			source: 'orgloop',
-			type: 'message.received',
-			provenance: { platform: 'orgloop' },
-			payload: {
-				kind: 'inbox.notification',
-				pending_count: pendingCount,
-				session_key: sessionKey,
-				oldest_event_at: oldestEventAt,
-				drain_command: `orgloop inbox drain --key "${sessionKey}" --format json`,
-				instructions:
-					'Drain your inbox and process the batch. Act on the final state — skip intermediate events that have been superseded.',
-			},
-			timestamp: new Date().toISOString(),
 		};
-
-		try {
-			await ctx.actor.deliver(syntheticEvent, ctx.deliveryConfig);
-			await this.emitLog('inbox.notify', {
-				result: 'delivered',
-				metadata: { session_key: sessionKey, pending_count: pendingCount },
-			});
-		} catch (err) {
-			await this.emitLog('inbox.notify', {
-				result: 'failed',
-				error: err instanceof Error ? err.message : String(err),
-				metadata: { session_key: sessionKey, pending_count: pendingCount },
-			});
-			throw err;
-		}
 	}
-
-	private async deliverToActor(
-		event: OrgLoopEvent,
-		routeName: string,
-		actorId: string,
-		route: import('@orgloop/sdk').RouteDefinition,
-		mod: ModuleInstance,
-	): Promise<void> {
-		const actor = mod.getActor(actorId);
-		if (!actor) {
-			const error = new DeliveryError(actorId, routeName, `Actor "${actorId}" not found`);
-			this.emit('error', error);
-			return;
-		}
-
-		await this.emitLog('deliver.attempt', {
-			event_id: event.id,
-			trace_id: event.trace_id,
-			route: routeName,
-			target: actorId,
-			module: mod.name,
-		});
-
-		const startTime = Date.now();
-		const auditFlags: AuditFlag[] = [];
-		const auditOutputs: AuditOutput[] = [];
-		let deliveryStatus: 'delivered' | 'rejected' | 'error' | 'held' = 'error';
-
-		try {
-			// Build delivery config (interpolate {{dot.path}} templates from event)
-			const deliveryConfig: RouteDeliveryConfig = {
-				...interpolateConfig(route.then.config ?? {}, event),
-			};
-
-			// ─── Inbox Interception ─────────────────────────────────────────
-			// If inbox is enabled for this route, enqueue instead of delivering
-			if (this.inboxManager && deliveryConfig.inbox === true && deliveryConfig.session_key) {
-				const sessionKey = String(deliveryConfig.session_key);
-				const inboxConfig: InboxConfig = {
-					inbox: true,
-					session_key: sessionKey,
-					inbox_ttl: deliveryConfig.inbox_ttl as string | undefined,
-					inbox_max_batch: deliveryConfig.inbox_max_batch as number | undefined,
-				};
-
-				try {
-					// Store delivery context BEFORE enqueue — onNotify fires during enqueue
-					if (!this.inboxDeliveryContext.has(sessionKey)) {
-						this.inboxDeliveryContext.set(sessionKey, {
-							actor,
-							deliveryConfig: { ...deliveryConfig, session_key: sessionKey },
-						});
-					}
-
-					await this.inboxManager.enqueue(sessionKey, event, inboxConfig);
-					deliveryStatus = 'delivered';
-					await this.emitLog('deliver.success', {
-						event_id: event.id,
-						trace_id: event.trace_id,
-						route: routeName,
-						target: actorId,
-						module: mod.name,
-						result: `Enqueued to inbox for session: ${sessionKey}`,
-					});
-					this.emit('delivery', {
-						event,
-						route: routeName,
-						actor: actorId,
-						status: 'delivered',
-						inbox: true,
-					});
-				} catch (err) {
-					// Graceful degradation: inbox failure → fall through to direct delivery
-					await this.emitLog('deliver.failure', {
-						event_id: event.id,
-						trace_id: event.trace_id,
-						route: routeName,
-						target: actorId,
-						module: mod.name,
-						error: err instanceof Error ? err.message : String(err),
-					});
-					// Fall through to normal delivery below
-				}
-
-				// If inbox enqueue succeeded, skip direct delivery
-				if (deliveryStatus === 'delivered') {
-					// Record audit trail for inbox delivery and return early
-					const durationMs = Date.now() - startTime;
-					const chainDepth = event.trace_id ? this.loopDetector.getChainDepth(event.trace_id) : 1;
-					const auditRecord: AuditRecord = {
-						id: generateAuditId(),
-						timestamp: new Date().toISOString(),
-						trace_id: event.trace_id ?? '',
-						input_event_id: event.id,
-						input_source: event.source,
-						input_type: event.type,
-						input_content_hash: contentHash(event.payload),
-						route: routeName,
-						sop_file: route.with?.prompt_file ?? null,
-						module: mod.name,
-						actor: actorId,
-						delivery_status: 'delivered',
-						duration_ms: durationMs,
-						outputs: [],
-						chain_depth: chainDepth,
-						parent_event_id: null,
-						held_for_review: false,
-						flags: [],
-					};
-					this.auditTrail.record(auditRecord);
-					return;
-				}
-			}
-
-			// Resolve launch prompt if configured
-			if (route.with?.prompt_file) {
-				try {
-					const promptContent = await readFile(route.with.prompt_file, 'utf-8');
-					const { content: strippedContent, metadata } = stripFrontMatter(promptContent);
-					deliveryConfig.launch_prompt = strippedContent;
-					deliveryConfig.launch_prompt_file = route.with.prompt_file;
-					deliveryConfig.launch_prompt_meta = metadata;
-				} catch {
-					// Non-fatal: log but continue delivery
-				}
-			}
-
-			// ─── Output Validation ───────────────────────────────────────
-			const deliveryContent = JSON.stringify(deliveryConfig);
-			const validation = this.outputValidator.validate(deliveryContent, event);
-
-			if (validation.flags.length > 0) {
-				auditFlags.push(...validation.flags);
-
-				for (const flag of validation.flags) {
-					await this.emitLog('audit.flag', {
-						event_id: event.id,
-						trace_id: event.trace_id,
-						route: routeName,
-						target: actorId,
-						module: mod.name,
-						result: flag.message,
-						metadata: { flag_type: flag.type, severity: flag.severity },
-					});
-				}
-			}
-
-			if (validation.hold_for_review) {
-				deliveryStatus = 'held';
-				await this.emitLog('audit.held', {
-					event_id: event.id,
-					trace_id: event.trace_id,
-					route: routeName,
-					target: actorId,
-					module: mod.name,
-					result: 'Output held for human review due to critical flags',
-					metadata: { flags: validation.flags.map((f) => f.message) },
-				});
-				this.emit('audit:held', { event, route: routeName, actor: actorId, validation });
-			} else {
-				// Proceed with delivery
-				const result = await actor.deliver(event, deliveryConfig);
-				const durationMs = Date.now() - startTime;
-
-				// Record output
-				auditOutputs.push({
-					type: `deliver.${result.status}`,
-					target: actorId,
-					content_hash: contentHash(deliveryConfig),
-					timestamp: new Date().toISOString(),
-					flags: validation.flags,
-				});
-
-				if (result.status === 'delivered') {
-					deliveryStatus = 'delivered';
-					await this.emitLog('deliver.success', {
-						event_id: event.id,
-						trace_id: event.trace_id,
-						route: routeName,
-						target: actorId,
-						duration_ms: durationMs,
-						module: mod.name,
-					});
-					this.emit('delivery', {
-						event,
-						route: routeName,
-						actor: actorId,
-						status: 'delivered',
-					});
-				} else {
-					deliveryStatus = result.status as 'rejected' | 'error';
-					await this.emitLog('deliver.failure', {
-						event_id: event.id,
-						trace_id: event.trace_id,
-						route: routeName,
-						target: actorId,
-						duration_ms: durationMs,
-						error: result.error?.message ?? result.status,
-						module: mod.name,
-					});
-					this.emit('delivery', {
-						event,
-						route: routeName,
-						actor: actorId,
-						status: result.status,
-					});
-				}
-			}
-		} catch (err) {
-			const durationMs = Date.now() - startTime;
-			deliveryStatus = 'error';
-			const error = new DeliveryError(actorId, routeName, 'Delivery failed', { cause: err });
-			this.emit('error', error);
-			this.metricsServer?.connectorErrors.inc({ connector: actorId });
-			await this.emitLog('deliver.failure', {
-				event_id: event.id,
-				trace_id: event.trace_id,
-				route: routeName,
-				target: actorId,
-				duration_ms: durationMs,
-				error: error.message,
-				module: mod.name,
-			});
-		}
-
-		// ─── Audit Trail Recording ───────────────────────────────────────
-		const durationMs = Date.now() - startTime;
-		const chainDepth = event.trace_id ? this.loopDetector.getChainDepth(event.trace_id) : 1;
-
-		const auditRecord: AuditRecord = {
-			id: generateAuditId(),
-			timestamp: new Date().toISOString(),
-			trace_id: event.trace_id ?? '',
-			input_event_id: event.id,
-			input_source: event.source,
-			input_type: event.type,
-			input_content_hash: contentHash(event.payload),
-			route: routeName,
-			sop_file: route.with?.prompt_file ?? null,
-			module: mod.name,
-			actor: actorId,
-			delivery_status: deliveryStatus,
-			duration_ms: durationMs,
-			outputs: auditOutputs,
-			chain_depth: chainDepth,
-			parent_event_id: null, // set by caller if part of a chain
-			held_for_review: deliveryStatus === 'held',
-			flags: auditFlags,
-		};
-
-		this.auditTrail.record(auditRecord);
-
-		await this.emitLog('audit.record', {
-			event_id: event.id,
-			trace_id: event.trace_id,
-			route: routeName,
-			target: actorId,
-			module: mod.name,
-			metadata: {
-				audit_id: auditRecord.id,
-				delivery_status: deliveryStatus,
-				chain_depth: chainDepth,
-				flag_count: auditFlags.length,
-				held: auditRecord.held_for_review,
-			},
-		});
-	}
-
-	// ─── Source Polling ───────────────────────────────────────────────────────
-
-	private async pollSource(sourceId: string, moduleName?: string): Promise<void> {
-		if (!moduleName) return;
-
-		const mod = this.registry.get(moduleName);
-		if (!mod || mod.getState() !== 'active') return;
+	async pollSource(sourceId: string, moduleName?: string): Promise<void> {
+		const mod = this.resolveTargetModule(moduleName, 'pollSource');
+		if (mod.getState() !== 'active') return;
 
 		const connector = mod.getSource(sourceId);
 		if (!connector) return;
@@ -977,7 +690,6 @@ class Runtime extends EventEmitter implements RuntimeControl {
 		const healthState = mod.getHealthState(sourceId);
 		if (!healthState) return;
 
-		// Circuit breaker: skip poll if circuit is open
 		if (healthState.circuitOpen) {
 			return;
 		}
@@ -989,29 +701,25 @@ class Runtime extends EventEmitter implements RuntimeControl {
 			const checkpoint = await store.get(sourceId);
 			const result = await connector.poll(checkpoint);
 
-			// Save checkpoint
 			if (result.checkpoint) {
 				await store.set(sourceId, result.checkpoint);
 			}
 
-			// Record successful poll
 			healthState.lastSuccessfulPoll = new Date().toISOString();
 			healthState.lastError = null;
 			healthState.totalEventsEmitted += result.events.length;
 
-			// If recovering from errors, log recovery
 			if (healthState.consecutiveErrors > 0) {
 				await this.emitLog('source.circuit_close', {
 					source: sourceId,
 					result: `recovered after ${healthState.consecutiveErrors} consecutive errors`,
-					module: moduleName,
+					module: mod.name,
 				});
 			}
 
 			healthState.consecutiveErrors = 0;
 			healthState.status = 'healthy';
 
-			// Process each event through the module
 			for (const event of result.events) {
 				const enriched = event.trace_id ? event : { ...event, trace_id: generateTraceId() };
 				await this.processEvent(enriched, mod);
@@ -1024,7 +732,6 @@ class Runtime extends EventEmitter implements RuntimeControl {
 			healthState.consecutiveErrors++;
 			healthState.lastError = err instanceof Error ? err.message : String(err);
 
-			// Update health status
 			if (healthState.consecutiveErrors >= this.circuitBreakerOpts.failureThreshold) {
 				healthState.status = 'unhealthy';
 				healthState.circuitOpen = true;
@@ -1033,17 +740,16 @@ class Runtime extends EventEmitter implements RuntimeControl {
 					source: sourceId,
 					error: healthState.lastError,
 					result: `${healthState.consecutiveErrors} consecutive failures — polling paused, will retry in ${Math.round(this.circuitBreakerOpts.retryAfterMs / 1000)}s`,
-					module: moduleName,
+					module: mod.name,
 				});
 
-				// Schedule a retry after backoff
-				this.scheduleCircuitRetry(sourceId, moduleName);
+				this.scheduleCircuitRetry(sourceId, mod.name);
 			} else {
 				healthState.status = 'degraded';
 				await this.emitLog('system.error', {
 					source: sourceId,
 					error: error.message,
-					module: moduleName,
+					module: mod.name,
 				});
 			}
 		}
@@ -1070,22 +776,17 @@ class Runtime extends EventEmitter implements RuntimeControl {
 				module: moduleName,
 			});
 
-			// Temporarily allow poll by opening the circuit
 			healthState.circuitOpen = false;
 			await this.pollSource(sourceId, moduleName);
 		}, this.circuitBreakerOpts.retryAfterMs);
 
 		this.circuitRetryTimers.set(timerKey, timer);
 	}
-
-	// ─── Helpers ────────────────────────────────────────────────────────────
-
 	private resolveCheckpointStore(config: ModuleConfig): CheckpointStore {
 		const cpConfig = config.defaults?.checkpoint;
 		if (cpConfig?.store === 'memory') {
 			return new InMemoryCheckpointStore();
 		}
-		// Explicit file store requested or directory configured
 		if (cpConfig?.store === 'file' || cpConfig?.dir) {
 			if (cpConfig?.dir) {
 				const dir =
@@ -1099,14 +800,12 @@ class Runtime extends EventEmitter implements RuntimeControl {
 			}
 			return new FileCheckpointStore();
 		}
-		// No explicit config — use file if we have a directory hint
 		if (config.modulePath) {
 			return new FileCheckpointStore(join(config.modulePath, '.orgloop', 'checkpoints'));
 		}
 		if (this.dataDir) {
 			return new FileCheckpointStore(this.dataDir);
 		}
-		// No directory context at all — fall back to in-memory
 		return new InMemoryCheckpointStore();
 	}
 
@@ -1117,114 +816,44 @@ class Runtime extends EventEmitter implements RuntimeControl {
 		}
 		return count;
 	}
-
-	// ─── Crash Handlers ─────────────────────────────────────────────────────
-
 	private installCrashHandlers(): void {
-		if (this.crashHandlersBound) return;
-
-		this.boundUncaughtHandler = (err: Error) => {
-			const message = `Uncaught exception: ${err.message}`;
-			console.error(`[orgloop] ${message}`);
-			console.error(err.stack);
-			this.emit('error', err);
-			void this.emitLog('system.error', { error: message }).catch(() => {});
-			// Attempt graceful shutdown with timeout
-			const forceExit = setTimeout(() => process.exit(1), 5_000);
-			if (forceExit.unref) forceExit.unref();
-			void this.stop()
-				.catch(() => {})
-				.finally(() => {
-					clearTimeout(forceExit);
-					process.exit(1);
-				});
-		};
-
-		this.boundRejectionHandler = (reason: unknown) => {
-			const message = `Unhandled rejection: ${reason instanceof Error ? reason.message : String(reason)}`;
-			console.error(`[orgloop] ${message}`);
-			if (reason instanceof Error && reason.stack) {
-				console.error(reason.stack);
-			}
-			this.emit('error', reason instanceof Error ? reason : new Error(message));
-			void this.emitLog('system.error', { error: message }).catch(() => {});
-			// Attempt graceful shutdown with timeout
-			const forceExit = setTimeout(() => process.exit(1), 5_000);
-			if (forceExit.unref) forceExit.unref();
-			void this.stop()
-				.catch(() => {})
-				.finally(() => {
-					clearTimeout(forceExit);
-					process.exit(1);
-				});
-		};
-
-		process.on('uncaughtException', this.boundUncaughtHandler);
-		process.on('unhandledRejection', this.boundRejectionHandler);
-		this.crashHandlersBound = true;
+		if (this.crashHandle) return;
+		this.crashHandle = installCrashHandlers({
+			onError: (err) => this.emit('error', err),
+			onLog: (message) => this.emitLog('system.error', { error: message }),
+			stop: () => this.stop(),
+		});
 	}
 
 	private removeCrashHandlers(): void {
-		if (!this.crashHandlersBound) return;
-		if (this.boundUncaughtHandler) {
-			process.removeListener('uncaughtException', this.boundUncaughtHandler);
-			this.boundUncaughtHandler = null;
-		}
-		if (this.boundRejectionHandler) {
-			process.removeListener('unhandledRejection', this.boundRejectionHandler);
-			this.boundRejectionHandler = null;
-		}
-		this.crashHandlersBound = false;
+		this.crashHandle?.uninstall();
+		this.crashHandle = null;
 	}
 
-	// ─── Health Heartbeat ────────────────────────────────────────────────────
-
 	private startHeartbeat(): void {
-		if (this.heartbeatTimer) return;
-		// Write immediately, then on interval
-		void this.writeHeartbeat();
-		this.heartbeatTimer = setInterval(() => {
-			void this.writeHeartbeat();
-		}, this.heartbeatIntervalMs);
-		if (this.heartbeatTimer.unref) {
-			this.heartbeatTimer.unref();
-		}
+		if (this.heartbeatHandle) return;
+		this.heartbeatHandle = startHeartbeat({
+			dir: this.heartbeatDir,
+			file: this.heartbeatFile,
+			intervalMs: this.heartbeatIntervalMs,
+			snapshot: () => ({
+				pid: process.pid,
+				uptime_ms: this.running ? Date.now() - this.startedAt : 0,
+				modules: this.registry.list().length,
+			}),
+		});
 	}
 
 	private stopHeartbeat(): void {
-		if (this.heartbeatTimer) {
-			clearInterval(this.heartbeatTimer);
-			this.heartbeatTimer = null;
-		}
+		this.heartbeatHandle?.stop();
+		this.heartbeatHandle = null;
 	}
-
-	private async writeHeartbeat(): Promise<void> {
-		try {
-			await mkdir(this.heartbeatDir, { recursive: true });
-			const data = JSON.stringify({
-				pid: process.pid,
-				timestamp: new Date().toISOString(),
-				uptime_ms: this.running ? Date.now() - this.startedAt : 0,
-				modules: this.registry.list().length,
-			});
-			await writeFile(this.heartbeatFile, data, 'utf-8');
-		} catch {
-			// Non-fatal: heartbeat is best-effort
-		}
-	}
-
-	// ─── Custom Control Handlers ─────────────────────────────────────────────
-
-	/** Register a custom control API handler for a given route suffix. */
 	registerControlHandler(
 		route: string,
 		handler: (body: Record<string, unknown>) => Promise<unknown>,
 	): void {
 		this.webhookServer.registerControlHandler(route, handler);
 	}
-
-	// ─── RuntimeControl Implementation ───────────────────────────────────────
-
 	status(): RuntimeStatus {
 		return {
 			running: this.running,
@@ -1243,108 +872,21 @@ class Runtime extends EventEmitter implements RuntimeControl {
 		const mod = this.registry.get(name);
 		return mod?.status();
 	}
-
-	// ─── REST API Data Access ────────────────────────────────────────────────
-
-	/** Query the event history ring buffer. */
 	queryEvents(query?: EventHistoryQuery): EventRecord[] {
 		return this.eventHistory.query(query);
 	}
 
-	/** Get route statistics (fire count, last fired). */
 	getRouteStats(): ReadonlyMap<string, RouteStats> {
 		return this.routeStats;
 	}
 
-	/** Get all route definitions across all modules with their stats. */
-	getRouteDetails(): Array<{
-		name: string;
-		module: string;
-		when: { source: string; events: string[]; filter?: Record<string, unknown> };
-		actor: string;
-		sop_file?: string;
-		fire_count: number;
-		last_fired: string | null;
-	}> {
-		const routes: Array<{
-			name: string;
-			module: string;
-			when: { source: string; events: string[]; filter?: Record<string, unknown> };
-			actor: string;
-			sop_file?: string;
-			fire_count: number;
-			last_fired: string | null;
-		}> = [];
-
-		for (const mod of this.registry.list()) {
-			for (const route of mod.getRoutes()) {
-				const stats = this.routeStats.get(route.name);
-				routes.push({
-					name: route.name,
-					module: mod.name,
-					when: {
-						source: route.when.source,
-						events: route.when.events,
-						...(route.when.filter ? { filter: route.when.filter } : {}),
-					},
-					actor: route.then.actor,
-					...(route.with?.prompt_file ? { sop_file: route.with.prompt_file } : {}),
-					fire_count: stats?.fireCount ?? 0,
-					last_fired: stats?.lastFiredAt ?? null,
-				});
-			}
-		}
-
-		return routes;
+	getRouteDetails() {
+		return buildRouteDetails(this.registry.list(), this.routeStats);
 	}
 
-	/** Get per-source detail for the REST API. */
-	getSourceDetails(): Array<{
-		id: string;
-		module: string;
-		connector: string;
-		type: 'webhook' | 'polling';
-		status: string;
-		last_event: string | null;
-		event_count: number;
-		poll_interval?: string;
-	}> {
-		const sources: Array<{
-			id: string;
-			module: string;
-			connector: string;
-			type: 'webhook' | 'polling';
-			status: string;
-			last_event: string | null;
-			event_count: number;
-			poll_interval?: string;
-		}> = [];
-
-		for (const mod of this.registry.list()) {
-			for (const srcCfg of mod.config.sources) {
-				const connector = mod.getSource(srcCfg.id);
-				const health = mod.getHealthState(srcCfg.id);
-				const isWebhook = connector && typeof connector.webhook === 'function';
-
-				sources.push({
-					id: srcCfg.id,
-					module: mod.name,
-					connector: srcCfg.connector,
-					type: isWebhook ? 'webhook' : 'polling',
-					status: health?.status ?? 'unknown',
-					last_event: health?.lastSuccessfulPoll ?? null,
-					event_count: health?.totalEventsEmitted ?? 0,
-					...(srcCfg.poll?.interval ? { poll_interval: srcCfg.poll.interval } : {}),
-				});
-			}
-		}
-
-		return sources;
+	getSourceDetails() {
+		return buildSourceDetails(this.registry.list());
 	}
-
-	// ─── Audit Trail & Loop Detection API ────────────────────────────────
-
-	/** Query the audit trail. */
 	queryAuditTrail(filter?: {
 		trace_id?: string;
 		route?: string;
@@ -1356,12 +898,10 @@ class Runtime extends EventEmitter implements RuntimeControl {
 		return this.auditTrail.query(filter);
 	}
 
-	/** Get the full audit chain for a trace ID. */
 	getAuditChain(traceId: string): AuditRecord[] {
 		return this.auditTrail.getChain(traceId);
 	}
 
-	/** Get loop detector state for a trace ID. */
 	getLoopState(traceId: string): LoopCheckResult | null {
 		const chain = this.loopDetector.getChain(traceId);
 		if (chain.length === 0) return null;
@@ -1374,39 +914,30 @@ class Runtime extends EventEmitter implements RuntimeControl {
 		};
 	}
 
-	/** Get the audit trail instance (for direct access in tests). */
 	getAuditTrail(): AuditTrail {
 		return this.auditTrail;
 	}
 
-	/** Get the loop detector instance (for direct access in tests). */
 	getLoopDetector(): LoopDetector {
 		return this.loopDetector;
 	}
 
-	/** Get the output validator instance (for direct access in tests). */
 	getOutputValidator(): OutputValidator {
 		return this.outputValidator;
 	}
 
-	/** Get the metrics registry for Prometheus text output. */
 	async getMetricsText(): Promise<string | null> {
 		if (!this.metricsServer) return null;
 		return this.metricsServer.metricsText();
 	}
 
-	/** Get the webhook server for API handler registration. */
 	getWebhookServer(): WebhookServer {
 		return this.webhookServer;
 	}
 
-	/** Get the inbox manager (null if inbox not configured). */
 	getInboxManager(): InboxManager | null {
 		return this.inboxManager;
 	}
-
-	// ─── Logging ─────────────────────────────────────────────────────────────
-
 	private async emitLog(
 		phase: LogPhase,
 		fields: Partial<LogEntry> & { module?: string },

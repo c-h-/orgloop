@@ -15,7 +15,7 @@ import {
 	MockTransform,
 } from '@orgloop/sdk';
 import { describe, expect, it } from 'vitest';
-import { OrgLoop } from '../engine.js';
+import { Runtime } from '../runtime.js';
 
 function makeConfig(overrides?: Partial<OrgLoopConfig>): OrgLoopConfig {
 	return {
@@ -59,24 +59,27 @@ describe('E2E pipeline', () => {
 			],
 		});
 
-		const engine = new OrgLoop(config, {
-			sources: new Map([
-				['source-a', sourceA],
-				['source-b', sourceB],
-			]),
-			actors: new Map([
-				['actor-a', actorA],
-				['actor-b', actorB],
-			]),
+		const runtime = Runtime.singleModule(config, {
+			runtime: { crashHandlers: false },
+			load: {
+				sources: new Map([
+					['source-a', sourceA],
+					['source-b', sourceB],
+				]),
+				actors: new Map([
+					['actor-a', actorA],
+					['actor-b', actorB],
+				]),
+			},
 		});
 
-		await engine.start();
+		await runtime.start();
 
 		const eventA = createTestEvent({ source: 'source-a', type: 'resource.changed' });
 		const eventB = createTestEvent({ source: 'source-b', type: 'resource.changed' });
 
-		await engine.inject(eventA);
-		await engine.inject(eventB);
+		await runtime.inject(eventA);
+		await runtime.inject(eventB);
 
 		expect(actorA.delivered).toHaveLength(1);
 		expect(actorA.delivered[0].event.source).toBe('source-a');
@@ -84,7 +87,7 @@ describe('E2E pipeline', () => {
 		expect(actorB.delivered).toHaveLength(1);
 		expect(actorB.delivered[0].event.source).toBe('source-b');
 
-		await engine.stop();
+		await runtime.stop();
 	});
 
 	it('transform pipeline ordering — transforms execute in sequence', async () => {
@@ -127,20 +130,23 @@ describe('E2E pipeline', () => {
 			],
 		});
 
-		const engine = new OrgLoop(config, {
-			sources: new Map([['test-source', source]]),
-			actors: new Map([['test-actor', actor]]),
-			transforms: new Map([
-				['t1', t1],
-				['t2', t2],
-				['t3', t3],
-			]),
+		const runtime = Runtime.singleModule(config, {
+			runtime: { crashHandlers: false },
+			load: {
+				sources: new Map([['test-source', source]]),
+				actors: new Map([['test-actor', actor]]),
+				transforms: new Map([
+					['t1', t1],
+					['t2', t2],
+					['t3', t3],
+				]),
+			},
 		});
 
-		await engine.start();
+		await runtime.start();
 
 		const event = createTestEvent({ source: 'test-source', type: 'resource.changed' });
-		await engine.inject(event);
+		await runtime.inject(event);
 
 		expect(order).toEqual(['t1', 't2', 't3']);
 
@@ -149,7 +155,7 @@ describe('E2E pipeline', () => {
 		const delivered = actor.delivered[0].event;
 		expect(delivered.payload).toMatchObject({ t1: true, t2: true, t3: true });
 
-		await engine.stop();
+		await runtime.stop();
 	});
 
 	it('transform filtering — transform returns null drops the event', async () => {
@@ -173,23 +179,26 @@ describe('E2E pipeline', () => {
 			],
 		});
 
-		const engine = new OrgLoop(config, {
-			sources: new Map([['test-source', source]]),
-			actors: new Map([['test-actor', actor]]),
-			transforms: new Map([['dropper', dropper]]),
+		const runtime = Runtime.singleModule(config, {
+			runtime: { crashHandlers: false },
+			load: {
+				sources: new Map([['test-source', source]]),
+				actors: new Map([['test-actor', actor]]),
+				transforms: new Map([['dropper', dropper]]),
+			},
 		});
 
-		await engine.start();
+		await runtime.start();
 
 		const event = createTestEvent({ source: 'test-source', type: 'resource.changed' });
-		await engine.inject(event);
+		await runtime.inject(event);
 
 		// Transform saw the event
 		expect(dropper.processed).toHaveLength(1);
 		// Actor never received it
 		expect(actor.delivered).toHaveLength(0);
 
-		await engine.stop();
+		await runtime.stop();
 	});
 
 	it('event type filtering — route only matches specified event types', async () => {
@@ -208,12 +217,15 @@ describe('E2E pipeline', () => {
 			],
 		});
 
-		const engine = new OrgLoop(config, {
-			sources: new Map([['test-source', source]]),
-			actors: new Map([['test-actor', actor]]),
+		const runtime = Runtime.singleModule(config, {
+			runtime: { crashHandlers: false },
+			load: {
+				sources: new Map([['test-source', source]]),
+				actors: new Map([['test-actor', actor]]),
+			},
 		});
 
-		await engine.start();
+		await runtime.start();
 
 		const changedEvent = createTestEvent({
 			source: 'test-source',
@@ -224,14 +236,14 @@ describe('E2E pipeline', () => {
 			type: 'actor.stopped',
 		});
 
-		await engine.inject(changedEvent);
-		await engine.inject(stoppedEvent);
+		await runtime.inject(changedEvent);
+		await runtime.inject(stoppedEvent);
 
 		// Only the resource.changed event was delivered
 		expect(actor.delivered).toHaveLength(1);
 		expect(actor.delivered[0].event.type).toBe('resource.changed');
 
-		await engine.stop();
+		await runtime.stop();
 	});
 
 	it('multi-route fan-out — same source, two routes, both actors receive event', async () => {
@@ -259,18 +271,21 @@ describe('E2E pipeline', () => {
 			],
 		});
 
-		const engine = new OrgLoop(config, {
-			sources: new Map([['shared-source', source]]),
-			actors: new Map([
-				['actor-a', actorA],
-				['actor-b', actorB],
-			]),
+		const runtime = Runtime.singleModule(config, {
+			runtime: { crashHandlers: false },
+			load: {
+				sources: new Map([['shared-source', source]]),
+				actors: new Map([
+					['actor-a', actorA],
+					['actor-b', actorB],
+				]),
+			},
 		});
 
-		await engine.start();
+		await runtime.start();
 
 		const event = createTestEvent({ source: 'shared-source', type: 'resource.changed' });
-		await engine.inject(event);
+		await runtime.inject(event);
 
 		expect(actorA.delivered).toHaveLength(1);
 		expect(actorB.delivered).toHaveLength(1);
@@ -278,7 +293,7 @@ describe('E2E pipeline', () => {
 		expect(actorA.delivered[0].event.id).toBe(event.id);
 		expect(actorB.delivered[0].event.id).toBe(event.id);
 
-		await engine.stop();
+		await runtime.stop();
 	});
 
 	it('actor.stopped feedback loop — delivery triggers supervisor via second route', async () => {
@@ -310,25 +325,28 @@ describe('E2E pipeline', () => {
 			],
 		});
 
-		const engine = new OrgLoop(config, {
-			sources: new Map([
-				['worker-source', workerSource],
-				['worker', new MockSource('worker')],
-			]),
-			actors: new Map([
-				['worker', worker],
-				['supervisor', supervisor],
-			]),
+		const runtime = Runtime.singleModule(config, {
+			runtime: { crashHandlers: false },
+			load: {
+				sources: new Map([
+					['worker-source', workerSource],
+					['worker', new MockSource('worker')],
+				]),
+				actors: new Map([
+					['worker', worker],
+					['supervisor', supervisor],
+				]),
+			},
 		});
 
-		await engine.start();
+		await runtime.start();
 
 		// Step 1: deliver work event to worker
 		const workEvent = createTestEvent({
 			source: 'worker-source',
 			type: 'resource.changed',
 		});
-		await engine.inject(workEvent);
+		await runtime.inject(workEvent);
 		expect(worker.delivered).toHaveLength(1);
 
 		// Step 2: simulate actor.stopped feedback (as if the worker finished)
@@ -341,7 +359,7 @@ describe('E2E pipeline', () => {
 				summary: 'Task completed',
 			},
 		});
-		await engine.inject(stoppedEvent);
+		await runtime.inject(stoppedEvent);
 
 		// Supervisor should receive the actor.stopped event
 		expect(supervisor.delivered).toHaveLength(1);
@@ -351,7 +369,7 @@ describe('E2E pipeline', () => {
 		// Worker should NOT receive the actor.stopped (no route for that)
 		expect(worker.delivered).toHaveLength(1); // still just the original work event
 
-		await engine.stop();
+		await runtime.stop();
 	});
 
 	it('logger receives all pipeline phases — source.emit, route.match, deliver.attempt, deliver.success', async () => {
@@ -372,19 +390,22 @@ describe('E2E pipeline', () => {
 			loggers: [{ name: 'phase-logger', type: 'mock', config: {} }],
 		});
 
-		const engine = new OrgLoop(config, {
-			sources: new Map([['test-source', source]]),
-			actors: new Map([['test-actor', actor]]),
-			loggers: new Map([['phase-logger', logger]]),
+		const runtime = Runtime.singleModule(config, {
+			runtime: { crashHandlers: false },
+			load: {
+				sources: new Map([['test-source', source]]),
+				actors: new Map([['test-actor', actor]]),
+				loggers: new Map([['phase-logger', logger]]),
+			},
 		});
 
-		await engine.start();
+		await runtime.start();
 
 		const event = createTestEvent({
 			source: 'test-source',
 			type: 'resource.changed',
 		});
-		await engine.inject(event);
+		await runtime.inject(event);
 
 		// Verify all four pipeline phases were logged for this event
 		const eventEntries = logger.entriesForEvent(event.id);
@@ -416,7 +437,7 @@ describe('E2E pipeline', () => {
 		const traceIds = new Set(eventEntries.map((e) => e.trace_id));
 		expect(traceIds.size).toBe(1);
 
-		await engine.stop();
+		await runtime.stop();
 	});
 
 	it('webhook source — HTTP POST flows through pipeline to actor', async () => {
@@ -480,16 +501,18 @@ describe('E2E pipeline', () => {
 			],
 		});
 
-		const engine = new OrgLoop(config, {
-			sources: new Map([['webhook-src', webhookSource]]),
-			actors: new Map([['webhook-actor', actor]]),
-			httpPort: port,
+		const runtime = Runtime.singleModule(config, {
+			runtime: { crashHandlers: false, httpPort: port },
+			load: {
+				sources: new Map([['webhook-src', webhookSource]]),
+				actors: new Map([['webhook-actor', actor]]),
+			},
 		});
 
-		await engine.start();
+		await runtime.start();
 
 		// Verify the webhook server is running
-		const status = engine.status();
+		const status = runtime.status();
 		expect(status.httpPort).toBe(port);
 
 		// POST an event to the webhook endpoint
@@ -509,6 +532,6 @@ describe('E2E pipeline', () => {
 		expect(actor.delivered[0].event.type).toBe('resource.changed');
 		expect(actor.delivered[0].event.payload).toMatchObject({ action: 'test-action', pr: 42 });
 
-		await engine.stop();
+		await runtime.stop();
 	});
 });

@@ -52,11 +52,11 @@ cd my-org
 
 # Install connector packages
 npm install @orgloop/connector-github @orgloop/connector-linear \
-  @orgloop/connector-claude-code @orgloop/connector-openclaw \
+  @orgloop/connector-coding-agent @orgloop/connector-openclaw \
   @orgloop/transform-filter @orgloop/transform-dedup
 
-# Or use the harness-agnostic coding-agent connector (works with Claude Code, Codex, OpenCode, Pi, Pi-rust):
-# npm install @orgloop/connector-coding-agent   (instead of @orgloop/connector-claude-code)
+# @orgloop/connector-coding-agent is harness-agnostic — set `harness: claude-code`
+# (or codex / opencode / pi / pi-rust) in the source config to select the profile.
 
 # Install Claude Code hook (emits actor.stopped on session exit)
 orgloop hook claude-code-stop
@@ -155,7 +155,6 @@ sources:
 
 ```yaml
 # Claude Code source — session lifecycle events via webhook
-# Uses the backward-compat alias; @orgloop/connector-coding-agent also works here.
 
 apiVersion: orgloop/v1alpha1
 kind: ConnectorGroup
@@ -163,10 +162,11 @@ kind: ConnectorGroup
 sources:
   - id: claude-code
     description: Claude Code session lifecycle events
-    connector: "@orgloop/connector-claude-code"
+    connector: "@orgloop/connector-coding-agent"
+    config:
+      harness: claude-code
     emits:
       - actor.stopped
-      - resource.changed
 ```
 
 ### `connectors/openclaw.yaml`

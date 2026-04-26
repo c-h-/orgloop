@@ -13,14 +13,16 @@ This is the most important architectural decision for long-term flexibility. Don
 
 ```typescript
 // The core library — this is the foundation
-// Option A: OrgLoop wrapper (single-project convenience API)
-import { OrgLoop, OrgLoopConfig, OrgLoopOptions } from '@orgloop/core';
+// Option A: Runtime.singleModule (single-project convenience factory)
+import { Runtime, type OrgLoopConfig, type SingleModuleOptions } from '@orgloop/core';
 
-const loop = new OrgLoop(config, {
-  sources: sourcesMap,   // Map<string, SourceConnector>
-  actors: actorsMap,     // Map<string, ActorConnector>
+const runtime = Runtime.singleModule(config, {
+  load: {
+    sources: sourcesMap,   // Map<string, SourceConnector>
+    actors: actorsMap,     // Map<string, ActorConnector>
+  },
 });
-await loop.start();
+await runtime.start();
 
 // Option B: Runtime (full control over lifecycle)
 import { Runtime } from '@orgloop/core';
@@ -77,12 +79,12 @@ The CLI creates a `Runtime` instance and loads the project config as a single un
 
 ### Mode 2: Library/SDK Mode
 
-**Import:** `import { OrgLoop } from '@orgloop/core'`
+**Import:** `import { Runtime } from '@orgloop/core'`
 
 For teams building custom tooling or integrating OrgLoop into existing systems. The core is a library — embed it in your own application, hook into its events, extend its behavior programmatically.
 
 ```typescript
-import { OrgLoop, OrgLoopConfig } from '@orgloop/core';
+import { Runtime, type OrgLoopConfig } from '@orgloop/core';
 
 // Programmatic configuration (not just YAML)
 const config: OrgLoopConfig = {
@@ -104,25 +106,25 @@ const config: OrgLoopConfig = {
   }],
 };
 
-const loop = new OrgLoop(config);
+const runtime = Runtime.singleModule(config);
 
 // Hook into engine events
-loop.on('event', (event) => {
+runtime.on('event', (event) => {
   console.log('Event received:', event.id);
 });
 
-loop.on('delivery', (result) => {
+runtime.on('delivery', (result) => {
   myMetricsSystem.record('orgloop.delivery', result);
 });
 
-// Inject events programmatically
-loop.inject({
+await runtime.start();
+
+// Inject events programmatically (after start, when the module is loaded)
+await runtime.inject({
   source: 'custom',
   type: 'resource.changed',
   payload: { /* ... */ },
 });
-
-await loop.start();
 ```
 
 **Who uses this:** Platform teams embedding OrgLoop in a larger system. Internal tools that need event routing as a component, not a standalone daemon. Teams that want programmatic config (not YAML) or custom event sources.
@@ -182,10 +184,10 @@ POST /webhook/:sourceId    Receive webhook events for hook-based sources
 │  └──────────┘  └──────────┘  └────────┘  └───────────────────┘ │
 │                                                                  │
 │  Public API:                                                     │
-│    new OrgLoop(config) — single-project convenience wrapper      │
-│    loop.start() / loop.stop() / loop.inject(event)               │
+│    Runtime.singleModule(config) — single-project factory         │
+│    runtime.start() / runtime.stop() / runtime.inject(event)      │
 │                                                                  │
-│    new Runtime() — full lifecycle control (used by CLI)           │
+│    new Runtime() — full lifecycle control (used by CLI)          │
 │    runtime.start() / runtime.stop()                              │
 │    runtime.loadModule(config, connectors) — internal API         │
 └───────────┬──────────────────────┬───────────────────┬──────────┘
@@ -194,7 +196,7 @@ POST /webhook/:sourceId    Receive webhook events for hook-based sources
    │  @orgloop/cli   │   │ @orgloop/server │  │  Your app      │
    │                 │   │                 │  │                │
    │  orgloop start  │   │  Re-exports     │  │  import {      │
-   │  orgloop status │   │  core +         │  │    OrgLoop     │
+   │  orgloop status │   │  core +         │  │    Runtime     │
    │  orgloop logs   │   │  registerRestApi│  │  } from core   │
    │  orgloop test   │   │                 │  │                │
    └─────────────────┘   └─────────────────┘  └────────────────┘
@@ -206,5 +208,5 @@ POST /webhook/:sourceId    Receive webhook events for hook-based sources
 | Mode | Priority | Notes |
 |------|----------|-------|
 | CLI mode (`orgloop start`) | **MVP** | Ship first. This proves the core works. |
-| Library mode (`import { OrgLoop }`) | **MVP** | Comes free with library-first design. The CLI already uses it. |
+| Library mode (`import { Runtime }`) | **MVP** | Comes free with library-first design. The CLI already uses it. |
 | Server mode (built-in HTTP API) | **Implemented** | REST API, control API, and webhook endpoints are built into the runtime. Available on every `orgloop start`. |

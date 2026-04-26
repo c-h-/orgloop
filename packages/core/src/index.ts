@@ -10,10 +10,6 @@ export { AuditTrail, contentHash, generateAuditId } from './audit.js';
 export type { BusHandler, EventBus } from './bus.js';
 // Event bus
 export { FileWalBus, InMemoryBus } from './bus.js';
-export type { EngineStatus, OrgLoopOptions, SourceCircuitBreakerOptions } from './engine.js';
-// Main engine
-export { OrgLoop } from './engine.js';
-
 // Errors
 export {
 	ConfigError,
@@ -61,8 +57,14 @@ export { registerRestApi } from './rest-api.js';
 export type { MatchedRoute } from './router.js';
 // Router
 export { matchRoutes } from './router.js';
-export type { LoadModuleOptions, RouteStats, RuntimeOptions } from './runtime.js';
-// Runtime (new architecture)
+export type {
+	LoadModuleOptions,
+	RouteStats,
+	RuntimeOptions,
+	SingleModuleOptions,
+	SourceCircuitBreakerOptions,
+} from './runtime.js';
+// Runtime (single entry point — replaces the legacy OrgLoop wrapper)
 export { Runtime } from './runtime.js';
 // Scheduler
 export { Scheduler } from './scheduler.js';
@@ -83,3 +85,12 @@ export { Supervisor } from './supervisor.js';
 export type { TransformPipelineOptions, TransformPipelineResult } from './transform.js';
 // Transform pipeline
 export { executeTransformPipeline } from './transform.js';
+// Validation
+export type {
+	PluginRegistration,
+	ValidateProjectArgs,
+	ValidationError as ProjectValidationError,
+	ValidationResult,
+	ValidationWarning,
+} from './validate.js';
+export { connectorKey, loggerKey, transformKey, validateProject } from './validate.js';

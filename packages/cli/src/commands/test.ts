@@ -151,12 +151,9 @@ export function registerTestCommand(program: Command): void {
 				// Load config to find matching routes
 				const config = await loadCliConfig({ configPath: globalOpts.config });
 
-				// Find matching routes
-				const matchedRoutes = config.routes.filter((r) => {
-					if (r.when.source !== event.source) return false;
-					if (!r.when.events.includes(event.type)) return false;
-					return true;
-				});
+				// Use core's matchRoutes for parity with the runtime path.
+				const { matchRoutes } = await import('@orgloop/core');
+				const matchedRoutes = matchRoutes(event, config.routes).map((m) => m.route);
 
 				if (matchedRoutes.length === 0) {
 					output.warn('No routes matched this event.');
@@ -209,28 +206,14 @@ export function registerTestCommand(program: Command): void {
 							duration_ms: 0,
 						});
 					} else {
-						// Try to inject via core engine
-						try {
-							const core = await import('@orgloop/core');
-							const engine = new core.OrgLoop(config);
-							const start = Date.now();
-							await engine.inject(event);
-							const duration = Date.now() - start;
-							output.success(`Delivery: ${route.then.actor} — OK (${duration}ms)`);
-							results.push({
-								step: `deliver:${route.then.actor}`,
-								status: 'ok',
-								duration_ms: duration,
-							});
-						} catch {
-							// Core not available — simulate
-							output.success(`Delivery: ${route.then.actor} — OK (simulated)`);
-							results.push({
-								step: `deliver:${route.then.actor}`,
-								status: 'simulated',
-								duration_ms: 0,
-							});
-						}
+						// Simulated delivery — no Runtime construction. Real delivery happens
+						// against the daemon via `orgloop start` + webhook injection.
+						output.success(`Delivery: ${route.then.actor} — OK (simulated)`);
+						results.push({
+							step: `deliver:${route.then.actor}`,
+							status: 'simulated',
+							duration_ms: 0,
+						});
 					}
 				}
 

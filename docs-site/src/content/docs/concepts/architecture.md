@@ -19,16 +19,13 @@ orgloop/
     github/       @orgloop/connector-github          Poll: GitHub REST API
     linear/       @orgloop/connector-linear           Poll: Linear GraphQL API
     coding-agent/ @orgloop/connector-coding-agent      Hook: harness-agnostic session lifecycle
-    claude-code/  @orgloop/connector-claude-code      Backward-compat alias for coding-agent
+                                                        (selects per-harness profile via `harness` config:
+                                                         claude-code, codex, opencode, pi, pi-rust)
     openclaw/     @orgloop/connector-openclaw          Target: delivers to OpenClaw agents
     webhook/      @orgloop/connector-webhook           Generic HTTP source + target
     cron/         @orgloop/connector-cron              Scheduled: cron + interval syntax
     agent-ctl/    @orgloop/connector-agent-ctl        Poll: AI agent session lifecycle
     docker/       @orgloop/connector-docker            Target: Docker container + Kind cluster control
-    codex/        @orgloop/connector-codex              Hook: Codex session lifecycle
-    opencode/     @orgloop/connector-opencode           Hook: OpenCode session lifecycle
-    pi/           @orgloop/connector-pi                 Hook: Pi session lifecycle
-    pi-rust/      @orgloop/connector-pi-rust            Hook: Pi-rust session lifecycle
     gog/          @orgloop/connector-gog               Poll: Gmail via gog CLI
 
   transforms/
@@ -131,7 +128,7 @@ The bus is the spine. Routes are explicit allow-lists -- actors only see events 
 | Class | File | Role |
 |-------|------|------|
 | `Runtime` | `packages/core/src/runtime.ts` | Core runtime. Owns bus, scheduler, loggers, HTTP control server. |
-| `OrgLoop` | `packages/core/src/engine.ts` | Convenience wrapper around Runtime for single-project use. |
+| `Runtime.singleModule()` | `packages/core/src/runtime.ts` | Convenience factory for single-project use. |
 | `matchRoutes()` | `packages/core/src/router.ts` | Dot-path filtering, multi-route matching. Returns all routes an event matches. |
 | `executeTransformPipeline()` | `packages/core/src/transform.ts` | Runs transforms sequentially. Fail-open default. |
 | `Scheduler` | `packages/core/src/scheduler.ts` | Manages poll intervals for all sources. Graceful start/stop. |
@@ -225,7 +222,7 @@ OrgLoop supports three runtime modes:
 | **Library** | `import { Runtime } from '@orgloop/core'` | Programmatic embedding. |
 | **Server** | `@orgloop/server` | HTTP REST API for monitoring and control (built into the runtime). |
 
-The CLI is the primary interface. The library mode exposes the `Runtime` class (or the `OrgLoop` wrapper) for programmatic use. The runtime includes a built-in HTTP server (default port 4800) that exposes both a REST API (`/api/*` for status, routes, events, sources, metrics) and a control API (`/control/*` for module load/unload/reload and shutdown).
+The CLI is the primary interface. The library mode exposes the `Runtime` class for programmatic use, including `Runtime.singleModule()` for single-project setups. The runtime includes a built-in HTTP server (default port 4800) that exposes both a REST API (`/api/*` for status, routes, events, sources, metrics) and a control API (`/control/*` for module load/unload/reload and shutdown).
 
 ## Further Reading
 

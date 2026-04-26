@@ -11,6 +11,7 @@
 
 import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { ConfigError } from '@orgloop/core';
 import type { CredentialValidator, OrgLoopConfig, ServiceDetector } from '@orgloop/sdk';
 import chalk from 'chalk';
 import type { Command } from 'commander';
@@ -64,6 +65,14 @@ export async function checkValidation(configPath: string): Promise<DoctorCheck[]
 		const { results, graphWarnings } = await runValidation(configPath);
 
 		// Convert validation results to doctor checks
+		if (results.length === 0) {
+			checks.push({
+				category: 'config',
+				name: configPath,
+				status: 'ok',
+				detail: 'all checks passed',
+			});
+		}
 		for (const result of results) {
 			if (result.valid) {
 				checks.push({
@@ -92,6 +101,10 @@ export async function checkValidation(configPath: string): Promise<DoctorCheck[]
 			});
 		}
 	} catch (err) {
+		// Missing env vars are a credential issue; credential checks will report them
+		if (err instanceof ConfigError && err.message.includes('Environment variable')) {
+			return checks;
+		}
 		checks.push({
 			category: 'config',
 			name: 'orgloop.yaml',

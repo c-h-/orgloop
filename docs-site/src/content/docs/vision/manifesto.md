@@ -70,7 +70,7 @@ sources:
     poll: { interval: 5m }
 
   - id: claude-code
-    connector: "@orgloop/connector-claude-code"
+    connector: "@orgloop/connector-coding-agent"
     # Hook-based: receives session lifecycle events via webhook
 
 actors:
@@ -122,7 +122,7 @@ Read that and you see an organization's nervous system. Every event that matters
 
 sources:
   - id: claude-code
-    connector: "@orgloop/connector-claude-code"
+    connector: "@orgloop/connector-coding-agent"
     # Hook-based: receives session lifecycle events via webhook    # Emits actor.stopped when a session ends
 
 actors:

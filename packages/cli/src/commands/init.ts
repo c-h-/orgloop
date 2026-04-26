@@ -14,40 +14,35 @@ import chalk from 'chalk';
 import type { Command } from 'commander';
 import { getEnvVarMeta } from '../env-metadata.js';
 import * as output from '../output.js';
+import { listConnectorIds, listConnectorPackageMap } from '../plugin-catalog.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // ─── Connectors ──────────────────────────────────────────────────────────────
+//
+// Init's scaffold UI derives its connector list from PLUGIN_CATALOG, plus a
+// few ergonomic aliases (slack/pagerduty) that re-use the generic webhook
+// connector under different YAML scaffolds.
 
-const AVAILABLE_CONNECTORS = [
-	'github',
-	'linear',
-	'openclaw',
-	'coding-agent',
-	'claude-code',
-	'codex',
-	'opencode',
-	'pi',
-	'pi-rust',
-	'webhook',
-	'slack',
-	'pagerduty',
-];
+const CATALOG_CONNECTOR_IDS = listConnectorIds();
+const CATALOG_PACKAGE_MAP = listConnectorPackageMap();
 
-/** Map connector short names to npm package names. */
-const CONNECTOR_PACKAGES: Record<string, string> = {
-	github: '@orgloop/connector-github',
-	linear: '@orgloop/connector-linear',
-	openclaw: '@orgloop/connector-openclaw',
-	'coding-agent': '@orgloop/connector-coding-agent',
-	'claude-code': '@orgloop/connector-claude-code',
-	codex: '@orgloop/connector-codex',
-	opencode: '@orgloop/connector-opencode',
-	pi: '@orgloop/connector-pi',
-	'pi-rust': '@orgloop/connector-pi-rust',
-	webhook: '@orgloop/connector-webhook',
+const ALIAS_PACKAGES: Record<string, string> = {
 	slack: '@orgloop/connector-webhook',
 	pagerduty: '@orgloop/connector-webhook',
+	// Harness short-names map to the unified coding-agent connector (P4).
+	'claude-code': '@orgloop/connector-coding-agent',
+	codex: '@orgloop/connector-coding-agent',
+	opencode: '@orgloop/connector-coding-agent',
+	pi: '@orgloop/connector-coding-agent',
+	'pi-rust': '@orgloop/connector-coding-agent',
+};
+
+const AVAILABLE_CONNECTORS = [...CATALOG_CONNECTOR_IDS, ...Object.keys(ALIAS_PACKAGES)];
+
+const CONNECTOR_PACKAGES: Record<string, string> = {
+	...CATALOG_PACKAGE_MAP,
+	...ALIAS_PACKAGES,
 };
 
 /** Read the CLI's own version to use as a version hint for scaffolded projects. */
@@ -137,7 +132,7 @@ sources:
     description: Coding agent session lifecycle events
     connector: "@orgloop/connector-coding-agent"
     config:
-      platform: "claude-code"
+      harness: claude-code
       # secret: "\${WEBHOOK_SECRET}"
     emits:
       - actor.stopped`,
@@ -148,9 +143,57 @@ kind: ConnectorGroup
 sources:
   - id: claude-code
     description: Claude Code session events
-    connector: "@orgloop/connector-claude-code"
+    connector: "@orgloop/connector-coding-agent"
     config:
-      hook_type: post-exit
+      harness: claude-code
+    emits:
+      - actor.stopped`,
+
+		codex: `apiVersion: orgloop/v1alpha1
+kind: ConnectorGroup
+
+sources:
+  - id: codex
+    description: Codex session events
+    connector: "@orgloop/connector-coding-agent"
+    config:
+      harness: codex
+    emits:
+      - actor.stopped`,
+
+		opencode: `apiVersion: orgloop/v1alpha1
+kind: ConnectorGroup
+
+sources:
+  - id: opencode
+    description: OpenCode session events
+    connector: "@orgloop/connector-coding-agent"
+    config:
+      harness: opencode
+    emits:
+      - actor.stopped`,
+
+		pi: `apiVersion: orgloop/v1alpha1
+kind: ConnectorGroup
+
+sources:
+  - id: pi
+    description: Pi session events
+    connector: "@orgloop/connector-coding-agent"
+    config:
+      harness: pi
+    emits:
+      - actor.stopped`,
+
+		'pi-rust': `apiVersion: orgloop/v1alpha1
+kind: ConnectorGroup
+
+sources:
+  - id: pi-rust
+    description: Pi-rust session events
+    connector: "@orgloop/connector-coding-agent"
+    config:
+      harness: pi-rust
     emits:
       - actor.stopped`,
 

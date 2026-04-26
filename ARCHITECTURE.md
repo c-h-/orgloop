@@ -13,7 +13,7 @@ orgloop/
   connectors/
     github/       @orgloop/connector-github       Source: polls GitHub REST API for PR/issue/CI activity
     linear/       @orgloop/connector-linear       Source: polls Linear GraphQL API for issue/comment updates
-    claude-code/  @orgloop/connector-claude-code  Source: receives Claude Code session exits via webhook
+    coding-agent/ @orgloop/connector-coding-agent Source: harness-agnostic webhook receiver (claude-code, codex, opencode, pi, pi-rust)
     openclaw/     @orgloop/connector-openclaw     Target: delivers events to OpenClaw agents via HTTP
     webhook/      @orgloop/connector-webhook      Source + Target: generic inbound/outbound webhook
   transforms/
@@ -67,7 +67,7 @@ pnpm typecheck    # tsc --noEmit across all packages
 
 The `Runtime` class owns shared infrastructure: EventBus, Scheduler, LoggerManager, WebhookServer, and ModuleRegistry. Each `ModuleInstance` owns per-module resources (sources, actors, routes, transforms) and has an independent lifecycle: `loading` -> `active` -> `unloading` -> `removed`.
 
-The `OrgLoop` class is a backward-compatible wrapper that creates a single "default" module inside a Runtime, preserving the original single-module API.
+`Runtime.singleModule(config, options?)` creates a Runtime with a single default module for programmatic use.
 
 The CLI's `orgloop start` creates a `Runtime` and calls `loadModule()` for each configured module. The HTTP control API (`/control/module/*`) enables dynamic module management at runtime.
 
@@ -309,7 +309,7 @@ Start reading here to understand the system:
 | `packages/core/src/runtime.ts` | `Runtime` class -- multi-module runtime, owns shared infrastructure |
 | `packages/core/src/module-instance.ts` | `ModuleInstance` class -- per-module resource container and lifecycle |
 | `packages/core/src/registry.ts` | `ModuleRegistry` -- singleton module name registry |
-| `packages/core/src/engine.ts` | `OrgLoop` class -- backward-compatible wrapper around Runtime |
+| `packages/core/src/route-dispatcher.ts` | `RouteDispatcher` class -- per-route delivery and audit recording |
 | `packages/core/src/router.ts` | Route matching logic |
 | `packages/core/src/transform.ts` | Transform pipeline executor (script + package) |
 | `packages/core/src/bus.ts` | Event bus (InMemoryBus, FileWalBus) |

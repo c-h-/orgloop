@@ -1,16 +1,19 @@
 /**
  * Shared environment variable metadata for DX surfaces.
  *
- * Provides per-variable descriptions and help URLs so that CLI commands
- * (env, start, validate) can show actionable guidance for missing vars.
+ * Combines a curated registry of common credentials with harness-specific
+ * env vars sourced from PLUGIN_CATALOG so the env/doctor commands surface
+ * descriptions consistently.
  */
+
+import { PLUGIN_CATALOG } from './plugin-catalog.js';
 
 export interface EnvVarMeta {
 	description: string;
 	help_url?: string;
 }
 
-const ENV_VAR_METADATA: Record<string, EnvVarMeta> = {
+const STATIC_ENV_VAR_METADATA: Record<string, EnvVarMeta> = {
 	GITHUB_TOKEN: {
 		description: 'GitHub personal access token with repo scope',
 		help_url: 'https://github.com/settings/tokens/new?scopes=repo',
@@ -40,6 +43,23 @@ const ENV_VAR_METADATA: Record<string, EnvVarMeta> = {
 	},
 };
 
+function buildCatalogEnvIndex(): Record<string, EnvVarMeta> {
+	const out: Record<string, EnvVarMeta> = {};
+	for (const entry of PLUGIN_CATALOG) {
+		for (const harness of entry.harnesses ?? []) {
+			for (const v of harness.envVars) {
+				out[v.name] = {
+					description: v.description,
+					...(v.help_url ? { help_url: v.help_url } : {}),
+				};
+			}
+		}
+	}
+	return out;
+}
+
+const CATALOG_ENV_VAR_METADATA = buildCatalogEnvIndex();
+
 export function getEnvVarMeta(name: string): EnvVarMeta | undefined {
-	return ENV_VAR_METADATA[name];
+	return STATIC_ENV_VAR_METADATA[name] ?? CATALOG_ENV_VAR_METADATA[name];
 }

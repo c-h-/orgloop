@@ -362,8 +362,8 @@ OrgLoop Doctor — my-org
   Packages:
     ✓ @orgloop/connector-github (1.2.0)
     ✓ @orgloop/connector-openclaw (1.0.3)
-    ✗ @orgloop/connector-claude-code — not installed
-      Fix: npm install @orgloop/connector-claude-code
+    ✗ @orgloop/connector-coding-agent — not installed
+      Fix: npm install @orgloop/connector-coding-agent
 
   Services:
     ✓ OpenClaw running at localhost:18789 (v2.1.0)

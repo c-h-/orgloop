@@ -32,7 +32,7 @@ orgloop/
 │   │       ├── runtime.ts       # Runtime: long-lived host process (bus, scheduler, loggers, registry)
 │   │       ├── module-instance.ts # ModuleInstance: internal workload container (project loaded as single instance)
 │   │       ├── registry.ts      # ModuleRegistry: internal name → instance mapping
-│   │       ├── engine.ts        # OrgLoop: single-project convenience wrapper around Runtime
+│   │       ├── route-dispatcher.ts # Per-route actor delivery and audit recording
 │   │       ├── router.ts        # Route matching + dispatch
 │   │       ├── transform.ts     # Transform pipeline executor
 │   │       ├── logger.ts        # Logger fan-out manager
@@ -119,22 +119,12 @@ orgloop/
 │   │       ├── index.ts         # Connector registration
 │   │       └── source.ts        # Harness-agnostic webhook receiver (normalized lifecycle)
 │   │
-│   ├── claude-code/             # @orgloop/connector-claude-code (backward-compat alias)
-│   │   └── src/
-│   │       ├── index.ts         # Re-exports coding-agent with claude-code ID
-│   │       └── source.ts        # Re-exports CodingAgentSource
-│   │
-│   ├── codex/                   # @orgloop/connector-codex
-│   │   └── src/                 # Hook: Codex session lifecycle (delegates to coding-agent)
-│   │
-│   ├── opencode/                # @orgloop/connector-opencode
-│   │   └── src/                 # Hook: OpenCode session lifecycle (delegates to coding-agent)
-│   │
-│   ├── pi/                      # @orgloop/connector-pi
-│   │   └── src/                 # Hook: Pi session lifecycle (delegates to coding-agent)
-│   │
-│   ├── pi-rust/                 # @orgloop/connector-pi-rust
-│   │   └── src/                 # Hook: Pi-rust session lifecycle (delegates to coding-agent)
+│   │       └── harness-profiles/          # Per-harness runtime profiles
+│   │           ├── claude-code.ts         # Hook: Claude Code session lifecycle
+│   │           ├── codex.ts               # Hook: Codex session lifecycle
+│   │           ├── opencode.ts            # Hook: OpenCode session lifecycle
+│   │           ├── pi.ts                  # Hook: Pi session lifecycle
+│   │           └── pi-rust.ts             # Hook: Pi-rust session lifecycle
 │   │
 │   ├── cron/                    # @orgloop/connector-cron
 │   │   └── src/

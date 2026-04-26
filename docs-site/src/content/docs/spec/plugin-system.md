@@ -48,7 +48,7 @@ Additional first-party connectors are installed separately:
 ```bash
 npm install @orgloop/connector-linear
 npm install @orgloop/connector-openclaw
-npm install @orgloop/connector-claude-code
+npm install @orgloop/connector-coding-agent
 npm install @orgloop/connector-cron
 ```
 
@@ -93,7 +93,7 @@ export default function register(): ConnectorRegistration {
 ```
 
 4. For each source/actor in config, `resolveConnectors()` instantiates `new reg.source()` or `new reg.target()`, building `sources: Map<string, SourceConnector>` and `actors: Map<string, ActorConnector>`
-5. These Maps are passed to the runtime via `runtime.loadModule()` (an internal API). The `OrgLoop` wrapper class accepts `new OrgLoop(config, { sources, actors })` for programmatic use -- it creates a `Runtime` internally.
+5. These Maps are passed to the runtime via `runtime.loadModule()` (an internal API). For programmatic use, `Runtime.singleModule(config, { load: { sources, actors } })` constructs a Runtime that loads the project as a single module on `start()`.
 6. If a connector import fails, the CLI suggests `npm install <package>` to the user
 
 **Plugin resolution order:**

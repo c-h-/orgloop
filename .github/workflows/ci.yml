@@ -33,6 +33,8 @@ jobs:
 
       - run: pnpm build
 
+      - run: pnpm run sync-plugin-catalog
+
       - run: pnpm test
 
       - run: pnpm typecheck
