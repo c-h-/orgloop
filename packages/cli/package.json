@@ -19,12 +19,12 @@
     "@orgloop/core": "workspace:*",
     "@orgloop/sdk": "workspace:*",
     "@types/js-yaml": "^4.0.9",
-    "ajv": "^8.18.0",
+    "ajv": "^8.20.0",
     "chalk": "^5.4.0",
     "commander": "^14.0.3",
     "inquirer": "^13.4.2",
     "js-yaml": "^4.1.0",
-    "ora": "^9.3.0"
+    "ora": "^9.4.0"
   },
   "devDependencies": {
     "@orgloop/connector-agent-ctl": "workspace:*",
