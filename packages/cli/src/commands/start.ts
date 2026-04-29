@@ -332,8 +332,9 @@ async function runForeground(configPath?: string, force?: boolean): Promise<void
 		await runtime.startHttpServer();
 
 		// Register REST API endpoints
-		const { registerRestApi } = await import('@orgloop/core');
+		const { registerRestApi, registerInboxApi } = await import('@orgloop/core');
 		registerRestApi(runtime);
+		registerInboxApi(runtime);
 
 		// Register /api/doctor endpoint (needs CLI-level config resolution)
 		const resolvedDoctorConfigPath = resolveConfigPath(configPath);
