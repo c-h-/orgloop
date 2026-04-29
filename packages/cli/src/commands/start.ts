@@ -288,8 +288,8 @@ async function runForeground(configPath?: string, force?: boolean): Promise<void
 		return;
 	}
 
-	// Create Runtime instance and start
-	const runtime = new RuntimeClass();
+	// Create Runtime instance and start (inbox always enabled — routes opt-in via inbox: true)
+	const runtime = new RuntimeClass({ inbox: {} });
 
 	// Ensure PID/port files are always cleaned up
 	process.on('exit', () => {
