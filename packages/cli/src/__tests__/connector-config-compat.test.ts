@@ -150,51 +150,10 @@ describe('Linear connector config compatibility', () => {
 	});
 });
 
-// ─── Claude Code source ──────────────────────────────────────────────────────
-
-describe('Claude Code connector config compatibility', () => {
-	it('init() accepts the config shape from YAML templates (hook_type)', async () => {
-		const mod = await import('@orgloop/connector-claude-code');
-		const reg = mod.default();
-		expect(reg.source).toBeDefined();
-		const Source = reg.source as NonNullable<typeof reg.source>;
-		const source = new Source();
-
-		// This matches examples/production/connectors/claude-code.yaml
-		await expect(
-			source.init({
-				id: 'claude-code',
-				connector: '@orgloop/connector-claude-code',
-				config: {
-					hook_type: 'post-exit',
-				},
-			}),
-		).resolves.not.toThrow();
-	});
-
-	it('init() accepts empty config (webhook-based, no config needed)', async () => {
-		const mod = await import('@orgloop/connector-claude-code');
-		const reg = mod.default();
-		expect(reg.source).toBeDefined();
-		const Source = reg.source as NonNullable<typeof reg.source>;
-		const source = new Source();
-
-		await expect(
-			source.init({
-				id: 'claude-code',
-				connector: '@orgloop/connector-claude-code',
-				config: {},
-			}),
-		).resolves.not.toThrow();
-	});
-
-	it('register() returns a valid source class', async () => {
-		const mod = await import('@orgloop/connector-claude-code');
-		const registration = mod.default();
-		expect(registration.id).toBe('claude-code');
-		expect(registration.source).toBeDefined();
-	});
-});
+// Claude Code, Codex, OpenCode, Pi, Pi-rust are all served by the
+// harness-agnostic @orgloop/connector-coding-agent connector now (P4
+// consolidation). The Coding Agent block below covers the
+// harness-parametrized init() conformance.
 
 // ─── Coding Agent source ──────────────────────────────────────────────────────
 
@@ -261,175 +220,42 @@ describe('Coding Agent connector config compatibility', () => {
 	});
 });
 
-// ─── Codex source ─────────────────────────────────────────────────────────────
+// ─── Coding Agent harness conformance (parametrized) ────────────────────────
 
-describe('Codex connector config compatibility', () => {
-	it('init() accepts empty config (webhook-based, no config needed)', async () => {
-		const mod = await import('@orgloop/connector-codex');
+describe.each([
+	'claude-code',
+	'codex',
+	'opencode',
+	'pi',
+	'pi-rust',
+] as const)('coding-agent harness=%s', (harness) => {
+	it('init() accepts a config block selecting the harness profile', async () => {
+		const mod = await import('@orgloop/connector-coding-agent');
 		const reg = mod.default();
 		expect(reg.source).toBeDefined();
 		const Source = reg.source as NonNullable<typeof reg.source>;
 		const source = new Source();
-
 		await expect(
 			source.init({
-				id: 'codex',
-				connector: '@orgloop/connector-codex',
-				config: {},
+				id: harness,
+				connector: '@orgloop/connector-coding-agent',
+				config: { harness },
 			}),
 		).resolves.not.toThrow();
 	});
 
-	it('init() accepts config with secret', async () => {
-		const mod = await import('@orgloop/connector-codex');
+	it('init() accepts a config block with secret + harness', async () => {
+		const mod = await import('@orgloop/connector-coding-agent');
 		const reg = mod.default();
-		expect(reg.source).toBeDefined();
 		const Source = reg.source as NonNullable<typeof reg.source>;
 		const source = new Source();
-
 		await expect(
 			source.init({
-				id: 'codex',
-				connector: '@orgloop/connector-codex',
-				config: { secret: 'test-secret' },
+				id: harness,
+				connector: '@orgloop/connector-coding-agent',
+				config: { harness, secret: 'test-secret' },
 			}),
 		).resolves.not.toThrow();
-	});
-
-	it('register() returns a valid source class', async () => {
-		const mod = await import('@orgloop/connector-codex');
-		const registration = mod.default();
-		expect(registration.id).toBe('codex');
-		expect(registration.source).toBeDefined();
-	});
-});
-
-// ─── OpenCode source ──────────────────────────────────────────────────────────
-
-describe('OpenCode connector config compatibility', () => {
-	it('init() accepts empty config (webhook-based, no config needed)', async () => {
-		const mod = await import('@orgloop/connector-opencode');
-		const reg = mod.default();
-		expect(reg.source).toBeDefined();
-		const Source = reg.source as NonNullable<typeof reg.source>;
-		const source = new Source();
-
-		await expect(
-			source.init({
-				id: 'opencode',
-				connector: '@orgloop/connector-opencode',
-				config: {},
-			}),
-		).resolves.not.toThrow();
-	});
-
-	it('init() accepts config with secret', async () => {
-		const mod = await import('@orgloop/connector-opencode');
-		const reg = mod.default();
-		expect(reg.source).toBeDefined();
-		const Source = reg.source as NonNullable<typeof reg.source>;
-		const source = new Source();
-
-		await expect(
-			source.init({
-				id: 'opencode',
-				connector: '@orgloop/connector-opencode',
-				config: { secret: 'test-secret' },
-			}),
-		).resolves.not.toThrow();
-	});
-
-	it('register() returns a valid source class', async () => {
-		const mod = await import('@orgloop/connector-opencode');
-		const registration = mod.default();
-		expect(registration.id).toBe('opencode');
-		expect(registration.source).toBeDefined();
-	});
-});
-
-// ─── Pi source ────────────────────────────────────────────────────────────────
-
-describe('Pi connector config compatibility', () => {
-	it('init() accepts empty config (webhook-based, no config needed)', async () => {
-		const mod = await import('@orgloop/connector-pi');
-		const reg = mod.default();
-		expect(reg.source).toBeDefined();
-		const Source = reg.source as NonNullable<typeof reg.source>;
-		const source = new Source();
-
-		await expect(
-			source.init({
-				id: 'pi',
-				connector: '@orgloop/connector-pi',
-				config: {},
-			}),
-		).resolves.not.toThrow();
-	});
-
-	it('init() accepts config with secret', async () => {
-		const mod = await import('@orgloop/connector-pi');
-		const reg = mod.default();
-		expect(reg.source).toBeDefined();
-		const Source = reg.source as NonNullable<typeof reg.source>;
-		const source = new Source();
-
-		await expect(
-			source.init({
-				id: 'pi',
-				connector: '@orgloop/connector-pi',
-				config: { secret: 'test-secret' },
-			}),
-		).resolves.not.toThrow();
-	});
-
-	it('register() returns a valid source class', async () => {
-		const mod = await import('@orgloop/connector-pi');
-		const registration = mod.default();
-		expect(registration.id).toBe('pi');
-		expect(registration.source).toBeDefined();
-	});
-});
-
-// ─── Pi-rust source ───────────────────────────────────────────────────────────
-
-describe('Pi-rust connector config compatibility', () => {
-	it('init() accepts empty config (webhook-based, no config needed)', async () => {
-		const mod = await import('@orgloop/connector-pi-rust');
-		const reg = mod.default();
-		expect(reg.source).toBeDefined();
-		const Source = reg.source as NonNullable<typeof reg.source>;
-		const source = new Source();
-
-		await expect(
-			source.init({
-				id: 'pi-rust',
-				connector: '@orgloop/connector-pi-rust',
-				config: {},
-			}),
-		).resolves.not.toThrow();
-	});
-
-	it('init() accepts config with secret', async () => {
-		const mod = await import('@orgloop/connector-pi-rust');
-		const reg = mod.default();
-		expect(reg.source).toBeDefined();
-		const Source = reg.source as NonNullable<typeof reg.source>;
-		const source = new Source();
-
-		await expect(
-			source.init({
-				id: 'pi-rust',
-				connector: '@orgloop/connector-pi-rust',
-				config: { secret: 'test-secret' },
-			}),
-		).resolves.not.toThrow();
-	});
-
-	it('register() returns a valid source class', async () => {
-		const mod = await import('@orgloop/connector-pi-rust');
-		const registration = mod.default();
-		expect(registration.id).toBe('pi-rust');
-		expect(registration.source).toBeDefined();
 	});
 });
 

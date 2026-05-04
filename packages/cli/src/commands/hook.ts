@@ -160,14 +160,47 @@ export function transformClaudeCodePayload(raw: ClaudeCodeStdinPayload): ClaudeC
 
 // ─── Command registration ────────────────────────────────────────────────────
 
+interface GenericHookActionOptions {
+	source?: string;
+	port?: string;
+}
+
+function makeGenericHookAction(defaultSource: string) {
+	return async (opts: GenericHookActionOptions): Promise<void> => {
+		const port = resolvePort(opts.port);
+		let body: string;
+		try {
+			body = await readStdin();
+		} catch {
+			process.stderr.write('orgloop hook: failed to read stdin\n');
+			process.exitCode = 1;
+			return;
+		}
+		try {
+			const result = await postToWebhook(opts.source ?? defaultSource, body, port);
+			if (!result.ok) {
+				process.stderr.write(`orgloop hook: webhook returned ${result.status}: ${result.body}\n`);
+				process.exitCode = 1;
+			}
+		} catch (err) {
+			if (isConnectionError(err)) return;
+			process.stderr.write(`orgloop hook: ${err instanceof Error ? err.message : String(err)}\n`);
+			process.exitCode = 1;
+		}
+	};
+}
+
 export function registerHookCommand(program: Command): void {
 	const hook = program.command('hook').description('Forward hook events to running OrgLoop engine');
 
+	// claude-code-stop is special: enriches the payload with OpenClaw session metadata
+	// before posting. All other harnesses are raw stdin pass-through.
 	hook
 		.command('claude-code-stop')
-		.description('Forward Claude Code stop hook event')
+		.description('Forward Claude Code stop hook event (with OpenClaw enrichment)')
 		.option('--port <port>', 'Engine webhook port')
-		.action(async (opts) => {
+		.option('--source <id>', 'Source ID to deliver to', 'claude-code')
+		.action(async (opts: GenericHookActionOptions) => {
 			const port = resolvePort(opts.port);
 
 			let body: string;
@@ -189,21 +222,61 @@ export function registerHookCommand(program: Command): void {
 			}
 
 			try {
-				const result = await postToWebhook('claude-code', body, port);
+				const result = await postToWebhook(opts.source ?? 'claude-code', body, port);
 				if (!result.ok) {
 					process.stderr.write(`orgloop hook: webhook returned ${result.status}: ${result.body}\n`);
 					process.exitCode = 1;
 				}
 			} catch (err) {
-				// Hook delivery is opportunistic — if the engine isn't running,
-				// degrade gracefully. The host tool should never feel broken.
-				if (isConnectionError(err)) {
-					// Engine not running — this is normal, exit 0 silently
-					return;
-				}
-				// Genuine error (malformed request, unexpected failure) — report it
+				if (isConnectionError(err)) return;
 				process.stderr.write(`orgloop hook: ${err instanceof Error ? err.message : String(err)}\n`);
 				process.exitCode = 1;
 			}
 		});
+
+	// Generic stop hooks — raw stdin pass-through. The source's webhook handler
+	// resolves lifecycle phase from the payload.
+	hook
+		.command('codex-stop')
+		.description('Forward Codex stop hook event')
+		.option('--port <port>', 'Engine webhook port')
+		.option('--source <id>', 'Source ID to deliver to', 'codex')
+		.action(makeGenericHookAction('codex'));
+
+	hook
+		.command('opencode-stop')
+		.description('Forward OpenCode stop hook event')
+		.option('--port <port>', 'Engine webhook port')
+		.option('--source <id>', 'Source ID to deliver to', 'opencode')
+		.action(makeGenericHookAction('opencode'));
+
+	hook
+		.command('pi-stop')
+		.description('Forward Pi stop hook event')
+		.option('--port <port>', 'Engine webhook port')
+		.option('--source <id>', 'Source ID to deliver to', 'pi')
+		.action(makeGenericHookAction('pi'));
+
+	hook
+		.command('pi-rust-stop')
+		.description('Forward pi-rust stop hook event')
+		.option('--port <port>', 'Engine webhook port')
+		.option('--source <id>', 'Source ID to deliver to', 'pi-rust')
+		.action(makeGenericHookAction('pi-rust'));
+
+	// Generic start hooks — raw stdin pass-through. Payloads include
+	// `hook_type: 'start'` so the webhook handler emits resource.changed.
+	hook
+		.command('claude-code-start')
+		.description('Forward Claude Code start hook event')
+		.option('--port <port>', 'Engine webhook port')
+		.option('--source <id>', 'Source ID to deliver to', 'claude-code')
+		.action(makeGenericHookAction('claude-code'));
+
+	hook
+		.command('codex-start')
+		.description('Forward Codex start hook event')
+		.option('--port <port>', 'Engine webhook port')
+		.option('--source <id>', 'Source ID to deliver to', 'codex')
+		.action(makeGenericHookAction('codex'));
 }

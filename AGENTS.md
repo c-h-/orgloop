@@ -77,7 +77,6 @@ connectors/
   github/         — Poll-based: PR reviews, comments, CI failures, bot detection
   github-webhook/ — Webhook-based: real-time GitHub event delivery, reuses github normalizers
   linear/         — Poll-based: GraphQL, state change detection, comments
-  claude-code/  — Backward-compat alias for coding-agent (delegates to coding-agent)
   openclaw/     — Target: POST delivery to OpenClaw agent webhooks
   webhook/      — Generic: source (HMAC validation) + target (configurable HTTP)
   cron/         — Scheduled: cron expressions + interval syntax
@@ -117,7 +116,6 @@ The `Runtime` owns the shared infrastructure (bus, scheduler, loggers, HTTP serv
 | `Runtime` | `packages/core/src/runtime.ts` | Multi-module runtime. Owns bus, scheduler, registry, HTTP control server. |
 | `ModuleInstance` | `packages/core/src/module-instance.ts` | Per-module resource container. Sources, actors, transforms, lifecycle (loading/active/unloading/removed). |
 | `ModuleRegistry` | `packages/core/src/registry.ts` | Singleton module name registry. Prevents conflicts. |
-| `OrgLoop` | `packages/core/src/engine.ts` | Backward-compatible wrapper around Runtime. Single-module convenience API. |
 | Daemon Client | `packages/cli/src/daemon-client.ts` | HTTP client for communicating with a running daemon's control API. |
 | Module Registry (CLI) | `packages/cli/src/module-registry.ts` | Persistent module tracking (`~/.orgloop/modules.json`). Maps directories to loaded modules across CLI commands. |
 | `matchRoutes()` | `packages/core/src/router.ts` | Dot-path filtering, multi-route matching |
@@ -180,12 +178,10 @@ Every plugin type (connector, transform, logger) must be wired through the **ful
 | Connector resolution | `packages/cli/src/__tests__/resolve-connectors.test.ts` | 7 |
 | Connector config field compatibility | `packages/cli/src/__tests__/connector-config-compat.test.ts` | 40 |
 | GitHub webhook (signature, normalization, filtering) | `connectors/github-webhook/src/__tests__/source.test.ts` | 31 |
-| Coding agent (harness-agnostic) lifecycle | `connectors/coding-agent/src/__tests__/source.test.ts` | 30 |
-| Claude Code backward compat | `connectors/claude-code/src/__tests__/source.test.ts` | 4 |
-| Codex lifecycle conformance | `connectors/codex/src/__tests__/source.test.ts` | 26 |
-| OpenCode lifecycle conformance | `connectors/opencode/src/__tests__/source.test.ts` | 26 |
-| Pi lifecycle conformance | `connectors/pi/src/__tests__/source.test.ts` | 26 |
-| Pi-rust lifecycle conformance | `connectors/pi-rust/src/__tests__/source.test.ts` | 26 |
+| Coding agent (harness-agnostic) lifecycle | `connectors/coding-agent/src/__tests__/source.test.ts` | 42 |
+| Coding-agent harness conformance (parametrized) | `connectors/coding-agent/src/__tests__/harness-conformance.test.ts` | 37 |
+| Route dispatcher (status states, prompt file, validation) | `packages/core/src/__tests__/route-dispatcher.test.ts` | 9 |
+| Validate project (configSchema keying regression) | `packages/core/src/__tests__/validate.test.ts` | 3 |
 | Router matching | `packages/core/src/__tests__/router.test.ts` | — |
 | Event bus | `packages/core/src/__tests__/bus.test.ts` | — |
 | Checkpoint store (file + memory, atomic writes) | `packages/core/src/__tests__/store.test.ts` | 17 |

@@ -101,7 +101,7 @@ defaults:
 sources:
   - id: claude-code
     description: Claude Code session lifecycle events
-    connector: "@orgloop/connector-claude-code"
+    connector: "@orgloop/connector-coding-agent"
     emits:
       - actor.stopped
       - resource.changed

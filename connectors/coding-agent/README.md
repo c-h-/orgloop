@@ -116,9 +116,24 @@ POST a JSON body to the connector's webhook endpoint:
 | `hook_type` | `string` | no | `start` or `stop` (defaults to `stop`) |
 | `timestamp` | `string` | no | Optional ISO 8601 timestamp |
 
-## Backward compatibility
+## Migrating from the per-harness packages
 
-The `@orgloop/connector-claude-code` package is now a thin alias that delegates to this connector. Existing configs using `connector: "@orgloop/connector-claude-code"` continue to work unchanged.
+The previous `@orgloop/connector-{claude-code,codex,opencode,pi,pi-rust}` packages
+have been removed. Replace them with `@orgloop/connector-coding-agent` and select
+the harness profile via the `harness` config field:
+
+```yaml
+sources:
+  - id: claude-code
+    connector: "@orgloop/connector-coding-agent"
+    config:
+      harness: claude-code
+```
+
+Existing configs that set `platform` (without `harness`) keep working: when
+`platform` matches a known harness name (`claude-code`, `codex`, `opencode`, `pi`,
+`pi-rust`) the connector selects that harness profile and the explicit `platform`
+value is preserved in event provenance and dedupe keys.
 
 ## Example route
 

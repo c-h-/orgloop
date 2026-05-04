@@ -16,9 +16,9 @@ defaults:
 sources:
   - id: claude-code
     description: Claude Code session completion events
-    connector: "@orgloop/connector-claude-code"
+    connector: "@orgloop/connector-coding-agent"
     config:
-      hook_type: post-exit
+      harness: claude-code
     emits:
       - actor.stopped
 

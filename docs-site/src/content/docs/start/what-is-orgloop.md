@@ -58,7 +58,7 @@ sources:
       interval: 5m
 
   - id: claude-code
-    connector: "@orgloop/connector-claude-code"
+    connector: "@orgloop/connector-coding-agent"
     emits:
       - actor.stopped
 

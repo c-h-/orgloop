@@ -115,16 +115,11 @@ describe('first-party connector registrations include env_vars', () => {
 		expect(def.required).toBe(false);
 	});
 
-	it('claude-code connector declares env_vars and integrations', async () => {
-		const { default: register } = await import('../../../../connectors/claude-code/src/index.js');
+	it('coding-agent connector declares env_vars (per-harness metadata lives in CLI catalog)', async () => {
+		const { default: register } = await import('../../../../connectors/coding-agent/src/index.js');
 		const reg = register();
 		expect(reg.setup?.env_vars).toBeDefined();
-		expect(reg.setup?.env_vars?.length).toBeGreaterThanOrEqual(0);
-		const secret = reg.setup?.env_vars?.find((v) => v.name === 'CLAUDE_CODE_WEBHOOK_SECRET');
-		if (secret) {
-			expect(secret.required).toBe(false);
-		}
-		expect(reg.setup?.integrations).toBeDefined();
+		expect(reg.setup?.env_vars?.length).toBeGreaterThanOrEqual(1);
 	});
 
 	it('webhook connector declares WEBHOOK_SECRET as optional', async () => {

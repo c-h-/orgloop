@@ -169,9 +169,9 @@ The generalized, harness-agnostic coding agent connector. Receives webhook event
 | `platform` | string | Platform identifier. Defaults to source ID. |
 | `harness` | string | Harness type (`claude-code`, `codex`, `opencode`, `pi`, `pi-rust`). Defaults to platform. |
 
-**Claude Code** (`@orgloop/connector-claude-code`):
+**Per-harness packages (removed)**:
 
-Backward-compatible alias for `@orgloop/connector-coding-agent`. Registers with ID `claude-code` and delegates to `CodingAgentSource`. Existing configs continue to work unchanged. For new projects, consider using `@orgloop/connector-coding-agent` directly for harness-agnostic routing.
+The `@orgloop/connector-claude-code`, `@orgloop/connector-codex`, `@orgloop/connector-opencode`, `@orgloop/connector-pi`, and `@orgloop/connector-pi-rust` packages have been removed. Use `@orgloop/connector-coding-agent` and select the harness via the `harness` config field (e.g. `harness: claude-code`). Existing configs that set `platform` to a known harness name continue to work — the connector resolves the same profile and preserves the explicit `platform` value in event provenance.
 
 **Webhook** (`@orgloop/connector-webhook`):
 

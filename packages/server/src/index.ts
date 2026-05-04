@@ -5,4 +5,4 @@
  */
 
 export type { ApiHandler, EventHistoryOptions, EventRecord, RouteStats } from '@orgloop/core';
-export { OrgLoop, registerRestApi } from '@orgloop/core';
+export { Runtime, registerRestApi } from '@orgloop/core';

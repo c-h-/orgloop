@@ -1,4 +1,5 @@
-# Claude Code source — session completion events via post-exit hook
+# Claude Code source — session completion events via the harness-agnostic
+# coding-agent connector.
 
 apiVersion: orgloop/v1alpha1
 kind: ConnectorGroup
@@ -6,8 +7,8 @@ kind: ConnectorGroup
 sources:
   - id: claude-code
     description: Claude Code session completion events
-    connector: "@orgloop/connector-claude-code"
+    connector: "@orgloop/connector-coding-agent"
     config:
-      hook_type: post-exit
+      harness: claude-code
     emits:
       - actor.stopped

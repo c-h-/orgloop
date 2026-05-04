@@ -38,10 +38,12 @@ sources:
         interval: 5m
 
   - id: claude-code
-    connector: "@orgloop/connector-claude-code"
+    connector: "@orgloop/connector-coding-agent"
+    config:
+      harness: claude-code
 ```
 
-The `claude-code` connector is a backward-compatible alias for `@orgloop/connector-coding-agent`, which works with any coding harness (Claude Code, Codex, OpenCode, Pi, Pi-rust). All emit [normalized lifecycle events](/spec/lifecycle-contract/).
+The `@orgloop/connector-coding-agent` connector works with any coding harness (Claude Code, Codex, OpenCode, Pi, Pi-rust) selected via the `harness:` config field. All emit [normalized lifecycle events](/spec/lifecycle-contract/). The legacy `@orgloop/connector-claude-code` package has been removed; existing configs should migrate to `@orgloop/connector-coding-agent` with `harness: claude-code`.
 
 Secrets never live in YAML. Use `${VAR_NAME}` for environment variable substitution.
 
@@ -178,7 +180,9 @@ sources:
         interval: 5m
 
   - id: claude-code
-    connector: "@orgloop/connector-claude-code"
+    connector: "@orgloop/connector-coding-agent"
+    config:
+      harness: claude-code
 
 actors:
   - id: engineering

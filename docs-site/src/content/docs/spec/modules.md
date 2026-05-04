@@ -95,7 +95,7 @@ Connectors, transforms, and loggers are npm packages. The project's `package.jso
   "dependencies": {
     "@orgloop/connector-github": "^0.1.0",
     "@orgloop/connector-linear": "^0.1.0",
-    "@orgloop/connector-claude-code": "^0.1.0",
+    "@orgloop/connector-coding-agent": "^0.1.0",
     "@orgloop/connector-openclaw": "^0.1.0",
     "@orgloop/connector-cron": "^0.1.0",
     "@orgloop/transform-filter": "^0.1.0",

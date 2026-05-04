@@ -303,7 +303,7 @@ curl http://127.0.0.1:4800/api/doctor
 
 ---
 
-## Packages (26)
+## Packages
 
 | Package | Description |
 |---------|-------------|
@@ -312,13 +312,10 @@ curl http://127.0.0.1:4800/api/doctor
 | `@orgloop/cli` | CLI (`init`, `plan`, `start`, `status`, `doctor`, ...) |
 | `@orgloop/server` | HTTP API server (re-exports core + REST API) |
 | `@orgloop/connector-github` | Poll-based: PRs, reviews, CI, comments |
+| `@orgloop/connector-github-webhook` | Webhook-based: GitHub real-time events |
 | `@orgloop/connector-linear` | Poll-based: issues, comments, state changes |
-| `@orgloop/connector-coding-agent` | Hook-based: harness-agnostic session lifecycle (Claude Code, Codex, OpenCode, Pi, Pi-rust) |
-| `@orgloop/connector-claude-code` | Backward-compat alias for coding-agent |
-| `@orgloop/connector-codex` | Hook-based: Codex session lifecycle |
-| `@orgloop/connector-opencode` | Hook-based: OpenCode session lifecycle |
-| `@orgloop/connector-pi` | Hook-based: Pi session lifecycle |
-| `@orgloop/connector-pi-rust` | Hook-based: Pi-rust session lifecycle |
+| `@orgloop/connector-linear-webhook` | Webhook-based: Linear real-time events |
+| `@orgloop/connector-coding-agent` | Hook-based: harness-agnostic session lifecycle. Selects per-harness profile (Claude Code, Codex, OpenCode, Pi, Pi-rust) via the `harness` config field. |
 | `@orgloop/connector-openclaw` | Target: POST delivery to OpenClaw agents (callback-first, dynamic threadId) |
 | `@orgloop/connector-webhook` | Generic: source (HMAC) + target (HTTP) |
 | `@orgloop/connector-cron` | Scheduled: cron expressions + intervals |

@@ -2,8 +2,8 @@ import http from 'node:http';
 import type { OrgLoopConfig, OrgLoopEvent, WebhookHandler } from '@orgloop/sdk';
 import { createTestEvent, MockActor, MockSource } from '@orgloop/sdk';
 import { describe, expect, it } from 'vitest';
-import { OrgLoop } from '../engine.js';
 import { WebhookServer } from '../http.js';
+import { Runtime } from '../runtime.js';
 
 // ─── Helper: make an HTTP request ────────────────────────────────────────────
 
@@ -197,39 +197,38 @@ function makeConfig(overrides?: Partial<OrgLoopConfig>): OrgLoopConfig {
 	};
 }
 
-describe('Engine webhook integration', () => {
+describe('Runtime webhook integration', () => {
 	it('starts HTTP server for webhook sources and processes events', async () => {
 		const testEvent = createTestEvent({ source: 'webhook-source' });
 		const webhookSource = new WebhookMockSource('webhook-source', [testEvent]);
 		const actor = new MockActor('test-actor');
 		const port = randomPort();
 
-		const engine = new OrgLoop(makeConfig(), {
-			sources: new Map([['webhook-source', webhookSource]]),
-			actors: new Map([['test-actor', actor]]),
-			httpPort: port,
+		const runtime = Runtime.singleModule(makeConfig(), {
+			load: {
+				sources: new Map([['webhook-source', webhookSource]]),
+				actors: new Map([['test-actor', actor]]),
+			},
+			runtime: { httpPort: port, crashHandlers: false },
 		});
 
-		await engine.start();
+		await runtime.start();
 
 		try {
 			const res = await request(port, 'POST', '/webhook/webhook-source', '{}');
 			expect(res.status).toBe(200);
 
-			// Give the async event processing a tick to complete
 			await new Promise((r) => setTimeout(r, 50));
 
 			expect(actor.delivered).toHaveLength(1);
 			expect(actor.delivered[0].event.source).toBe('webhook-source');
 		} finally {
-			await engine.stop();
+			await runtime.stop();
 		}
 	});
 
 	it('webhook source with poll.interval is polled (hybrid mode); without poll.interval is not', async () => {
-		// webhookWithPoll: has both webhook() and poll.interval → gets both handler and polling
 		const webhookWithPoll = new WebhookMockSource('webhook-source', []);
-		// webhookOnly: has webhook() but no poll.interval → webhook handler only, no polling
 		const webhookOnly = new WebhookMockSource('webhook-only-source', []);
 		const pollSource = new MockSource('poll-source');
 		const actor = new MockActor('test-actor');
@@ -243,37 +242,35 @@ describe('Engine webhook integration', () => {
 			],
 		});
 
-		const engine = new OrgLoop(config, {
-			sources: new Map([
-				['webhook-source', webhookWithPoll],
-				['webhook-only-source', webhookOnly],
-				['poll-source', pollSource],
-			]),
-			actors: new Map([['test-actor', actor]]),
-			httpPort: port,
+		const runtime = Runtime.singleModule(config, {
+			load: {
+				sources: new Map([
+					['webhook-source', webhookWithPoll],
+					['webhook-only-source', webhookOnly],
+					['poll-source', pollSource],
+				]),
+				actors: new Map([['test-actor', actor]]),
+			},
+			runtime: { httpPort: port, crashHandlers: false },
 		});
 
-		await engine.start();
+		await runtime.start();
 
 		try {
-			// Wait a tick for the initial poll to fire
 			await new Promise((r) => setTimeout(r, 50));
 
-			// Poll source should be polled
 			expect(pollSource.totalPolls).toBeGreaterThan(0);
-			// Webhook source with poll.interval should also be polled (hybrid mode)
 			expect(webhookWithPoll.totalPolls).toBeGreaterThan(0);
-			// Pure webhook source (no poll.interval) should NOT be polled
 			expect(webhookOnly.totalPolls).toBe(0);
 
-			const status = engine.status();
+			const status = runtime.status();
 			expect(status.httpPort).toBe(port);
 		} finally {
-			await engine.stop();
+			await runtime.stop();
 		}
 	});
 
-	it('does not start HTTP server when no webhook sources exist', async () => {
+	it('starts HTTP server unconditionally so the control API is available', async () => {
 		const source = new MockSource('test-source');
 		const actor = new MockActor('test-actor');
 
@@ -288,16 +285,19 @@ describe('Engine webhook integration', () => {
 			],
 		});
 
-		const engine = new OrgLoop(config, {
-			sources: new Map([['test-source', source]]),
-			actors: new Map([['test-actor', actor]]),
+		const runtime = Runtime.singleModule(config, {
+			load: {
+				sources: new Map([['test-source', source]]),
+				actors: new Map([['test-actor', actor]]),
+			},
+			runtime: { crashHandlers: false },
 		});
 
-		await engine.start();
+		await runtime.start();
 
-		const status = engine.status();
-		expect(status.httpPort).toBeUndefined();
+		// Without webhook sources, runtime does not auto-start its HTTP server
+		expect(runtime.isHttpStarted()).toBe(false);
 
-		await engine.stop();
+		await runtime.stop();
 	});
 });

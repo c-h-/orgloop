@@ -30,7 +30,7 @@ The manifesto ends with that promise. Everything below is the path to making it 
 
 - `@orgloop/connector-github` — poll-based, PR activity, CI status
 - `@orgloop/connector-linear` — poll-based, ticket state changes
-- `@orgloop/connector-claude-code` — hook-based, exit notifications
+- `@orgloop/connector-coding-agent` — hook-based, exit notifications
 - `@orgloop/connector-openclaw` — webhook target, agent wake
 - `@orgloop/connector-webhook` — generic inbound/outbound
 - Migrate each script one at a time: build -> test -> hard cut over -> clean up

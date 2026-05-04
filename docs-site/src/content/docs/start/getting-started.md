@@ -175,7 +175,7 @@ orgloop init
 
 Select **github**, **linear**, **openclaw**, and **claude-code** in the connector picker. The wizard will also offer to install the Claude Code post-exit hook.
 
-> **Tip:** For new projects, you can use `@orgloop/connector-coding-agent` instead of `@orgloop/connector-claude-code`. The coding-agent connector is harness-agnostic — it works with Claude Code, Codex, OpenCode, Pi, and Pi-rust. The `claude-code` connector is a backward-compatible alias that delegates to `coding-agent`.
+> **Tip:** All coding-agent harnesses (Claude Code, Codex, OpenCode, Pi, Pi-rust) share one connector — `@orgloop/connector-coding-agent`. Select the harness via the `harness` config field. The previous per-harness packages (`@orgloop/connector-claude-code`, `@orgloop/connector-codex`, `@orgloop/connector-opencode`, `@orgloop/connector-pi`, `@orgloop/connector-pi-rust`) have been removed.
 
 ```bash
 cd my-org

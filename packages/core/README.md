@@ -34,20 +34,22 @@ await runtime.unloadModule('engineering');
 await runtime.stop();
 ```
 
-### Single-module (OrgLoop wrapper)
+### Single-module (Runtime.singleModule)
 
 ```typescript
-import { OrgLoop, loadConfig } from '@orgloop/core';
+import { Runtime, loadConfig } from '@orgloop/core';
 
-// Backward-compatible API -- creates a Runtime with one "default" module
-const config = await loadConfig('./orgloop.yaml');
-const loop = new OrgLoop(config, {
-  sources: mySourcesMap,
-  actors: myActorsMap,
+// Library entry-point -- creates a Runtime with one "default" module
+const config = await loadConfig({ configPath: './orgloop.yaml' });
+const runtime = Runtime.singleModule(config, {
+  load: {
+    sources: mySourcesMap,
+    actors: myActorsMap,
+  },
 });
 
-await loop.start();
-await loop.stop();
+await runtime.start();
+await runtime.stop();
 ```
 
 ## API
@@ -58,11 +60,9 @@ await loop.stop();
 - `RuntimeOptions` -- runtime constructor options (bus, httpPort, circuitBreaker, dataDir)
 - `LoadModuleOptions` -- options for loadModule() (sources, actors, transforms, loggers, checkpointStore)
 
-### Engine (single-module wrapper)
+### Single-module factory
 
-- `OrgLoop` -- backward-compatible wrapper around Runtime (extends EventEmitter)
-- `OrgLoopOptions` -- engine constructor options
-- `EngineStatus` -- runtime status type
+- `Runtime.singleModule(config, options?)` -- shortcut for library consumers; pre-loads one "default" module during start()
 
 ### Module lifecycle
 

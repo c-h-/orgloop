@@ -9,7 +9,7 @@ description: "Migration map, MVP scope, testing strategy, and success criteria f
 |---|---|---|---|
 | `~/.openclaw/scripts/github-activity-feed/poll.sh` | `@orgloop/connector-github` source | GitHub | Poll-based |
 | `~/.openclaw/scripts/linear-activity-feed/poll.sh` | `@orgloop/connector-linear` source | Linear | Poll-based |
-| `~/.openclaw/scripts/claude-code/notify-openclaw.sh` | `@orgloop/connector-claude-code` source | Claude Code | Hook-based |
+| `~/.openclaw/scripts/claude-code/notify-openclaw.sh` | `@orgloop/connector-coding-agent` source | Claude Code | Hook-based |
 | OpenClaw webhook (`POST /hooks/agent`) | `@orgloop/connector-openclaw` target | OpenClaw | Webhook |
 | LaunchAgent plists (cron) | OrgLoop scheduler (built-in) | -- | Runtime |
 | Ad-hoc jq filtering | `@orgloop/transform-filter` + scripts | -- | Transform |

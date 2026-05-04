@@ -40,21 +40,6 @@ importers:
         specifier: workspace:*
         version: link:../../packages/sdk
 
-  connectors/claude-code:
-    dependencies:
-      '@orgloop/connector-coding-agent':
-        specifier: workspace:*
-        version: link:../coding-agent
-      '@orgloop/sdk':
-        specifier: workspace:*
-        version: link:../../packages/sdk
-
-  connectors/codex:
-    dependencies:
-      '@orgloop/sdk':
-        specifier: workspace:*
-        version: link:../../packages/sdk
-
   connectors/coding-agent:
     dependencies:
       '@orgloop/sdk':
@@ -113,24 +98,6 @@ importers:
         version: link:../../packages/sdk
 
   connectors/openclaw:
-    dependencies:
-      '@orgloop/sdk':
-        specifier: workspace:*
-        version: link:../../packages/sdk
-
-  connectors/opencode:
-    dependencies:
-      '@orgloop/sdk':
-        specifier: workspace:*
-        version: link:../../packages/sdk
-
-  connectors/pi:
-    dependencies:
-      '@orgloop/sdk':
-        specifier: workspace:*
-        version: link:../../packages/sdk
-
-  connectors/pi-rust:
     dependencies:
       '@orgloop/sdk':
         specifier: workspace:*
@@ -217,12 +184,6 @@ importers:
       '@orgloop/connector-agent-ctl':
         specifier: workspace:*
         version: link:../../connectors/agent-ctl
-      '@orgloop/connector-claude-code':
-        specifier: workspace:*
-        version: link:../../connectors/claude-code
-      '@orgloop/connector-codex':
-        specifier: workspace:*
-        version: link:../../connectors/codex
       '@orgloop/connector-coding-agent':
         specifier: workspace:*
         version: link:../../connectors/coding-agent
@@ -244,18 +205,12 @@ importers:
       '@orgloop/connector-linear':
         specifier: workspace:*
         version: link:../../connectors/linear
+      '@orgloop/connector-linear-webhook':
+        specifier: workspace:*
+        version: link:../../connectors/linear-webhook
       '@orgloop/connector-openclaw':
         specifier: workspace:*
         version: link:../../connectors/openclaw
-      '@orgloop/connector-opencode':
-        specifier: workspace:*
-        version: link:../../connectors/opencode
-      '@orgloop/connector-pi':
-        specifier: workspace:*
-        version: link:../../connectors/pi
-      '@orgloop/connector-pi-rust':
-        specifier: workspace:*
-        version: link:../../connectors/pi-rust
       '@orgloop/connector-webhook':
         specifier: workspace:*
         version: link:../../connectors/webhook
